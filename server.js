@@ -286,9 +286,9 @@ let viglDiscoveryCache = [];
 let lastViglScan = null;
 let viglScanInProgress = false;
 
-// Run JavaScript VIGL Discovery (pure Node.js - no Python needed)
+// Fetch VIGL discoveries from real-time API service
 async function scanForViglPatterns() {
-  console.log('🔍 Running JavaScript VIGL Discovery...');
+  console.log('🔍 Fetching real-time VIGL discoveries from API...');
   
   // Prevent multiple simultaneous scans
   if (viglScanInProgress) {
@@ -307,12 +307,63 @@ async function scanForViglPatterns() {
   console.log('📁 Loading fresh VIGL discoveries from live data file...');
 
   try {
-    // Use pure JavaScript VIGL discovery system
-    const JavaScriptVIGLDiscovery = require('./vigl_discovery_js');
-    const viglDiscovery = new JavaScriptVIGLDiscovery();
+    // Fetch from real-time VIGL API service
+    const viglApiUrl = process.env.VIGL_API_URL || 'https://vigl-api-service.onrender.com';
+    const https = require('https');
     
-    const discoveries = await viglDiscovery.findVIGLPatterns();
-    console.log(`✅ JavaScript VIGL Discovery found ${discoveries.length} patterns`);
+    let discoveries = [];
+    
+    try {
+      // Fetch from VIGL API
+      const apiResponse = await new Promise((resolve, reject) => {
+        const req = https.get(`${viglApiUrl}/vigl/latest`, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch (e) {
+              reject(new Error('Invalid JSON response from VIGL API'));
+            }
+          });
+        });
+        
+        req.on('error', reject);
+        req.setTimeout(10000, () => reject(new Error('VIGL API timeout')));
+      });
+      
+      if (apiResponse.success && apiResponse.data) {
+        discoveries = apiResponse.data.map(d => ({
+          symbol: d.symbol,
+          name: d.company_name,
+          currentPrice: d.current_price,
+          marketCap: d.market_cap,
+          volumeSpike: d.volume_spike_ratio,
+          momentum: d.momentum,
+          breakoutStrength: d.pattern_strength,
+          sector: d.sector,
+          catalysts: d.catalysts,
+          similarity: d.vigl_similarity,
+          confidence: d.confidence_score,
+          isHighConfidence: d.is_high_confidence,
+          estimatedUpside: d.estimated_upside,
+          discoveredAt: d.discovered_at,
+          riskLevel: d.risk_level,
+          recommendation: d.recommendation
+        }));
+        
+        console.log(`✅ Fetched ${discoveries.length} real-time VIGL patterns from API`);
+        console.log(`📊 Last scan: ${apiResponse.scan_time || 'Unknown'}`);
+      } else {
+        throw new Error('Invalid API response format');
+      }
+      
+    } catch (apiError) {
+      console.error('❌ VIGL API fetch failed:', apiError.message);
+      
+      // If API fails, show error instead of fake data
+      throw new Error(`VIGL API service unavailable: ${apiError.message}`);
+    }
     
     // Enhance discoveries with proper target prices
     discoveries = discoveries.map(stock => {
