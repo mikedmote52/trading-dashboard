@@ -10,7 +10,7 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 const PortfolioIntelligence = require('./portfolio_intelligence');
-const { saveSimpleBackup } = require('./simple_data_backup');
+const { saveSimpleBackup } = require('./utils/simple_data_backup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
