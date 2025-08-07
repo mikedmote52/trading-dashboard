@@ -24,6 +24,15 @@ const ALPACA_CONFIG = {
   baseUrl: process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets'
 };
 
+// Debug logging
+console.log('🔐 Alpaca Config:', {
+  hasApiKey: !!ALPACA_CONFIG.apiKey,
+  hasSecretKey: !!ALPACA_CONFIG.secretKey,
+  baseUrl: ALPACA_CONFIG.baseUrl,
+  apiKeyLength: ALPACA_CONFIG.apiKey.length,
+  secretKeyLength: ALPACA_CONFIG.secretKey.length
+});
+
 // Global state
 let dashboardData = {
   portfolio: { positions: [], totalValue: 0, dailyPnL: 0 },
@@ -40,12 +49,14 @@ let dashboardData = {
 function makeAlpacaRequest(endpoint) {
   return new Promise((resolve, reject) => {
     if (!ALPACA_CONFIG.apiKey) {
+      console.log('❌ No API key configured');
       resolve(null); // Return null for mock data fallback
       return;
     }
 
+    const hostname = ALPACA_CONFIG.baseUrl.replace('https://', '').replace('http://', '');
     const options = {
-      hostname: ALPACA_CONFIG.baseUrl.replace('https://', ''),
+      hostname: hostname,
       path: `/v2/${endpoint}`,
       method: 'GET',
       headers: {
@@ -54,32 +65,51 @@ function makeAlpacaRequest(endpoint) {
       }
     };
 
+    console.log(`📡 Requesting: https://${hostname}/v2/${endpoint}`);
+
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          const parsed = JSON.parse(data);
+          if (res.statusCode !== 200) {
+            console.error(`❌ Alpaca API error: ${res.statusCode} - ${data}`);
+            resolve(null);
+          } else {
+            resolve(parsed);
+          }
         } catch (e) {
-          reject(new Error('Invalid JSON response'));
+          console.error('❌ Failed to parse Alpaca response:', e.message);
+          resolve(null);
         }
       });
     });
 
-    req.on('error', reject);
-    req.setTimeout(10000, () => reject(new Error('Request timeout')));
+    req.on('error', (err) => {
+      console.error('❌ Alpaca request failed:', err.message);
+      resolve(null);
+    });
+    req.setTimeout(10000, () => {
+      console.error('❌ Alpaca request timeout');
+      resolve(null);
+    });
     req.end();
   });
 }
 
 async function fetchAlpacaPositions() {
   try {
+    console.log('🔍 Fetching Alpaca positions...');
     const positions = await makeAlpacaRequest('positions');
     const account = await makeAlpacaRequest('account');
     
     if (!positions || !account) {
+      console.log('⚠️ No Alpaca data received, using mock data');
       return generateMockPortfolio();
     }
+    
+    console.log(`✅ Found ${positions.length} real positions from Alpaca`);
 
     return {
       positions: positions.map(pos => ({
