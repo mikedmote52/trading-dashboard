@@ -52,29 +52,25 @@
         </div>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div class="glass-effect rounded-xl p-6 text-center">
-                <div class="text-2xl mb-2">💰</div>
-                <div class="text-2xl font-bold" id="totalValue">$--</div>
-                <div class="text-blue-200 text-sm">Total Value</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="glass-effect rounded-xl p-6">
+                <div class="flex items-center mb-2">
+                    <div class="text-2xl mr-3">💰</div>
+                    <div>
+                        <div class="text-2xl font-bold" id="totalValue">$--</div>
+                        <div class="text-blue-200 text-sm">Portfolio Value</div>
+                    </div>
+                </div>
             </div>
             
-            <div class="glass-effect rounded-xl p-6 text-center">
-                <div class="text-2xl mb-2">📈</div>
-                <div class="text-2xl font-bold" id="dailyPnL">$--</div>
-                <div class="text-blue-200 text-sm">Daily P&L</div>
-            </div>
-            
-            <div class="glass-effect rounded-xl p-6 text-center">
-                <div class="text-2xl mb-2">🎯</div>
-                <div class="text-2xl font-bold" id="viglScore">--%</div>
-                <div class="text-blue-200 text-sm">VIGL Score</div>
-            </div>
-            
-            <div class="glass-effect rounded-xl p-6 text-center">
-                <div class="text-2xl mb-2">🛡️</div>
-                <div class="text-2xl font-bold" id="wolfRisk">--</div>
-                <div class="text-blue-200 text-sm">WOLF Risk</div>
+            <div class="glass-effect rounded-xl p-6">
+                <div class="flex items-center mb-2">
+                    <div class="text-2xl mr-3">📈</div>
+                    <div>
+                        <div class="text-2xl font-bold" id="dailyPnL">$--</div>
+                        <div class="text-blue-200 text-sm">Today's P&L</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -130,6 +126,48 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Trade Modal -->
+    <div id="tradeModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold" id="modalTitle">Execute Trade</h3>
+                <button onclick="closeTradeModal()" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-1">Action</label>
+                    <div class="text-lg font-bold" id="modalAction">BUY</div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-1">Symbol</label>
+                    <div class="text-lg font-bold" id="modalSymbol">--</div>
+                </div>
+                
+                <div>
+                    <label for="tradeQuantity" class="block text-sm font-medium text-blue-200 mb-1">Quantity</label>
+                    <input type="number" id="tradeQuantity" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
+                           min="1" max="1000" value="10">
+                </div>
+                
+                <div class="bg-blue-900 bg-opacity-30 rounded p-3">
+                    <div class="text-xs text-blue-200">Current Price: <span id="modalPrice">$--</span></div>
+                    <div class="text-xs text-blue-200">Estimated Cost: $<span id="estimatedCost">--</span></div>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button onclick="closeTradeModal()" class="flex-1 bg-gray-600 hover:bg-gray-700 py-2 rounded transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="executeTrade()" id="executeBtn" class="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded font-medium transition-colors">
+                        Execute Trade
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -303,15 +341,6 @@
                     `$${summary.dailyPnL?.toLocaleString() || '--'}`;
                 document.getElementById('dailyPnL').className = 
                     `text-2xl font-bold ${summary.dailyPnL >= 0 ? 'status-green' : 'status-red'}`;
-                
-                document.getElementById('viglScore').textContent = 
-                    `${Math.round((summary.viglScore || 0) * 100)}%`;
-                
-                document.getElementById('wolfRisk').textContent = 
-                    `${Math.round((summary.avgWolfRisk || 0) * 100)}%`;
-                document.getElementById('wolfRisk').className = 
-                    `text-2xl font-bold ${summary.avgWolfRisk < 0.4 ? 'status-green' : 
-                                         summary.avgWolfRisk < 0.6 ? 'status-yellow' : 'status-red'}`;
 
                 // Update sections
                 this.renderViglDiscoveries();
@@ -387,12 +416,51 @@
                     return;
                 }
                 
-                container.innerHTML = positions.map(pos => `
+                container.innerHTML = positions.map(pos => {
+                    // Generate thesis explanation based on WOLF analysis
+                    let thesis = '';
+                    let actionButtons = '';
+                    
+                    if (pos.riskAnalysis?.recommendation === 'SELL') {
+                        thesis = `High risk detected: ${pos.riskAnalysis.wolfScore >= 0.8 ? 'Extreme' : 'Significant'} downside risk. ${pos.unrealizedPnLPercent < -15 ? 'Large drawdown suggests momentum breakdown.' : 'Risk metrics indicate potential -25% loss if held.'} Consider exit to preserve capital.`;
+                        actionButtons = `
+                            <button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.min(pos.qty, 10)})" 
+                                    class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm font-medium transition-colors">
+                                🔻 Sell Position
+                            </button>`;
+                    } else if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
+                        thesis = `Strong opportunity: Low risk (${Math.round(pos.riskAnalysis.wolfScore * 100)}%) + profitable position (${pos.unrealizedPnLPercent.toFixed(1)}% gain). Momentum and risk metrics support adding to winner.`;
+                        actionButtons = `
+                            <button onclick="showTradeModal('buy', '${pos.symbol}', 10)" 
+                                    class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm font-medium transition-colors">
+                                📈 Add More
+                            </button>`;
+                    } else if (pos.riskAnalysis?.recommendation === 'REDUCE') {
+                        thesis = `Moderate risk warning: Position showing ${pos.riskAnalysis.wolfScore >= 0.6 ? 'elevated' : 'emerging'} risk signals. ${pos.unrealizedPnLPercent < -10 ? 'Drawdown suggests weakening momentum.' : 'Risk metrics suggest reducing exposure.'} Consider partial exit.`;
+                        actionButtons = `
+                            <button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.floor(pos.qty / 2)})" 
+                                    class="bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm font-medium transition-colors">
+                                ⚖️ Reduce Position
+                            </button>`;
+                    } else {
+                        thesis = `Monitor position: Risk levels acceptable (${Math.round(pos.riskAnalysis.wolfScore * 100)}%). ${pos.unrealizedPnLPercent >= 0 ? 'Position profitable - maintain current allocation.' : 'Minor drawdown within normal range - hold for recovery.'}`;
+                        actionButtons = `
+                            <button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.min(pos.qty, 10)})" 
+                                    class="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded text-sm transition-colors mr-2">
+                                Sell
+                            </button>
+                            <button onclick="showTradeModal('buy', '${pos.symbol}', 5)" 
+                                    class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm transition-colors">
+                                Buy
+                            </button>`;
+                    }
+                    
+                    return `
                     <div class="bg-white bg-opacity-10 rounded-lg p-4 border-l-4 ${
                         pos.riskAnalysis?.wolfScore >= 0.6 ? 'border-red-400' : 
                         pos.riskAnalysis?.wolfScore >= 0.4 ? 'border-yellow-400' : 'border-green-400'
                     }">
-                        <div class="flex justify-between items-start">
+                        <div class="flex justify-between items-start mb-3">
                             <div class="flex-1">
                                 <div class="flex items-center space-x-2 mb-2">
                                     <span class="font-bold text-lg">${pos.symbol}</span>
@@ -401,46 +469,35 @@
                                         (${pos.unrealizedPnLPercent >= 0 ? '+' : ''}${pos.unrealizedPnLPercent.toFixed(2)}%)
                                     </span>
                                 </div>
-                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div class="grid grid-cols-2 gap-4 text-sm mb-2">
                                     <div>Qty: ${pos.qty}</div>
                                     <div>Price: $${pos.currentPrice.toFixed(2)}</div>
                                     <div>Value: $${pos.marketValue.toLocaleString()}</div>
                                     <div>Avg: $${pos.avgEntryPrice.toFixed(2)}</div>
                                 </div>
-                                ${pos.riskAnalysis?.riskFactors?.length > 0 ? `
-                                    <div class="text-xs text-red-300 mt-2">
-                                        Risks: ${pos.riskAnalysis.riskFactors.join(', ')}
-                                    </div>
-                                ` : ''}
                             </div>
                             <div class="text-right">
-                                <div class="text-sm font-bold ${
-                                    pos.riskAnalysis?.wolfScore >= 0.6 ? 'status-red' : 
-                                    pos.riskAnalysis?.wolfScore >= 0.4 ? 'status-yellow' : 'status-green'
-                                }">WOLF: ${Math.round((pos.riskAnalysis?.wolfScore || 0) * 100)}%</div>
                                 <div class="text-lg font-bold ${
                                     pos.riskAnalysis?.recommendation === 'SELL' ? 'status-red' : 
-                                    pos.riskAnalysis?.recommendation === 'BUY_MORE' ? 'status-green' : 'status-yellow'
+                                    pos.riskAnalysis?.recommendation === 'BUY_MORE' ? 'status-green' : 
+                                    pos.riskAnalysis?.recommendation === 'REDUCE' ? 'status-yellow' : 'text-white'
                                 }">${pos.riskAnalysis?.recommendation || 'HOLD'}</div>
-                                <div class="text-xs text-blue-200 mb-2">${pos.riskAnalysis?.action || ''}</div>
-                                <div class="flex space-x-1">
-                                    ${pos.riskAnalysis?.recommendation === 'BUY_MORE' ? `
-                                        <button onclick="buyStock('${pos.symbol}', 5)" 
-                                                class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs transition-colors">
-                                            +5
-                                        </button>
-                                    ` : ''}
-                                    ${pos.riskAnalysis?.recommendation === 'SELL' ? `
-                                        <button onclick="sellStock('${pos.symbol}', ${Math.min(pos.qty, 10)})" 
-                                                class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs transition-colors">
-                                            Sell ${Math.min(pos.qty, 10)}
-                                        </button>
-                                    ` : ''}
-                                </div>
+                                <div class="text-xs text-blue-200">Risk: ${Math.round((pos.riskAnalysis?.wolfScore || 0) * 100)}%</div>
                             </div>
                         </div>
-                    </div>
-                `).join('');
+                        
+                        <!-- Thesis Explanation -->
+                        <div class="bg-black bg-opacity-20 rounded p-3 mb-3">
+                            <div class="text-xs font-bold text-blue-300 mb-1">📋 SYSTEM THESIS:</div>
+                            <div class="text-xs text-blue-100">${thesis}</div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="flex justify-end space-x-2">
+                            ${actionButtons}
+                        </div>
+                    </div>`;
+                }).join('');
             }
 
             renderRecentAlerts() {
@@ -537,20 +594,61 @@
             }
         }
 
-        // Global trading functions for button clicks
-        function buyStock(symbol, qty) {
-            if (window.dashboard) {
-                if (confirm(`Buy ${qty} shares of ${symbol}?`)) {
-                    window.dashboard.executeTrade('buy', symbol, qty);
-                }
-            }
+        // Trade Modal Functions
+        let currentTradeData = {};
+
+        function showTradeModal(action, symbol, defaultQty) {
+            // Find the position data to get current price
+            const position = window.dashboard?.data?.portfolio?.positions?.find(p => p.symbol === symbol);
+            const currentPrice = position?.currentPrice || 0;
+            
+            currentTradeData = {
+                action: action.toLowerCase(),
+                symbol: symbol,
+                price: currentPrice
+            };
+            
+            // Update modal content
+            document.getElementById('modalTitle').textContent = `${action.toUpperCase()} ${symbol}`;
+            document.getElementById('modalAction').textContent = action.toUpperCase();
+            document.getElementById('modalAction').className = `text-lg font-bold ${action.toLowerCase() === 'sell' ? 'text-red-400' : 'text-green-400'}`;
+            document.getElementById('modalSymbol').textContent = symbol;
+            document.getElementById('modalPrice').textContent = `$${currentPrice.toFixed(2)}`;
+            document.getElementById('tradeQuantity').value = defaultQty;
+            document.getElementById('executeBtn').className = `flex-1 py-2 rounded font-medium transition-colors ${action.toLowerCase() === 'sell' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`;
+            document.getElementById('executeBtn').textContent = `${action.toUpperCase()} ${symbol}`;
+            
+            // Update estimated cost
+            updateEstimatedCost();
+            
+            // Show modal
+            document.getElementById('tradeModal').classList.remove('hidden');
+            
+            // Add quantity change listener
+            document.getElementById('tradeQuantity').addEventListener('input', updateEstimatedCost);
         }
 
-        function sellStock(symbol, qty) {
+        function closeTradeModal() {
+            document.getElementById('tradeModal').classList.add('hidden');
+            currentTradeData = {};
+        }
+
+        function updateEstimatedCost() {
+            const quantity = parseInt(document.getElementById('tradeQuantity').value) || 0;
+            const cost = quantity * (currentTradeData.price || 0);
+            document.getElementById('estimatedCost').textContent = cost.toLocaleString();
+        }
+
+        async function executeTrade() {
+            const quantity = parseInt(document.getElementById('tradeQuantity').value);
+            if (!quantity || quantity <= 0) {
+                alert('Please enter a valid quantity');
+                return;
+            }
+            
             if (window.dashboard) {
-                if (confirm(`Sell ${qty} shares of ${symbol}?`)) {
-                    window.dashboard.executeTrade('sell', symbol, qty);
-                }
+                closeTradeModal();
+                await window.dashboard.executeTrade(currentTradeData.action, currentTradeData.symbol, quantity);
             }
         }
 
