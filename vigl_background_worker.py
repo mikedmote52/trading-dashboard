@@ -75,15 +75,15 @@ class VIGLDatabaseManager:
                     discovery.market_cap,
                     discovery.volume_spike_ratio,
                     discovery.price_momentum,
-                    discovery.pattern_strength,
+                    getattr(discovery, 'pattern_strength', discovery.vigl_similarity),  # Use vigl_similarity as fallback
                     getattr(discovery, 'sector', 'Unknown'),
                     discovery.risk_factors,
                     discovery.vigl_similarity,
-                    discovery.confidence_score,
-                    discovery.confidence_score >= 0.8,
+                    getattr(discovery, 'confidence_score', discovery.vigl_similarity),  # Use vigl_similarity as confidence
+                    discovery.vigl_similarity >= 0.8,
                     discovery.upside_potential,
                     discovery.risk_level,
-                    "STRONG BUY" if discovery.confidence_score >= 0.8 else "BUY",
+                    "STRONG BUY" if discovery.vigl_similarity >= 0.8 else "BUY",
                     session_id
                 ))
             
