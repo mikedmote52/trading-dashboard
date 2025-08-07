@@ -68,3 +68,67 @@ CREATE OR REPLACE VIEW top_vigl_patterns AS
 SELECT * FROM latest_vigl_discoveries
 WHERE confidence_score >= 0.8
 ORDER BY confidence_score DESC, volume_spike_ratio DESC;
+
+-- =====================================================
+-- PORTFOLIO MANAGEMENT TABLES
+-- =====================================================
+
+-- Table for portfolio alerts
+CREATE TABLE IF NOT EXISTS portfolio_alerts (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    current_price DECIMAL(10, 4),
+    entry_price DECIMAL(10, 4),
+    pnl_percent DECIMAL(8, 2),
+    market_value DECIMAL(12, 2),
+    position_weight DECIMAL(5, 2),
+    days_held INTEGER,
+    risk_score DECIMAL(4, 3),
+    action VARCHAR(20),  -- HOLD, SELL, REDUCE, TAKE_PROFIT, TRAIL_STOP
+    alert_level VARCHAR(20),  -- CRITICAL, WARNING, OPPORTUNITY, INFO
+    message TEXT,
+    thesis_status VARCHAR(30),  -- EXCEEDING_THESIS, ON_TRACK, UNDERPERFORMING, NO_THESIS
+    session_id UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for fast lookups
+CREATE INDEX IF NOT EXISTS idx_portfolio_symbol_time ON portfolio_alerts (symbol, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_alert_level ON portfolio_alerts (alert_level);
+CREATE INDEX IF NOT EXISTS idx_portfolio_session ON portfolio_alerts (session_id);
+
+-- Table for portfolio health summary
+CREATE TABLE IF NOT EXISTS portfolio_health (
+    id SERIAL PRIMARY KEY,
+    session_id UUID,
+    total_positions INTEGER,
+    total_value DECIMAL(12, 2),
+    average_pnl_percent DECIMAL(8, 2),
+    high_risk_positions INTEGER,
+    sell_signals INTEGER,
+    profit_signals INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- View for latest portfolio alerts (last analysis)
+CREATE OR REPLACE VIEW latest_portfolio_alerts AS
+SELECT DISTINCT ON (symbol) 
+    symbol, current_price, entry_price, pnl_percent,
+    market_value, position_weight, days_held,
+    risk_score, action, alert_level, message,
+    thesis_status, created_at
+FROM portfolio_alerts 
+WHERE created_at > NOW() - INTERVAL '24 hours'
+ORDER BY symbol, created_at DESC;
+
+-- View for critical portfolio alerts
+CREATE OR REPLACE VIEW critical_portfolio_alerts AS
+SELECT * FROM latest_portfolio_alerts
+WHERE alert_level IN ('CRITICAL', 'WARNING', 'OPPORTUNITY')
+ORDER BY 
+    CASE alert_level 
+        WHEN 'CRITICAL' THEN 1
+        WHEN 'WARNING' THEN 2
+        WHEN 'OPPORTUNITY' THEN 3
+    END,
+    risk_score DESC;

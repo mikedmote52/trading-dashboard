@@ -12,6 +12,22 @@ services:
         fromDatabase:
           name: vigl-database
           property: connectionString
+  
+  # Background Portfolio Manager Worker
+  - type: worker
+    name: portfolio-manager-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python portfolio_background_worker.py
+    envVars:
+      - key: APCA_API_KEY_ID
+        sync: false
+      - key: APCA_API_SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vigl-database
+          property: connectionString
     
   # Web API Service
   - type: web

@@ -51,6 +51,21 @@ class VIGLDiscovery(BaseModel):
     recommendation: str
     discovered_at: datetime
 
+class PortfolioAlert(BaseModel):
+    symbol: str
+    current_price: float
+    entry_price: float
+    pnl_percent: float
+    market_value: float
+    position_weight: float
+    days_held: int
+    risk_score: float
+    action: str
+    alert_level: str
+    message: str
+    thesis_status: str
+    created_at: datetime
+
 class APIResponse(BaseModel):
     success: bool
     data: List[VIGLDiscovery]
@@ -234,6 +249,125 @@ async def get_scan_statistics():
         
     except Exception as e:
         logger.error(f"❌ API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/portfolio/alerts")
+async def get_portfolio_alerts(
+    alert_level: Optional[str] = Query(None, description="Filter by alert level (CRITICAL, WARNING, OPPORTUNITY)")
+):
+    """Get latest portfolio alerts"""
+    try:
+        cursor = db.connection.cursor()
+        
+        if alert_level:
+            cursor.execute("""
+                SELECT * FROM latest_portfolio_alerts
+                WHERE alert_level = %s
+                ORDER BY risk_score DESC
+            """, (alert_level,))
+        else:
+            cursor.execute("""
+                SELECT * FROM latest_portfolio_alerts
+                ORDER BY 
+                    CASE alert_level 
+                        WHEN 'CRITICAL' THEN 1
+                        WHEN 'WARNING' THEN 2
+                        WHEN 'OPPORTUNITY' THEN 3
+                        ELSE 4
+                    END,
+                    risk_score DESC
+            """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        alerts_data = []
+        
+        for row in cursor.fetchall():
+            alerts_data.append(dict(zip(columns, row)))
+        
+        # Convert to Pydantic models
+        alerts = [PortfolioAlert(**data) for data in alerts_data]
+        
+        cursor.close()
+        
+        return {
+            "success": True,
+            "data": alerts,
+            "count": len(alerts),
+            "timestamp": datetime.now()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Portfolio alerts error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/portfolio/critical")
+async def get_critical_portfolio_alerts():
+    """Get only critical portfolio alerts"""
+    try:
+        cursor = db.connection.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM critical_portfolio_alerts
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        alerts_data = []
+        
+        for row in cursor.fetchall():
+            alerts_data.append(dict(zip(columns, row)))
+        
+        alerts = [PortfolioAlert(**data) for data in alerts_data]
+        
+        cursor.close()
+        
+        return {
+            "success": True,
+            "data": alerts,
+            "count": len(alerts),
+            "timestamp": datetime.now()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Critical alerts error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/portfolio/health")
+async def get_portfolio_health():
+    """Get portfolio health summary"""
+    try:
+        cursor = db.connection.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM portfolio_health
+            ORDER BY created_at DESC
+            LIMIT 1
+        """)
+        
+        result = cursor.fetchone()
+        
+        if result:
+            columns = [desc[0] for desc in cursor.description]
+            health_data = dict(zip(columns, result))
+        else:
+            health_data = {
+                "total_positions": 0,
+                "total_value": 0,
+                "average_pnl_percent": 0,
+                "high_risk_positions": 0,
+                "sell_signals": 0,
+                "profit_signals": 0
+            }
+        
+        cursor.close()
+        
+        return {
+            "success": True,
+            "data": health_data,
+            "timestamp": datetime.now()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Portfolio health error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
