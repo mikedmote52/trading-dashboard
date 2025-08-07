@@ -54,9 +54,9 @@ function makeAlpacaRequest(endpoint) {
       return;
     }
 
-    const hostname = ALPACA_CONFIG.baseUrl.replace('https://', '').replace('http://', '');
+    const url = new URL(ALPACA_CONFIG.baseUrl);
     const options = {
-      hostname: hostname,
+      hostname: url.hostname,
       path: `/v2/${endpoint}`,
       method: 'GET',
       headers: {
@@ -65,7 +65,7 @@ function makeAlpacaRequest(endpoint) {
       }
     };
 
-    console.log(`📡 Requesting: https://${hostname}/v2/${endpoint}`);
+    console.log(`📡 Requesting: https://${url.hostname}/v2/${endpoint}`);
 
     const req = https.request(options, (res) => {
       let data = '';
