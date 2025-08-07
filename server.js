@@ -361,8 +361,9 @@ async function scanForViglPatterns() {
     } catch (apiError) {
       console.error('❌ VIGL API fetch failed:', apiError.message);
       
-      // If API fails, show error instead of fake data
-      throw new Error(`VIGL API service unavailable: ${apiError.message}`);
+      // Return empty array with message instead of throwing error
+      console.log('📁 VIGL API unavailable - returning empty discoveries');
+      return [];
     }
     
     // Enhance discoveries with proper target prices
