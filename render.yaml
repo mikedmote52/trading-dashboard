@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: trading-intelligence-dashboard
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: APCA_API_KEY_ID
+        sync: false
+      - key: APCA_API_SECRET_KEY
+        sync: false  
+      - key: APCA_API_BASE_URL
+        value: https://paper-api.alpaca.markets
