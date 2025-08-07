@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
+const PortfolioIntelligence = require('./portfolio_intelligence');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -308,28 +309,19 @@ async function scanForViglPatterns() {
 // ALERT SYSTEM
 // =============================================================================
 
-function generateAlerts(portfolio, discoveries) {
+async function generateAlerts(portfolio, discoveries) {
   const alerts = [];
   
-  // Portfolio risk alerts
-  portfolio.positions.forEach(position => {
-    const risk = analyzePositionRisk(position);
-    
-    if (risk.wolfScore >= 0.8) {
-      alerts.push({
-        id: `risk-${position.symbol}`,
-        type: 'RISK',
-        severity: 'HIGH',
-        title: `High Risk: ${position.symbol}`,
-        message: `WOLF score ${risk.wolfScore} - ${risk.action}`,
-        symbol: position.symbol,
-        timestamp: new Date().toISOString(),
-        action: risk.recommendation
-      });
-    }
-  });
+  // Get portfolio intelligence alerts (enhanced real-time alerts)
+  try {
+    const portfolioIntelligence = new PortfolioIntelligence();
+    const intelligenceAlerts = await portfolioIntelligence.generatePortfolioAlerts();
+    alerts.push(...intelligenceAlerts);
+  } catch (error) {
+    console.log('Portfolio intelligence error:', error.message);
+  }
   
-  // Discovery alerts
+  // Keep existing VIGL discovery alerts
   discoveries.forEach(discovery => {
     if (discovery.confidence >= 0.8) {
       alerts.push({
@@ -337,7 +329,7 @@ function generateAlerts(portfolio, discoveries) {
         type: 'OPPORTUNITY',
         severity: 'HIGH',
         title: `VIGL Pattern: ${discovery.symbol}`,
-        message: `${discovery.confidence * 100}% similarity - ${discovery.estimatedUpside} potential`,
+        message: `${(discovery.confidence * 100).toFixed(0)}% similarity - ${discovery.estimatedUpside} potential`,
         symbol: discovery.symbol,
         timestamp: new Date().toISOString(),
         action: discovery.recommendation
@@ -345,7 +337,15 @@ function generateAlerts(portfolio, discoveries) {
     }
   });
   
-  return alerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  // Sort by severity and timestamp, limit to top 5 alerts
+  const severityOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+  return alerts
+    .sort((a, b) => {
+      const severityDiff = (severityOrder[b.severity] || 1) - (severityOrder[a.severity] || 1);
+      if (severityDiff !== 0) return severityDiff;
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    })
+    .slice(0, 5);
 }
 
 // =============================================================================
@@ -373,7 +373,7 @@ app.get('/api/dashboard', async (req, res) => {
     }));
     
     const discoveries = await scanForViglPatterns();
-    const alerts = generateAlerts(portfolio, discoveries);
+    const alerts = await generateAlerts(portfolio, discoveries);
     
     dashboardData = {
       portfolio,
