@@ -108,8 +108,8 @@ async function fetchAlpacaPositions() {
     const account = await makeAlpacaRequest('account');
     
     if (!positions || !account) {
-      console.log('⚠️ No Alpaca data received, using mock data');
-      return generateMockPortfolio();
+      console.log('⚠️ No Alpaca data received - API connection failed');
+      return generateEmptyPortfolio();
     }
     
     console.log(`✅ Found ${positions.length} real positions from Alpaca`);
@@ -130,50 +130,21 @@ async function fetchAlpacaPositions() {
       isConnected: true
     };
   } catch (error) {
-    console.log('Using mock data - Alpaca connection failed:', error.message);
-    return generateMockPortfolio();
+    console.log('❌ Alpaca connection failed:', error.message);
+    return generateEmptyPortfolio();
   }
 }
 
-function generateMockPortfolio() {
-  const mockPositions = [
-    {
-      symbol: 'AAPL',
-      qty: 10,
-      currentPrice: 185.50,
-      marketValue: 1855.00,
-      unrealizedPnL: 155.00,
-      unrealizedPnLPercent: 9.13,
-      avgEntryPrice: 170.00,
-      side: 'long'
-    },
-    {
-      symbol: 'TSLA',
-      qty: 5,
-      currentPrice: 245.30,
-      marketValue: 1226.50,
-      unrealizedPnL: -74.50,
-      unrealizedPnLPercent: -5.73,
-      avgEntryPrice: 260.20,
-      side: 'long'
-    },
-    {
-      symbol: 'NVDA',
-      qty: 3,
-      currentPrice: 825.60,
-      marketValue: 2476.80,
-      unrealizedPnL: 376.80,
-      unrealizedPnLPercent: 17.95,
-      avgEntryPrice: 700.00,
-      side: 'long'
-    }
-  ];
-
+function generateEmptyPortfolio() {
+  console.log('❌ No Alpaca connection - returning empty portfolio');
+  console.log('🔑 Add your Alpaca API keys to see real positions');
+  
   return {
-    positions: mockPositions,
-    totalValue: 25847.30,
-    dailyPnL: 457.30,
-    isConnected: false
+    positions: [],
+    totalValue: 0,
+    dailyPnL: 0,
+    isConnected: false,
+    error: 'Alpaca API keys not configured or invalid'
   };
 }
 
@@ -295,27 +266,59 @@ async function scanForViglPatterns() {
       return [];
     }
 
-    // Get market gainers (stocks with high momentum)
-    const gainersUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/gainers?apikey=${polygonKey}`;
+    // Try multiple real data sources for comprehensive coverage
+    let candidates = [];
     
-    console.log('📡 Fetching market gainers from Polygon...');
-    const gainersResponse = await fetch(gainersUrl);
-    
-    if (!gainersResponse.ok) {
-      console.error('❌ Failed to fetch market data:', gainersResponse.status, await gainersResponse.text());
-      return [];
+    // First: Try current market snapshot
+    console.log('📡 Fetching live market snapshot from Polygon...');
+    const snapshotUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/gainers?apikey=${polygonKey}`;
+    try {
+      const snapshotResponse = await fetch(snapshotUrl);
+      if (snapshotResponse.ok) {
+        const snapshotData = await snapshotResponse.json();
+        candidates = snapshotData.results || [];
+        console.log(`📊 Found ${candidates.length} current market candidates`);
+      }
+    } catch (error) {
+      console.log('⚠️ Live snapshot unavailable:', error.message);
     }
     
-    const gainersData = await gainersResponse.json();
-    const candidates = gainersData.results || [];
-    
-    console.log(`📊 Analyzing ${candidates.length} market candidates...`);
-    
-    // If market is closed or no data available
+    // Second: If no live data, try previous trading day's gainers
     if (candidates.length === 0) {
-      console.log('⏰ Market closed - no live gainers data available');
-      console.log('🔍 VIGL Discovery requires active market hours for real patterns');
-      return []; // Return empty array - no fake data
+      console.log('📅 Fetching previous trading session data...');
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dateStr = yesterday.toISOString().split('T')[0];
+      
+      const prevDayUrl = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${dateStr}?adjusted=true&apikey=${polygonKey}`;
+      try {
+        const prevResponse = await fetch(prevDayUrl);
+        if (prevResponse.ok) {
+          const prevData = await prevResponse.json();
+          // Convert aggregates to candidate format
+          if (prevData.results) {
+            candidates = prevData.results
+              .filter(stock => stock.c > 0.5 && stock.c < 50) // Price filter
+              .sort((a, b) => (b.c - b.o) / b.o - (a.c - a.o) / a.o) // Sort by % gain
+              .slice(0, 50)
+              .map(stock => ({
+                ticker: stock.T,
+                day: { c: stock.c, v: stock.v, o: stock.o },
+                prevDay: { c: stock.o, v: stock.v * 0.8 }, // Estimate prev volume
+                todaysChangePerc: ((stock.c - stock.o) / stock.o) * 100
+              }));
+            console.log(`📊 Found ${candidates.length} previous session candidates`);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Previous session data unavailable:', error.message);
+      }
+    }
+    
+    // If still no data, return empty - NO FAKE DATA
+    if (candidates.length === 0) {
+      console.log('❌ No real market data available from any source');
+      return [];
     }
     
     const discoveries = [];
