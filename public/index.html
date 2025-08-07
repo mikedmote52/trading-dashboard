@@ -153,9 +153,14 @@
                            min="1" max="1000" value="10">
                 </div>
                 
-                <div class="bg-blue-900 bg-opacity-30 rounded p-3">
+                <div class="bg-blue-900 bg-opacity-30 rounded p-3 space-y-2">
                     <div class="text-xs text-blue-200">Current Price: <span id="modalPrice">$--</span></div>
                     <div class="text-xs text-blue-200">Estimated Cost: $<span id="estimatedCost">--</span></div>
+                    <hr class="border-blue-700">
+                    <div class="text-xs text-blue-200">🎯 Entry Target: <span id="entryTarget" class="text-green-400">$--</span></div>
+                    <div class="text-xs text-blue-200">🛡️ Stop Loss: <span id="stopLoss" class="text-red-400">$--</span></div>
+                    <div class="text-xs text-blue-200">📈 Price Target: <span id="priceTarget" class="text-yellow-400">$--</span></div>
+                    <div class="text-xs text-blue-200">⏰ Timeline: <span id="timeline" class="text-blue-300">--</span></div>
                 </div>
                 
                 <div class="flex space-x-3">
@@ -396,7 +401,7 @@
                                 }">${stock.recommendation}</div>
                                 <div class="text-xs text-blue-200 mb-2">Risk: ${stock.riskLevel}</div>
                                 ${stock.recommendation === 'STRONG BUY' || stock.recommendation === 'BUY' ? `
-                                    <button onclick="buyStock('${stock.symbol}', 10)" 
+                                    <button onclick="showTradeModal('buy', '${stock.symbol}', 10)" 
                                             class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs transition-colors">
                                         Buy 10
                                     </button>
@@ -417,84 +422,81 @@
                 }
                 
                 container.innerHTML = positions.map(pos => {
-                    // Generate thesis explanation based on WOLF analysis
-                    let thesis = '';
-                    let actionButtons = '';
-                    
-                    if (pos.riskAnalysis?.recommendation === 'SELL') {
-                        thesis = `High risk detected: ${pos.riskAnalysis.wolfScore >= 0.8 ? 'Extreme' : 'Significant'} downside risk. ${pos.unrealizedPnLPercent < -15 ? 'Large drawdown suggests momentum breakdown.' : 'Risk metrics indicate potential -25% loss if held.'} Consider exit to preserve capital.`;
-                        actionButtons = `
-                            <button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.min(pos.qty, 10)})" 
-                                    class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm font-medium transition-colors">
-                                🔻 Sell Position
-                            </button>`;
-                    } else if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
-                        thesis = `Strong opportunity: Low risk (${Math.round(pos.riskAnalysis.wolfScore * 100)}%) + profitable position (${pos.unrealizedPnLPercent.toFixed(1)}% gain). Momentum and risk metrics support adding to winner.`;
-                        actionButtons = `
-                            <button onclick="showTradeModal('buy', '${pos.symbol}', 10)" 
-                                    class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm font-medium transition-colors">
-                                📈 Add More
-                            </button>`;
-                    } else if (pos.riskAnalysis?.recommendation === 'REDUCE') {
-                        thesis = `Moderate risk warning: Position showing ${pos.riskAnalysis.wolfScore >= 0.6 ? 'elevated' : 'emerging'} risk signals. ${pos.unrealizedPnLPercent < -10 ? 'Drawdown suggests weakening momentum.' : 'Risk metrics suggest reducing exposure.'} Consider partial exit.`;
-                        actionButtons = `
-                            <button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.floor(pos.qty / 2)})" 
-                                    class="bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm font-medium transition-colors">
-                                ⚖️ Reduce Position
-                            </button>`;
+                    // Calculate price target and timeline
+                    let priceTarget, timeline;
+                    if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
+                        priceTarget = (pos.currentPrice * 1.4).toFixed(2);
+                        timeline = '2-6mo';
+                    } else if (pos.riskAnalysis?.recommendation === 'SELL') {
+                        priceTarget = (pos.currentPrice * 0.75).toFixed(2);
+                        timeline = 'Exit Now';
                     } else {
-                        thesis = `Monitor position: Risk levels acceptable (${Math.round(pos.riskAnalysis.wolfScore * 100)}%). ${pos.unrealizedPnLPercent >= 0 ? 'Position profitable - maintain current allocation.' : 'Minor drawdown within normal range - hold for recovery.'}`;
-                        actionButtons = `
-                            <button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.min(pos.qty, 10)})" 
-                                    class="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded text-sm transition-colors mr-2">
-                                Sell
-                            </button>
-                            <button onclick="showTradeModal('buy', '${pos.symbol}', 5)" 
-                                    class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm transition-colors">
-                                Buy
-                            </button>`;
+                        priceTarget = (pos.currentPrice * 1.1).toFixed(2);
+                        timeline = '1-3mo';
+                    }
+                    
+                    // Compact thesis
+                    let compactThesis = '';
+                    if (pos.riskAnalysis?.recommendation === 'SELL') {
+                        compactThesis = `High risk (${Math.round(pos.riskAnalysis.wolfScore * 100)}%) - Exit to preserve capital`;
+                    } else if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
+                        compactThesis = `Low risk + profitable - Add to winner`;
+                    } else if (pos.riskAnalysis?.recommendation === 'REDUCE') {
+                        compactThesis = `Moderate risk - Consider partial exit`;
+                    } else {
+                        compactThesis = `Risk acceptable - Monitor position`;
+                    }
+                    
+                    // Action button
+                    let actionButton = '';
+                    if (pos.riskAnalysis?.recommendation === 'SELL') {
+                        actionButton = `<button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.min(pos.qty, 10)})" class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs">🔻 Sell</button>`;
+                    } else if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
+                        actionButton = `<button onclick="showTradeModal('buy', '${pos.symbol}', 10)" class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs">📈 Add</button>`;
+                    } else if (pos.riskAnalysis?.recommendation === 'REDUCE') {
+                        actionButton = `<button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.floor(pos.qty / 2)})" class="bg-orange-600 hover:bg-orange-700 px-2 py-1 rounded text-xs">⚖️ Reduce</button>`;
+                    } else {
+                        actionButton = `
+                            <button onclick="showTradeModal('sell', '${pos.symbol}', 5)" class="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs mr-1">Sell</button>
+                            <button onclick="showTradeModal('buy', '${pos.symbol}', 5)" class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs">Buy</button>`;
                     }
                     
                     return `
-                    <div class="bg-white bg-opacity-10 rounded-lg p-4 border-l-4 ${
+                    <div class="bg-white bg-opacity-10 rounded-lg p-3 border-l-4 ${
                         pos.riskAnalysis?.wolfScore >= 0.6 ? 'border-red-400' : 
                         pos.riskAnalysis?.wolfScore >= 0.4 ? 'border-yellow-400' : 'border-green-400'
                     }">
-                        <div class="flex justify-between items-start mb-3">
-                            <div class="flex-1">
-                                <div class="flex items-center space-x-2 mb-2">
-                                    <span class="font-bold text-lg">${pos.symbol}</span>
-                                    <span class="text-sm ${pos.unrealizedPnL >= 0 ? 'status-green' : 'status-red'}">
-                                        ${pos.unrealizedPnL >= 0 ? '+' : ''}$${pos.unrealizedPnL.toFixed(2)} 
-                                        (${pos.unrealizedPnLPercent >= 0 ? '+' : ''}${pos.unrealizedPnLPercent.toFixed(2)}%)
-                                    </span>
-                                </div>
-                                <div class="grid grid-cols-2 gap-4 text-sm mb-2">
-                                    <div>Qty: ${pos.qty}</div>
-                                    <div>Price: $${pos.currentPrice.toFixed(2)}</div>
-                                    <div>Value: $${pos.marketValue.toLocaleString()}</div>
-                                    <div>Avg: $${pos.avgEntryPrice.toFixed(2)}</div>
-                                </div>
+                        <!-- Header Row -->
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold text-lg">${pos.symbol}</span>
+                                <span class="text-xs ${pos.unrealizedPnL >= 0 ? 'status-green' : 'status-red'}">
+                                    ${pos.unrealizedPnLPercent >= 0 ? '+' : ''}${pos.unrealizedPnLPercent.toFixed(1)}%
+                                </span>
                             </div>
-                            <div class="text-right">
-                                <div class="text-lg font-bold ${
+                            <div class="flex items-center space-x-2">
+                                <div class="text-sm font-bold ${
                                     pos.riskAnalysis?.recommendation === 'SELL' ? 'status-red' : 
                                     pos.riskAnalysis?.recommendation === 'BUY_MORE' ? 'status-green' : 
                                     pos.riskAnalysis?.recommendation === 'REDUCE' ? 'status-yellow' : 'text-white'
                                 }">${pos.riskAnalysis?.recommendation || 'HOLD'}</div>
-                                <div class="text-xs text-blue-200">Risk: ${Math.round((pos.riskAnalysis?.wolfScore || 0) * 100)}%</div>
+                                ${actionButton}
                             </div>
                         </div>
                         
-                        <!-- Thesis Explanation -->
-                        <div class="bg-black bg-opacity-20 rounded p-3 mb-3">
-                            <div class="text-xs font-bold text-blue-300 mb-1">📋 SYSTEM THESIS:</div>
-                            <div class="text-xs text-blue-100">${thesis}</div>
+                        <!-- Data Row -->
+                        <div class="grid grid-cols-6 gap-2 text-xs text-blue-200 mb-2">
+                            <div>Qty: <span class="text-white">${pos.qty}</span></div>
+                            <div>Price: <span class="text-white">$${pos.currentPrice.toFixed(2)}</span></div>
+                            <div>Value: <span class="text-white">$${Math.round(pos.marketValue)}</span></div>
+                            <div>Target: <span class="text-yellow-400">$${priceTarget}</span></div>
+                            <div>Timeline: <span class="text-blue-300">${timeline}</span></div>
+                            <div>Risk: <span class="text-white">${Math.round((pos.riskAnalysis?.wolfScore || 0) * 100)}%</span></div>
                         </div>
                         
-                        <!-- Action Buttons -->
-                        <div class="flex justify-end space-x-2">
-                            ${actionButtons}
+                        <!-- Compact Thesis -->
+                        <div class="text-xs text-blue-100 bg-black bg-opacity-20 rounded px-2 py-1">
+                            <span class="text-blue-300">📋</span> ${compactThesis}
                         </div>
                     </div>`;
                 }).join('');
@@ -600,7 +602,8 @@
         function showTradeModal(action, symbol, defaultQty) {
             // Find the position data to get current price
             const position = window.dashboard?.data?.portfolio?.positions?.find(p => p.symbol === symbol);
-            const currentPrice = position?.currentPrice || 0;
+            const discovery = window.dashboard?.data?.discoveries?.find(d => d.symbol === symbol);
+            const currentPrice = position?.currentPrice || discovery?.currentPrice || 0;
             
             currentTradeData = {
                 action: action.toLowerCase(),
@@ -608,12 +611,44 @@
                 price: currentPrice
             };
             
+            // Calculate trading recommendations
+            const entryTarget = action.toLowerCase() === 'buy' ? currentPrice * 0.98 : currentPrice; // 2% below for entries
+            const stopLoss = action.toLowerCase() === 'buy' ? currentPrice * 0.85 : currentPrice * 1.15; // 15% risk
+            let priceTarget, timeline;
+            
+            if (discovery) {
+                // Use VIGL discovery data for targets
+                if (discovery.estimatedUpside === '200-400%') {
+                    priceTarget = currentPrice * 3.0; // 200% conservative
+                    timeline = '3-6 months';
+                } else if (discovery.estimatedUpside === '100-200%') {
+                    priceTarget = currentPrice * 1.5; // 50% conservative  
+                    timeline = '2-4 months';
+                } else {
+                    priceTarget = currentPrice * 1.25; // 25% conservative
+                    timeline = '1-3 months';
+                }
+            } else if (position) {
+                // Use position analysis for targets
+                if (position.riskAnalysis?.recommendation === 'BUY_MORE') {
+                    priceTarget = currentPrice * 1.4;
+                    timeline = '2-6 months';
+                } else {
+                    priceTarget = currentPrice * 1.1;
+                    timeline = '1-2 months';
+                }
+            }
+            
             // Update modal content
             document.getElementById('modalTitle').textContent = `${action.toUpperCase()} ${symbol}`;
             document.getElementById('modalAction').textContent = action.toUpperCase();
             document.getElementById('modalAction').className = `text-lg font-bold ${action.toLowerCase() === 'sell' ? 'text-red-400' : 'text-green-400'}`;
             document.getElementById('modalSymbol').textContent = symbol;
             document.getElementById('modalPrice').textContent = `$${currentPrice.toFixed(2)}`;
+            document.getElementById('entryTarget').textContent = `$${entryTarget.toFixed(2)}`;
+            document.getElementById('stopLoss').textContent = `$${stopLoss.toFixed(2)}`;
+            document.getElementById('priceTarget').textContent = `$${priceTarget.toFixed(2)}`;
+            document.getElementById('timeline').textContent = timeline;
             document.getElementById('tradeQuantity').value = defaultQty;
             document.getElementById('executeBtn').className = `flex-1 py-2 rounded font-medium transition-colors ${action.toLowerCase() === 'sell' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`;
             document.getElementById('executeBtn').textContent = `${action.toUpperCase()} ${symbol}`;
