@@ -52,7 +52,7 @@
         </div>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             <div class="glass-effect rounded-xl p-6">
                 <div class="flex items-center mb-2">
                     <div class="text-2xl mr-3">💰</div>
@@ -69,6 +69,26 @@
                     <div>
                         <div class="text-2xl font-bold" id="dailyPnL">$--</div>
                         <div class="text-blue-200 text-sm">Today's P&L</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass-effect rounded-xl p-6">
+                <div class="flex items-center mb-2">
+                    <div class="text-2xl mr-3">💎</div>
+                    <div>
+                        <div class="text-2xl font-bold" id="totalPnL">$--</div>
+                        <div class="text-blue-200 text-sm">Total P&L</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass-effect rounded-xl p-6">
+                <div class="flex items-center mb-2">
+                    <div class="text-2xl mr-3">📊</div>
+                    <div>
+                        <div class="text-2xl font-bold" id="totalPnLPercent">--%</div>
+                        <div class="text-blue-200 text-sm">Total Return</div>
                     </div>
                 </div>
             </div>
@@ -121,6 +141,44 @@
                 <div id="portfolioPositions" class="space-y-4">
                     <div class="text-center text-blue-200 py-8">
                         Loading portfolio positions...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Intelligence Discovery Feed -->
+        <div class="mt-6">
+            <div class="glass-effect rounded-xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">🎯 Market Intelligence Discoveries</h2>
+                    <div class="flex space-x-2">
+                        <span id="intelligenceStatus" class="text-xs px-2 py-1 rounded bg-gray-700 text-gray-300">
+                            Inactive
+                        </span>
+                        <button id="toggleIntelligenceBtn" class="bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded text-sm transition-colors">
+                            Start Monitoring
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Discovery Stats -->
+                    <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3">
+                        <div class="text-xs text-blue-300 mb-1">Total Discoveries</div>
+                        <div class="text-2xl font-bold" id="totalDiscoveries">0</div>
+                    </div>
+                    <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3">
+                        <div class="text-xs text-blue-300 mb-1">Signal Confluences</div>
+                        <div class="text-2xl font-bold" id="totalConfluences">0</div>
+                    </div>
+                </div>
+                
+                <!-- Discovery Feed -->
+                <div id="intelligenceDiscoveries" class="space-y-3 max-h-96 overflow-y-auto">
+                    <div class="text-center text-blue-200 py-8">
+                        <div class="text-lg mb-2">🔍 No active discoveries</div>
+                        <div class="text-sm">Click "Start Monitoring" to begin automated market discovery</div>
+                        <div class="text-xs text-blue-300 mt-2">Monitors Reddit, YouTube, FDA, and SEC for emerging catalysts</div>
                     </div>
                 </div>
             </div>
@@ -338,14 +396,37 @@
 
                 const { summary } = this.data;
                 
-                // Update summary cards
-                document.getElementById('totalValue').textContent = 
-                    `$${summary.totalValue?.toLocaleString() || '--'}`;
+                // Helper functions for formatting
+                const formatCurrency = (val) => {
+                    const num = parseFloat(val) || 0;
+                    const prefix = num < 0 ? '-$' : '$';
+                    return prefix + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
                 
-                document.getElementById('dailyPnL').textContent = 
-                    `$${summary.dailyPnL?.toLocaleString() || '--'}`;
+                const formatPercent = (val) => {
+                    const num = parseFloat(val) || 0;
+                    const prefix = num >= 0 ? '+' : '';
+                    return prefix + num.toFixed(2) + '%';
+                };
+                
+                // Update summary cards
+                document.getElementById('totalValue').textContent = formatCurrency(summary.totalValue);
+                
+                // Daily P&L
+                document.getElementById('dailyPnL').textContent = formatCurrency(summary.dailyPnL);
                 document.getElementById('dailyPnL').className = 
                     `text-2xl font-bold ${summary.dailyPnL >= 0 ? 'status-green' : 'status-red'}`;
+                
+                // Total P&L
+                document.getElementById('totalPnL').textContent = formatCurrency(summary.totalPnL || 0);
+                document.getElementById('totalPnL').className = 
+                    `text-2xl font-bold ${(summary.totalPnL || 0) >= 0 ? 'status-green' : 'status-red'}`;
+                
+                // Total Return %
+                const totalReturn = this.data.portfolio?.totalPnLPercent || 0;
+                document.getElementById('totalPnLPercent').textContent = formatPercent(totalReturn);
+                document.getElementById('totalPnLPercent').className = 
+                    `text-2xl font-bold ${totalReturn >= 0 ? 'status-green' : 'status-red'}`;
 
                 // Update sections
                 this.renderViglDiscoveries();
@@ -387,6 +468,10 @@
                                     <div>Volume: ${stock.volumeSpike}x spike</div>
                                     <div>Momentum: +${stock.momentum.toFixed(1)}%</div>
                                     <div>Upside: ${stock.estimatedUpside}</div>
+                                    ${stock.targetPrices ? `
+                                        <div>Target: $${stock.targetPrices.moderate.toFixed(2)}</div>
+                                        <div>Range: $${stock.targetPrices.conservative.toFixed(2)}-$${stock.targetPrices.aggressive.toFixed(2)}</div>
+                                    ` : ''}
                                 </div>
                                 ${stock.catalysts ? `
                                     <div class="text-xs text-blue-300 mt-2">
@@ -422,29 +507,33 @@
                 }
                 
                 container.innerHTML = positions.map(pos => {
-                    // Calculate price target and timeline
-                    let priceTarget, timeline;
-                    if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
-                        priceTarget = (pos.currentPrice * 1.4).toFixed(2);
-                        timeline = '2-6mo';
-                    } else if (pos.riskAnalysis?.recommendation === 'SELL') {
-                        priceTarget = (pos.currentPrice * 0.75).toFixed(2);
-                        timeline = 'Exit Now';
-                    } else {
-                        priceTarget = (pos.currentPrice * 1.1).toFixed(2);
-                        timeline = '1-3mo';
-                    }
+                    // Use thesis data if available, fallback to old calculation
+                    const thesis = pos.thesis;
+                    let priceTarget, timeline, compactThesis, upside;
                     
-                    // Compact thesis
-                    let compactThesis = '';
-                    if (pos.riskAnalysis?.recommendation === 'SELL') {
-                        compactThesis = `High risk (${Math.round(pos.riskAnalysis.wolfScore * 100)}%) - Exit to preserve capital`;
-                    } else if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
-                        compactThesis = `Low risk + profitable - Add to winner`;
-                    } else if (pos.riskAnalysis?.recommendation === 'REDUCE') {
-                        compactThesis = `Moderate risk - Consider partial exit`;
+                    if (thesis) {
+                        // Use actual thesis data
+                        priceTarget = thesis.targetPrices?.moderate?.toFixed(2) || (pos.currentPrice * 1.1).toFixed(2);
+                        timeline = thesis.timeline || '3-6mo';
+                        compactThesis = thesis.thesis || thesis.reasoning || 'Monitor position';
+                        upside = thesis.targetPrices?.upside?.primary || 
+                                ((priceTarget - pos.currentPrice) / pos.currentPrice * 100);
                     } else {
-                        compactThesis = `Risk acceptable - Monitor position`;
+                        // Fallback calculations
+                        if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
+                            priceTarget = (pos.currentPrice * 1.4).toFixed(2);
+                            timeline = '2-6mo';
+                            compactThesis = `Low risk + profitable - Add to winner`;
+                        } else if (pos.riskAnalysis?.recommendation === 'SELL') {
+                            priceTarget = (pos.currentPrice * 0.75).toFixed(2);
+                            timeline = 'Exit Now';
+                            compactThesis = `High risk (${Math.round(pos.riskAnalysis.wolfScore * 100)}%) - Exit to preserve capital`;
+                        } else {
+                            priceTarget = (pos.currentPrice * 1.1).toFixed(2);
+                            timeline = '1-3mo';
+                            compactThesis = `Risk acceptable - Monitor position`;
+                        }
+                        upside = ((priceTarget - pos.currentPrice) / pos.currentPrice * 100);
                     }
                     
                     // Action button
@@ -473,6 +562,9 @@
                                 <span class="text-xs ${pos.unrealizedPnL >= 0 ? 'status-green' : 'status-red'}">
                                     ${pos.unrealizedPnLPercent >= 0 ? '+' : ''}${pos.unrealizedPnLPercent.toFixed(1)}%
                                 </span>
+                                <span class="text-xs ${(pos.dailyPnLPercent || 0) >= 0 ? 'text-green-300' : 'text-red-300'}">
+                                    (${(pos.dailyPnLPercent || 0) >= 0 ? '+' : ''}${(pos.dailyPnLPercent || 0).toFixed(1)}% today)
+                                </span>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <div class="text-sm font-bold ${
@@ -487,10 +579,10 @@
                         <!-- Data Row -->
                         <div class="grid grid-cols-6 gap-2 text-xs text-blue-200 mb-2">
                             <div>Qty: <span class="text-white">${pos.qty}</span></div>
-                            <div>Price: <span class="text-white">$${pos.currentPrice.toFixed(2)}</span></div>
-                            <div>Value: <span class="text-white">$${Math.round(pos.marketValue)}</span></div>
+                            <div>Entry: <span class="text-white">$${pos.avgEntryPrice.toFixed(2)}</span></div>
+                            <div>Current: <span class="text-white">$${pos.currentPrice.toFixed(2)}</span></div>
                             <div>Target: <span class="text-yellow-400">$${priceTarget}</span></div>
-                            <div>Timeline: <span class="text-blue-300">${timeline}</span></div>
+                            <div>Upside: <span class="${upside > 0 ? 'text-green-400' : 'text-red-400'}">${upside > 0 ? '+' : ''}${upside.toFixed(0)}%</span></div>
                             <div>Risk: <span class="text-white">${Math.round((pos.riskAnalysis?.wolfScore || 0) * 100)}%</span></div>
                         </div>
                         
@@ -594,6 +686,179 @@
                     this.showLoading(false);
                 }
             }
+
+            // Market Intelligence Methods
+            async loadMarketIntelligence() {
+                try {
+                    const response = await fetch('/api/market-intelligence');
+                    if (!response.ok) throw new Error('Failed to load market intelligence');
+                    
+                    const data = await response.json();
+                    this.updateIntelligenceUI(data);
+                } catch (error) {
+                    console.error('Market intelligence load error:', error);
+                }
+            }
+
+            async toggleIntelligenceMonitoring() {
+                const btn = document.getElementById('toggleIntelligenceBtn');
+                const status = document.getElementById('intelligenceStatus');
+                const isMonitoring = status.textContent.trim() === 'Active';
+                
+                try {
+                    this.showLoading(true);
+                    
+                    const endpoint = isMonitoring ? '/api/market-intelligence/stop' : '/api/market-intelligence/start';
+                    const response = await fetch(endpoint, { method: 'POST' });
+                    
+                    if (!response.ok) throw new Error('Failed to toggle monitoring');
+                    
+                    const result = await response.json();
+                    
+                    if (isMonitoring) {
+                        status.textContent = 'Inactive';
+                        status.className = 'text-xs px-2 py-1 rounded bg-gray-700 text-gray-300';
+                        btn.textContent = 'Start Monitoring';
+                        this.showSuccess('Market intelligence monitoring stopped');
+                    } else {
+                        status.textContent = 'Active';
+                        status.className = 'text-xs px-2 py-1 rounded bg-green-700 text-green-300';
+                        btn.textContent = 'Stop Monitoring';
+                        this.showSuccess('Market intelligence monitoring started');
+                        
+                        // Start polling for updates
+                        this.startIntelligencePolling();
+                    }
+                    
+                } catch (error) {
+                    console.error('Toggle monitoring error:', error);
+                    this.showError('Failed to toggle monitoring');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+
+            startIntelligencePolling() {
+                // Poll every 30 seconds for new discoveries
+                if (this.intelligenceInterval) {
+                    clearInterval(this.intelligenceInterval);
+                }
+                
+                this.intelligenceInterval = setInterval(() => {
+                    this.loadMarketIntelligence();
+                }, 30000);
+                
+                // Load immediately
+                this.loadMarketIntelligence();
+            }
+
+            updateIntelligenceUI(data) {
+                // Update stats
+                document.getElementById('totalDiscoveries').textContent = data.discoveries?.length || 0;
+                document.getElementById('totalConfluences').textContent = data.confluences?.length || 0;
+                
+                // Update status if monitoring
+                if (data.isMonitoring) {
+                    const status = document.getElementById('intelligenceStatus');
+                    status.textContent = 'Active';
+                    status.className = 'text-xs px-2 py-1 rounded bg-green-700 text-green-300';
+                    document.getElementById('toggleIntelligenceBtn').textContent = 'Stop Monitoring';
+                }
+                
+                // Render discoveries
+                const container = document.getElementById('intelligenceDiscoveries');
+                
+                if (!data.discoveries || data.discoveries.length === 0) {
+                    if (data.isMonitoring) {
+                        container.innerHTML = `
+                            <div class="text-center text-blue-200 py-8">
+                                <div class="animate-pulse">🔍 Monitoring active...</div>
+                                <div class="text-sm mt-2">Scanning Reddit, YouTube, FDA, and SEC</div>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+                
+                // Render discovery cards
+                container.innerHTML = data.discoveries.map(discovery => {
+                    const sourceIcon = {
+                        reddit: '💬',
+                        youtube: '📺',
+                        fda: '💊',
+                        sec: '📄'
+                    }[discovery.source] || '🔍';
+                    
+                    const confidenceColor = discovery.confidence > 0.8 ? 'text-green-400' : 
+                                           discovery.confidence > 0.6 ? 'text-yellow-400' : 'text-blue-400';
+                    
+                    return `
+                        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 hover:bg-opacity-70 transition-all">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex items-center">
+                                    <span class="text-lg mr-2">${sourceIcon}</span>
+                                    <span class="font-bold text-lg">${discovery.symbol}</span>
+                                    <span class="text-xs ml-2 px-2 py-1 rounded bg-gray-700">${discovery.source}</span>
+                                </div>
+                                <span class="${confidenceColor} text-sm font-bold">
+                                    ${(discovery.confidence * 100).toFixed(0)}%
+                                </span>
+                            </div>
+                            
+                            <div class="text-sm text-blue-200 mb-2">
+                                ${discovery.type.replace(/_/g, ' ')}
+                                ${discovery.data?.sentimentLabel ? `• ${discovery.data.sentimentLabel}` : ''}
+                            </div>
+                            
+                            ${discovery.data?.mentionCount ? `
+                                <div class="text-xs text-gray-400">
+                                    ${discovery.data.mentionCount} mentions
+                                    ${discovery.data.mentionMultiple ? `(${discovery.data.mentionMultiple.toFixed(1)}x normal)` : ''}
+                                </div>
+                            ` : ''}
+                            
+                            ${discovery.catalystDate ? `
+                                <div class="text-xs text-yellow-400 mt-1">
+                                    📅 Catalyst: ${new Date(discovery.catalystDate).toLocaleDateString()}
+                                </div>
+                            ` : ''}
+                            
+                            <div class="flex justify-between items-center mt-2">
+                                <span class="text-xs text-gray-500">
+                                    ${new Date(discovery.timestamp).toLocaleTimeString()}
+                                </span>
+                                <button onclick="showTradeModal('buy', '${discovery.symbol}', 10)" 
+                                        class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs">
+                                    Trade
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Add confluences if any
+                if (data.confluences && data.confluences.length > 0) {
+                    const confluenceHTML = data.confluences.map(conf => `
+                        <div class="bg-yellow-900 bg-opacity-30 border border-yellow-600 rounded-lg p-3 mb-3">
+                            <div class="flex items-center mb-2">
+                                <span class="text-xl mr-2">🎯</span>
+                                <span class="font-bold text-lg">${conf.symbol}</span>
+                                <span class="ml-2 text-xs px-2 py-1 rounded bg-yellow-700 text-yellow-200">
+                                    CONFLUENCE
+                                </span>
+                            </div>
+                            <div class="text-sm text-yellow-200">
+                                ${conf.sources.join(', ')} signals converged
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">
+                                Confidence: ${(conf.averageConfidence * 100).toFixed(0)}%
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    container.innerHTML = confluenceHTML + container.innerHTML;
+                }
+            }
         }
 
         // Trade Modal Functions
@@ -690,6 +955,14 @@
         // Initialize dashboard when page loads
         document.addEventListener('DOMContentLoaded', () => {
             window.dashboard = new TradingDashboard();
+            
+            // Add market intelligence button listener
+            document.getElementById('toggleIntelligenceBtn').addEventListener('click', () => {
+                window.dashboard.toggleIntelligenceMonitoring();
+            });
+            
+            // Load market intelligence status on startup
+            window.dashboard.loadMarketIntelligence();
         });
 
         // Cleanup on page unload

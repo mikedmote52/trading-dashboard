@@ -11,6 +11,8 @@ const https = require('https');
 const { spawn } = require('child_process');
 const PortfolioIntelligence = require('./portfolio_intelligence');
 const { saveSimpleBackup } = require('./utils/simple_data_backup');
+const MarketIntelligence = require('./market_intelligence');
+const PositionThesis = require('./utils/position_thesis');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +46,50 @@ let dashboardData = {
   lastUpdated: new Date().toISOString(),
   isConnected: false
 };
+
+// Initialize Market Intelligence
+const marketIntelligence = new MarketIntelligence({
+  redditClientId: process.env.REDDIT_CLIENT_ID,
+  redditClientSecret: process.env.REDDIT_CLIENT_SECRET,
+  youtubeApiKey: process.env.YOUTUBE_API_KEY
+});
+
+// Listen for market intelligence events
+marketIntelligence.on('discovery', (signal) => {
+  console.log(`🔍 New discovery: ${signal.symbol} from ${signal.source}`);
+  // Add to dashboard alerts if high confidence
+  if (signal.confidence > 0.7) {
+    dashboardData.alerts.unshift({
+      id: `intel-${signal.symbol}-${Date.now()}`,
+      type: 'DISCOVERY',
+      severity: signal.confidence > 0.85 ? 'HIGH' : 'MEDIUM',
+      title: `Market Intel: ${signal.symbol}`,
+      message: `${signal.source} signal detected - ${(signal.confidence * 100).toFixed(0)}% confidence`,
+      symbol: signal.symbol,
+      timestamp: signal.timestamp,
+      source: signal.source,
+      data: signal.data
+    });
+    
+    // Keep only last 20 alerts
+    dashboardData.alerts = dashboardData.alerts.slice(0, 20);
+  }
+});
+
+marketIntelligence.on('confluence', (confluence) => {
+  console.log(`🎯 Signal confluence detected for ${confluence.symbol}`);
+  dashboardData.alerts.unshift({
+    id: `confluence-${confluence.symbol}-${Date.now()}`,
+    type: 'CONFLUENCE',
+    severity: 'CRITICAL',
+    title: `🎯 Multi-Signal Alert: ${confluence.symbol}`,
+    message: `${confluence.signals.length} signals from ${confluence.signals.map(s => s.source).join(', ')}`,
+    symbol: confluence.symbol,
+    timestamp: confluence.timestamp,
+    confluenceScore: confluence.confluenceScore,
+    signals: confluence.signals
+  });
+});
 
 // =============================================================================
 // ALPACA API INTEGRATION
@@ -116,19 +162,53 @@ async function fetchAlpacaPositions() {
     
     console.log(`✅ Found ${positions.length} real positions from Alpaca`);
 
-    return {
-      positions: positions.map(pos => ({
+    // Calculate actual daily P&L for each position
+    const enhancedPositions = positions.map(pos => {
+      const qty = parseFloat(pos.qty);
+      const currentPrice = parseFloat(pos.current_price || pos.market_value / pos.qty);
+      const avgEntry = parseFloat(pos.avg_entry_price);
+      const marketValue = parseFloat(pos.market_value);
+      const totalPnL = parseFloat(pos.unrealized_pl);
+      const totalPnLPercent = parseFloat(pos.unrealized_plpc) * 100;
+      
+      // Calculate daily change
+      const changeToday = parseFloat(pos.change_today || 0);
+      const changeTodayPercent = parseFloat(pos.percent_change_today || 0) * 100;
+      const dailyPnL = qty * changeToday;
+      
+      return {
         symbol: pos.symbol,
-        qty: parseFloat(pos.qty),
-        currentPrice: parseFloat(pos.current_price || pos.market_value / pos.qty),
-        marketValue: parseFloat(pos.market_value),
-        unrealizedPnL: parseFloat(pos.unrealized_pl),
-        unrealizedPnLPercent: parseFloat(pos.unrealized_plpc) * 100,
-        avgEntryPrice: parseFloat(pos.avg_entry_price),
-        side: pos.side
-      })),
+        qty: qty,
+        currentPrice: currentPrice,
+        marketValue: marketValue,
+        avgEntryPrice: avgEntry,
+        // Total P&L (since purchase)
+        unrealizedPnL: totalPnL,
+        unrealizedPnLPercent: totalPnLPercent,
+        // Daily P&L
+        dailyPnL: dailyPnL,
+        dailyPnLPercent: changeTodayPercent,
+        changeToday: changeToday,
+        // Additional data
+        side: pos.side,
+        costBasis: avgEntry * qty
+      };
+    });
+    
+    // Calculate actual daily P&L (sum of all position daily changes)
+    const actualDailyPnL = enhancedPositions.reduce((sum, pos) => sum + pos.dailyPnL, 0);
+    
+    // Calculate total unrealized P&L (all time)
+    const totalUnrealizedPnL = enhancedPositions.reduce((sum, pos) => sum + pos.unrealizedPnL, 0);
+    
+    return {
+      positions: enhancedPositions,
       totalValue: parseFloat(account.portfolio_value || 0),
-      dailyPnL: parseFloat(account.todays_pl || 0),
+      dailyPnL: actualDailyPnL,
+      totalPnL: totalUnrealizedPnL,
+      totalPnLPercent: (totalUnrealizedPnL / (parseFloat(account.portfolio_value) - totalUnrealizedPnL)) * 100,
+      buyingPower: parseFloat(account.buying_power || 0),
+      cash: parseFloat(account.cash || 0),
       isConnected: true
     };
   } catch (error) {
@@ -282,7 +362,41 @@ async function scanForViglPatterns() {
 
     // Read your real VIGL discoveries
     const rawData = fs.readFileSync(dataPath, 'utf8');
-    const discoveries = JSON.parse(rawData);
+    let discoveries = JSON.parse(rawData);
+    
+    // Enhance discoveries with proper target prices
+    discoveries = discoveries.map(stock => {
+      const currentPrice = stock.currentPrice;
+      
+      // Parse the estimated upside range (e.g., "200-400%" -> [200, 400])
+      let minUpside = 100, maxUpside = 200; // defaults
+      if (stock.estimatedUpside) {
+        const match = stock.estimatedUpside.match(/(\d+)-(\d+)%/);
+        if (match) {
+          minUpside = parseInt(match[1]);
+          maxUpside = parseInt(match[2]);
+        }
+      }
+      
+      // Calculate target prices based on upside
+      const conservativeTarget = currentPrice * (1 + minUpside / 100);
+      const aggressiveTarget = currentPrice * (1 + maxUpside / 100);
+      const moderateTarget = (conservativeTarget + aggressiveTarget) / 2;
+      
+      return {
+        ...stock,
+        targetPrices: {
+          conservative: conservativeTarget,
+          moderate: moderateTarget,
+          aggressive: aggressiveTarget
+        },
+        calculatedUpside: {
+          min: minUpside,
+          max: maxUpside,
+          average: (minUpside + maxUpside) / 2
+        }
+      };
+    });
     
     console.log(`✅ Loaded ${discoveries.length} real VIGL patterns from your Python system`);
     
@@ -367,23 +481,35 @@ app.get('/api/dashboard', async (req, res) => {
   try {
     const portfolio = await fetchAlpacaPositions();
     
-    // Add risk analysis to each position
-    portfolio.positions = portfolio.positions.map(position => ({
-      ...position,
-      riskAnalysis: analyzePositionRisk(position)
-    }));
+    // Add risk analysis and thesis to each position
+    portfolio.positions = portfolio.positions.map(position => {
+      const riskAnalysis = analyzePositionRisk(position);
+      const thesis = PositionThesis.generateThesis(position);
+      
+      return {
+        ...position,
+        riskAnalysis,
+        thesis
+      };
+    });
     
     const discoveries = await scanForViglPatterns();
     const alerts = await generateAlerts(portfolio, discoveries);
     
     dashboardData = {
-      portfolio,
+      portfolio: {
+        ...portfolio,
+        // Add total P&L tracking
+        totalPnL: portfolio.totalPnL || 0,
+        totalPnLPercent: portfolio.totalPnLPercent || 0
+      },
       discoveries,
       alerts,
       lastUpdated: new Date().toISOString(),
       summary: {
         totalValue: portfolio.totalValue,
         dailyPnL: portfolio.dailyPnL,
+        totalPnL: portfolio.totalPnL || 0,
         viglScore: discoveries.length > 0 ? Math.max(...discoveries.map(d => d.confidence)) : 0,
         avgWolfRisk: portfolio.positions.length > 0 
           ? portfolio.positions.reduce((sum, p) => sum + p.riskAnalysis.wolfScore, 0) / portfolio.positions.length
@@ -440,6 +566,44 @@ app.post('/api/analyze', async (req, res) => {
   } catch (error) {
     console.error('Analysis error:', error);
     res.status(500).json({ error: 'Analysis failed' });
+  }
+});
+
+// Market Intelligence endpoints
+app.get('/api/market-intelligence', (req, res) => {
+  try {
+    const discoveries = marketIntelligence.getDiscoveries();
+    const confluences = marketIntelligence.checkSignalConfluences();
+    
+    res.json({
+      discoveries: discoveries.slice(0, 20), // Top 20 discoveries
+      confluences,
+      isMonitoring: marketIntelligence.isMonitoring,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Market intelligence fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch market intelligence' });
+  }
+});
+
+app.post('/api/market-intelligence/start', async (req, res) => {
+  try {
+    const result = await marketIntelligence.startMonitoring();
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to start market intelligence:', error);
+    res.status(500).json({ error: 'Failed to start monitoring' });
+  }
+});
+
+app.post('/api/market-intelligence/stop', (req, res) => {
+  try {
+    marketIntelligence.stopMonitoring();
+    res.json({ status: 'monitoring_stopped' });
+  } catch (error) {
+    console.error('Failed to stop market intelligence:', error);
+    res.status(500).json({ error: 'Failed to stop monitoring' });
   }
 });
 
