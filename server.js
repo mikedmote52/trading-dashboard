@@ -248,16 +248,27 @@ function calculateViglSimilarity(stock) {
 // Simple cache to store VIGL discoveries
 let viglDiscoveryCache = [];
 let lastViglScan = null;
+let viglScanInProgress = false;
 
 // Cloud-native VIGL pattern detection using Polygon API directly
 async function scanForViglPatterns() {
-  console.log('🔍 Running cloud-native VIGL Discovery...');
+  console.log('🔍 VIGL Discovery scan requested...');
+  
+  // Prevent multiple simultaneous scans
+  if (viglScanInProgress) {
+    console.log('⏳ VIGL scan already in progress - please wait...');
+    throw new Error('VIGL scan already in progress. Please wait for current scan to complete (1-2 minutes).');
+  }
   
   // Check cache first (30 minute refresh for real trading)
   if (lastViglScan && (Date.now() - lastViglScan) < 1800000 && viglDiscoveryCache.length > 0) {
     console.log(`✅ Using cached VIGL discoveries: ${viglDiscoveryCache.length} patterns`);
     return viglDiscoveryCache;
   }
+
+  // Set scan in progress flag
+  viglScanInProgress = true;
+  console.log('🚀 Starting VIGL pattern analysis - this may take 1-2 minutes...');
 
   try {
     const polygonKey = process.env.POLYGON_API_KEY;
@@ -416,7 +427,11 @@ async function scanForViglPatterns() {
     
   } catch (error) {
     console.error('❌ VIGL discovery error:', error.message);
-    return [];
+    throw error; // Re-throw so UI can handle the error
+  } finally {
+    // Always clear the in-progress flag
+    viglScanInProgress = false;
+    console.log('✅ VIGL scan completed - ready for next scan');
   }
 }
 
@@ -513,6 +528,18 @@ app.get('/api/dashboard', async (req, res) => {
     console.error('Dashboard error:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard data' });
   }
+});
+
+// Check VIGL scan status
+app.get('/api/vigl-status', (req, res) => {
+  res.json({
+    scanning: viglScanInProgress,
+    lastScan: lastViglScan,
+    cacheCount: viglDiscoveryCache.length,
+    message: viglScanInProgress ? 
+      'VIGL pattern analysis in progress... Please wait 1-2 minutes.' : 
+      'VIGL scanner ready'
+  });
 });
 
 // Run analysis

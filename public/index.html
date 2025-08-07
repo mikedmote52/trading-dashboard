@@ -196,25 +196,73 @@
 
             async scanViglPatterns() {
                 try {
-                    this.showLoading(true);
+                    // Check if scan already in progress
+                    const statusResponse = await fetch('/api/vigl-status');
+                    const status = await statusResponse.json();
+                    
+                    if (status.scanning) {
+                        this.showError('VIGL scan already in progress. Please wait 1-2 minutes for completion.');
+                        return;
+                    }
+
+                    // Update UI to show scanning state
+                    this.showViglScanning(true);
+                    this.showSuccess('Starting VIGL pattern analysis... This will take 1-2 minutes to scan thousands of stocks.');
+                    
                     const response = await fetch('/api/analyze', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ type: 'vigl' })
                     });
                     
-                    if (!response.ok) throw new Error('VIGL scan failed');
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'VIGL scan failed');
+                    }
                     
                     const result = await response.json();
                     this.data.discoveries = result.discoveries;
                     this.renderViglDiscoveries();
-                    this.showSuccess(`Found ${result.discoveries.length} VIGL patterns!`);
+                    
+                    if (result.discoveries.length > 0) {
+                        this.showSuccess(`✅ VIGL scan complete! Found ${result.discoveries.length} matching patterns.`);
+                    } else {
+                        this.showSuccess('VIGL scan complete. No patterns found matching criteria.');
+                    }
                     
                 } catch (error) {
                     console.error('VIGL scan error:', error);
-                    this.showError('VIGL scan failed');
+                    this.showError(error.message || 'VIGL scan failed');
                 } finally {
-                    this.showLoading(false);
+                    this.showViglScanning(false);
+                }
+            }
+
+            showViglScanning(scanning) {
+                const container = document.getElementById('viglDiscoveries');
+                const scanBtn = document.getElementById('scanViglBtn');
+                
+                if (scanning) {
+                    scanBtn.disabled = true;
+                    scanBtn.textContent = '⏳ Scanning...';
+                    scanBtn.className = 'bg-gray-600 px-3 py-1 rounded text-sm cursor-not-allowed';
+                    
+                    container.innerHTML = `
+                        <div class="text-center text-blue-200 py-8">
+                            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-400 rounded-full mb-4"></div>
+                            <div class="text-lg font-bold mb-2">🔍 VIGL Pattern Analysis Running</div>
+                            <div class="text-sm">Scanning thousands of stocks for volume spikes and momentum patterns...</div>
+                            <div class="text-xs text-blue-300 mt-2">⏱️ This process takes 1-2 minutes - please don't refresh the page</div>
+                            <div class="mt-4 bg-blue-900 bg-opacity-50 rounded-lg p-3">
+                                <div class="text-xs">Looking for patterns similar to VIGL's 324% winner:</div>
+                                <div class="text-xs">• 20.9x volume spikes • Price momentum • Breakout patterns</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = 'Scan Market';
+                    scanBtn.className = 'bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm transition-colors';
                 }
             }
 
