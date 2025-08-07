@@ -364,7 +364,8 @@ async function scanForViglPatterns() {
                   stock.c > 0.5 && stock.c < 50 && // Price range
                   stock.v > 0 && // Has volume
                   stock.o > 0 && // Has open price
-                  ((stock.c - stock.o) / stock.o) > 0.02 // At least 2% gain
+                  ((stock.c - stock.o) / stock.o) > 0.01 && // At least 1% gain
+                  stock.v > 10000 // Minimum volume threshold
                 )
                 .sort((a, b) => {
                   const gainA = ((a.c - a.o) / a.o) * 100;
@@ -441,8 +442,8 @@ async function scanForViglPatterns() {
         const spikeScore = volumeSpike >= 2.0 ? 0.1 : 0;
         similarity += spikeScore;
         
-        // Only include patterns with decent similarity and volume spike
-        if (similarity >= 0.5 && volumeSpike >= 2.0 && momentum > 5) {
+        // More realistic criteria for finding actual opportunities  
+        if (similarity >= 0.3 && volumeSpike >= 1.5 && momentum > 3) {
           
           const confidence = Math.min(similarity * 1.2, 1.0);
           
