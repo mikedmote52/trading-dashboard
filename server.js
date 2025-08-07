@@ -250,9 +250,9 @@ let viglDiscoveryCache = [];
 let lastViglScan = null;
 let viglScanInProgress = false;
 
-// Cloud-native VIGL pattern detection using Polygon API directly
+// Use real VIGL discoveries from your proven Python system
 async function scanForViglPatterns() {
-  console.log('🔍 VIGL Discovery scan requested...');
+  console.log('🔍 Loading real VIGL discoveries from your proven system...');
   
   // Prevent multiple simultaneous scans
   if (viglScanInProgress) {
@@ -268,224 +268,27 @@ async function scanForViglPatterns() {
 
   // Set scan in progress flag
   viglScanInProgress = true;
-  console.log('🚀 Starting VIGL pattern analysis - this may take 1-2 minutes...');
+  console.log('🚀 Loading your proven VIGL discoveries...');
 
   try {
-    const polygonKey = process.env.POLYGON_API_KEY;
-    if (!polygonKey) {
-      console.log('❌ No Polygon API key - cannot scan for VIGL patterns');
-      console.log('🔑 Add POLYGON_API_KEY to environment variables');
-      return [];
-    }
-    console.log('✅ Polygon API key found, proceeding with scan...');
+    // Load real VIGL data from your Python system results
+    const fs = require('fs');
+    const path = require('path');
+    
+    const dataPath = path.join(__dirname, 'real_vigl_data.json');
+    console.log('📁 Loading VIGL data from:', dataPath);
 
-    // Try multiple real data sources for comprehensive coverage
-    let candidates = [];
+    // Read your real VIGL discoveries
+    const rawData = fs.readFileSync(dataPath, 'utf8');
+    const discoveries = JSON.parse(rawData);
     
-    // First: Try current market snapshot
-    console.log('📡 Fetching live market snapshot from Polygon...');
-    const snapshotUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/gainers?apikey=${polygonKey}`;
-    try {
-      const snapshotResponse = await fetch(snapshotUrl);
-      console.log(`📡 Snapshot API response status: ${snapshotResponse.status}`);
-      
-      if (snapshotResponse.ok) {
-        const snapshotData = await snapshotResponse.json();
-        candidates = snapshotData.results || [];
-        console.log(`📊 Found ${candidates.length} current market candidates`);
-        if (candidates.length === 0) {
-          console.log('⏰ Likely after-hours or weekend - no current gainers available');
-        }
-      } else {
-        const errorText = await snapshotResponse.text();
-        console.log(`❌ Snapshot API error: ${snapshotResponse.status} - ${errorText}`);
-      }
-    } catch (error) {
-      console.log('⚠️ Live snapshot unavailable:', error.message);
-    }
-    
-    // Second: If no live data, try previous trading day's gainers
-    if (candidates.length === 0) {
-      console.log('📅 Fetching previous trading session data...');
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split('T')[0];
-      
-      const prevDayUrl = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${dateStr}?adjusted=true&apikey=${polygonKey}`;
-      try {
-        const prevResponse = await fetch(prevDayUrl);
-        if (prevResponse.ok) {
-          const prevData = await prevResponse.json();
-          // Convert aggregates to candidate format
-          if (prevData.results) {
-            candidates = prevData.results
-              .filter(stock => stock.c > 0.5 && stock.c < 50) // Price filter
-              .sort((a, b) => (b.c - b.o) / b.o - (a.c - a.o) / a.o) // Sort by % gain
-              .slice(0, 50)
-              .map(stock => ({
-                ticker: stock.T,
-                day: { c: stock.c, v: stock.v, o: stock.o },
-                prevDay: { c: stock.o, v: stock.v * 0.8 }, // Estimate prev volume
-                todaysChangePerc: ((stock.c - stock.o) / stock.o) * 100
-              }));
-            console.log(`📊 Found ${candidates.length} previous session candidates`);
-          }
-        }
-      } catch (error) {
-        console.log('⚠️ Previous session data unavailable:', error.message);
-      }
-    }
-    
-    // Third: Try last few trading days if still no data
-    if (candidates.length === 0) {
-      console.log('📅 Trying multiple recent trading days...');
-      const dates = [];
-      for (let i = 1; i <= 5; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        dates.push(date.toISOString().split('T')[0]);
-      }
-      
-      for (const dateStr of dates) {
-        try {
-          console.log(`🔍 Checking ${dateStr} for market data...`);
-          const dayUrl = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${dateStr}?adjusted=true&apikey=${polygonKey}`;
-          const dayResponse = await fetch(dayUrl);
-          
-          if (dayResponse.ok) {
-            const dayData = await dayResponse.json();
-            if (dayData.results && dayData.results.length > 0) {
-              console.log(`✅ Found ${dayData.results.length} stocks from ${dateStr}`);
-              
-              // Filter and sort for best candidates
-              candidates = dayData.results
-                .filter(stock => 
-                  stock.T && // Has ticker
-                  stock.c > 0.5 && stock.c < 50 && // Price range
-                  stock.v > 0 && // Has volume
-                  stock.o > 0 && // Has open price
-                  ((stock.c - stock.o) / stock.o) > 0.01 && // At least 1% gain
-                  stock.v > 10000 // Minimum volume threshold
-                )
-                .sort((a, b) => {
-                  const gainA = ((a.c - a.o) / a.o) * 100;
-                  const gainB = ((b.c - b.o) / b.o) * 100;
-                  return gainB - gainA; // Sort by highest gain
-                })
-                .slice(0, 100) // Top 100 gainers
-                .map(stock => ({
-                  ticker: stock.T,
-                  day: { c: stock.c, v: stock.v, o: stock.o, h: stock.h, l: stock.l },
-                  prevDay: { c: stock.o, v: stock.v * 0.7 }, // Estimate prev volume (lower)
-                  todaysChangePerc: ((stock.c - stock.o) / stock.o) * 100,
-                  scanDate: dateStr
-                }));
-              
-              console.log(`📊 Prepared ${candidates.length} candidates from ${dateStr}`);
-              break; // Found data, stop looking
-            }
-          }
-        } catch (error) {
-          console.log(`⚠️ Failed to get data for ${dateStr}:`, error.message);
-        }
-      }
-    }
-
-    // If still no data, return empty
-    if (candidates.length === 0) {
-      console.log('❌ No market data available from any recent trading days');
-      console.log('🔑 Check if Polygon API key is configured correctly');
-      return [];
-    }
-    
-    const discoveries = [];
-    
-    for (const stock of candidates.slice(0, 20)) { // Analyze top 20 gainers
-      try {
-        const {
-          ticker,
-          todaysChangePerc = 0,
-          day = {},
-          min = {},
-          prevDay = {}
-        } = stock;
-        
-        // Skip if no essential data
-        if (!ticker || !day.c || !prevDay.c) continue;
-        
-        const currentPrice = day.c;
-        const previousClose = prevDay.c;
-        const volume = day.v || 0;
-        const prevVolume = prevDay.v || 1;
-        
-        // VIGL Pattern Analysis
-        const momentum = todaysChangePerc || 0;
-        const volumeSpike = prevVolume > 0 ? volume / prevVolume : 1;
-        const priceInRange = currentPrice >= 0.50 && currentPrice <= 50;
-        
-        // VIGL similarity scoring (based on your original pattern)
-        let similarity = 0;
-        
-        // Volume component (40% of score) - VIGL had 20.9x volume spike
-        const volumeScore = Math.min(volumeSpike / 20.9, 1.0) * 0.4;
-        similarity += volumeScore;
-        
-        // Momentum component (35% of score) - positive momentum preferred
-        const momentumScore = momentum > 0 ? Math.min(momentum / 50, 1.0) * 0.35 : 0;
-        similarity += momentumScore;
-        
-        // Price range component (15% of score) - microcap preferred
-        const priceScore = currentPrice < 10 ? 0.15 : currentPrice < 20 ? 0.1 : 0.05;
-        similarity += priceScore;
-        
-        // Volume spike threshold (10% of score) - must have volume spike
-        const spikeScore = volumeSpike >= 2.0 ? 0.1 : 0;
-        similarity += spikeScore;
-        
-        // More realistic criteria for finding actual opportunities  
-        if (similarity >= 0.3 && volumeSpike >= 1.5 && momentum > 3) {
-          
-          const confidence = Math.min(similarity * 1.2, 1.0);
-          
-          discoveries.push({
-            symbol: ticker,
-            name: `${ticker} Corp`,
-            currentPrice: Math.round(currentPrice * 100) / 100,
-            marketCap: Math.floor(Math.random() * 500e6 + 50e6), // Estimate for microcaps
-            volumeSpike: Math.round(volumeSpike * 10) / 10,
-            momentum: Math.round(momentum * 10) / 10,
-            breakoutStrength: Math.round(similarity * 100) / 100,
-            sector: 'Market Discovery',
-            catalysts: [
-              volumeSpike >= 5 ? 'High volume spike' : 'Volume increase',
-              momentum >= 20 ? 'Strong momentum' : 'Price momentum'
-            ],
-            similarity: Math.round(similarity * 100) / 100,
-            confidence: Math.round(confidence * 100) / 100,
-            isHighConfidence: confidence >= 0.8,
-            estimatedUpside: confidence >= 0.8 ? '200-400%' : 
-                            confidence >= 0.6 ? '100-200%' : '50-100%',
-            discoveredAt: new Date().toISOString(),
-            riskLevel: confidence >= 0.8 ? 'MODERATE' : 'HIGH',
-            recommendation: confidence >= 0.8 ? 'STRONG BUY' : 
-                           confidence >= 0.6 ? 'BUY' : 'WATCH'
-          });
-        }
-        
-      } catch (stockError) {
-        console.error(`Error analyzing ${stock.ticker}:`, stockError.message);
-      }
-    }
-    
-    // Sort by confidence/similarity
-    discoveries.sort((a, b) => b.confidence - a.confidence);
+    console.log(`✅ Loaded ${discoveries.length} real VIGL patterns from your Python system`);
     
     // Cache the results
     viglDiscoveryCache = discoveries;
     lastViglScan = Date.now();
     
-    console.log(`✅ VIGL scan complete: Found ${discoveries.length} patterns`);
-    console.log('🎯 Top discoveries:', discoveries.slice(0, 3).map(d => 
+    console.log('🎯 VIGL patterns loaded:', discoveries.map(d => 
       `${d.symbol} (${Math.round(d.confidence * 100)}% match, ${d.volumeSpike}x volume)`
     ).join(', '));
     
