@@ -11,7 +11,7 @@ const https = require('https');
 const { spawn } = require('child_process');
 const PortfolioIntelligence = require('./portfolio_intelligence');
 const { saveSimpleBackup } = require('./utils/simple_data_backup');
-const MarketIntelligence = require('./market_intelligence');
+// const MarketIntelligence = require('./market_intelligence'); // TODO: Enable when ready
 const PositionThesis = require('./utils/position_thesis');
 
 const app = express();
@@ -47,49 +47,12 @@ let dashboardData = {
   isConnected: false
 };
 
-// Initialize Market Intelligence
-const marketIntelligence = new MarketIntelligence({
-  redditClientId: process.env.REDDIT_CLIENT_ID,
-  redditClientSecret: process.env.REDDIT_CLIENT_SECRET,
-  youtubeApiKey: process.env.YOUTUBE_API_KEY
-});
-
-// Listen for market intelligence events
-marketIntelligence.on('discovery', (signal) => {
-  console.log(`🔍 New discovery: ${signal.symbol} from ${signal.source}`);
-  // Add to dashboard alerts if high confidence
-  if (signal.confidence > 0.7) {
-    dashboardData.alerts.unshift({
-      id: `intel-${signal.symbol}-${Date.now()}`,
-      type: 'DISCOVERY',
-      severity: signal.confidence > 0.85 ? 'HIGH' : 'MEDIUM',
-      title: `Market Intel: ${signal.symbol}`,
-      message: `${signal.source} signal detected - ${(signal.confidence * 100).toFixed(0)}% confidence`,
-      symbol: signal.symbol,
-      timestamp: signal.timestamp,
-      source: signal.source,
-      data: signal.data
-    });
-    
-    // Keep only last 20 alerts
-    dashboardData.alerts = dashboardData.alerts.slice(0, 20);
-  }
-});
-
-marketIntelligence.on('confluence', (confluence) => {
-  console.log(`🎯 Signal confluence detected for ${confluence.symbol}`);
-  dashboardData.alerts.unshift({
-    id: `confluence-${confluence.symbol}-${Date.now()}`,
-    type: 'CONFLUENCE',
-    severity: 'CRITICAL',
-    title: `🎯 Multi-Signal Alert: ${confluence.symbol}`,
-    message: `${confluence.signals.length} signals from ${confluence.signals.map(s => s.source).join(', ')}`,
-    symbol: confluence.symbol,
-    timestamp: confluence.timestamp,
-    confluenceScore: confluence.confluenceScore,
-    signals: confluence.signals
-  });
-});
+// Initialize Market Intelligence (disabled for now)
+// const marketIntelligence = new MarketIntelligence({
+//   redditClientId: process.env.REDDIT_CLIENT_ID,
+//   redditClientSecret: process.env.REDDIT_CLIENT_SECRET,
+//   youtubeApiKey: process.env.YOUTUBE_API_KEY
+// });
 
 // =============================================================================
 // ALPACA API INTEGRATION
@@ -569,43 +532,15 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-// Market Intelligence endpoints
-app.get('/api/market-intelligence', (req, res) => {
-  try {
-    const discoveries = marketIntelligence.getDiscoveries();
-    const confluences = marketIntelligence.checkSignalConfluences();
-    
-    res.json({
-      discoveries: discoveries.slice(0, 20), // Top 20 discoveries
-      confluences,
-      isMonitoring: marketIntelligence.isMonitoring,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Market intelligence fetch error:', error);
-    res.status(500).json({ error: 'Failed to fetch market intelligence' });
-  }
-});
-
-app.post('/api/market-intelligence/start', async (req, res) => {
-  try {
-    const result = await marketIntelligence.startMonitoring();
-    res.json(result);
-  } catch (error) {
-    console.error('Failed to start market intelligence:', error);
-    res.status(500).json({ error: 'Failed to start monitoring' });
-  }
-});
-
-app.post('/api/market-intelligence/stop', (req, res) => {
-  try {
-    marketIntelligence.stopMonitoring();
-    res.json({ status: 'monitoring_stopped' });
-  } catch (error) {
-    console.error('Failed to stop market intelligence:', error);
-    res.status(500).json({ error: 'Failed to stop monitoring' });
-  }
-});
+// Market Intelligence endpoints (disabled for now)
+// app.get('/api/market-intelligence', (req, res) => {
+//   res.json({ 
+//     discoveries: [], 
+//     confluences: [], 
+//     isMonitoring: false,
+//     message: 'Market intelligence coming soon'
+//   });
+// });
 
 // Trading actions
 app.post('/api/trade', async (req, res) => {
