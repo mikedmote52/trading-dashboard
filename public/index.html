@@ -146,40 +146,67 @@
             </div>
         </div>
 
-        <!-- Market Intelligence Discovery Feed -->
+        <!-- Portfolio Health Dashboard -->
         <div class="mt-6">
             <div class="glass-effect rounded-xl p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold">🎯 Market Intelligence Discoveries</h2>
-                    <div class="flex space-x-2">
-                        <span id="intelligenceStatus" class="text-xs px-2 py-1 rounded bg-gray-700 text-gray-300">
-                            Inactive
-                        </span>
-                        <button id="toggleIntelligenceBtn" class="bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded text-sm transition-colors">
-                            Start Monitoring
-                        </button>
+                    <h2 class="text-xl font-bold">💊 Portfolio Health Analysis</h2>
+                    <div class="flex items-center space-x-2">
+                        <span id="healthScore" class="text-sm font-bold px-3 py-1 rounded bg-gray-700">--</span>
+                        <span id="healthStatus" class="text-2xl">⚪</span>
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <!-- Discovery Stats -->
+                <!-- Health Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3">
-                        <div class="text-xs text-blue-300 mb-1">Total Discoveries</div>
-                        <div class="text-2xl font-bold" id="totalDiscoveries">0</div>
+                        <div class="text-xs text-blue-300 mb-1">Win Rate</div>
+                        <div class="text-xl font-bold" id="winRate">--%</div>
                     </div>
                     <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3">
-                        <div class="text-xs text-blue-300 mb-1">Signal Confluences</div>
-                        <div class="text-2xl font-bold" id="totalConfluences">0</div>
+                        <div class="text-xs text-blue-300 mb-1">Best Performer</div>
+                        <div class="text-xl font-bold text-green-400" id="bestPerformer">--</div>
+                    </div>
+                    <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3">
+                        <div class="text-xs text-blue-300 mb-1">Risk Level</div>
+                        <div class="text-xl font-bold" id="riskLevel">--</div>
+                    </div>
+                    <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3">
+                        <div class="text-xs text-blue-300 mb-1">Volatility</div>
+                        <div class="text-xl font-bold" id="volatility">--%</div>
                     </div>
                 </div>
                 
-                <!-- Discovery Feed -->
-                <div id="intelligenceDiscoveries" class="space-y-3 max-h-96 overflow-y-auto">
-                    <div class="text-center text-blue-200 py-8">
-                        <div class="text-lg mb-2">🔍 No active discoveries</div>
-                        <div class="text-sm">Click "Start Monitoring" to begin automated market discovery</div>
-                        <div class="text-xs text-blue-300 mt-2">Monitors Reddit, YouTube, FDA, and SEC for emerging catalysts</div>
+                <!-- Strategic Outlook -->
+                <div class="bg-gray-800 bg-opacity-30 rounded-lg p-4 mb-4">
+                    <h3 class="text-lg font-bold mb-2 flex items-center">
+                        <span class="mr-2">🎯</span>
+                        Strategic Outlook
+                        <span id="outlookSentiment" class="ml-2 text-sm px-2 py-1 rounded bg-gray-700">--</span>
+                    </h3>
+                    <div id="outlookSummary" class="text-blue-200 text-sm mb-2">Loading analysis...</div>
+                    <div class="text-xs text-blue-300">
+                        <span class="mr-4">Focus Areas: <span id="keyFocus">--</span></span>
+                        <span>Timeframe: <span id="timeframe">--</span></span>
                     </div>
+                </div>
+                
+                <!-- Recommendations -->
+                <div id="recommendationsSection" class="space-y-2">
+                    <h3 class="text-lg font-bold mb-2">📋 Action Recommendations</h3>
+                    <div id="recommendations">
+                        <div class="text-center text-blue-200 py-4">Loading recommendations...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Opportunities -->
+        <div class="mt-6">
+            <div class="glass-effect rounded-xl p-6">
+                <h2 class="text-xl font-bold mb-4">🚀 Trading Opportunities</h2>
+                <div id="opportunities" class="space-y-3">
+                    <div class="text-center text-blue-200 py-4">Loading opportunities...</div>
                 </div>
             </div>
         </div>
@@ -432,6 +459,7 @@
                 this.renderViglDiscoveries();
                 this.renderPortfolioPositions();
                 this.renderRecentAlerts();
+                this.renderPortfolioHealth();
                 
                 // Update timestamp
                 document.getElementById('lastUpdated').textContent = 
@@ -858,6 +886,126 @@
                     
                     container.innerHTML = confluenceHTML + container.innerHTML;
                 }
+            }
+
+            renderPortfolioHealth() {
+                const health = this.data.health;
+                if (!health || !health.summary) return;
+
+                // Update health score and status
+                document.getElementById('healthScore').textContent = `${health.summary.health}/100`;
+                document.getElementById('healthScore').className = `text-sm font-bold px-3 py-1 rounded ${
+                    health.summary.health >= 80 ? 'bg-green-700 text-green-200' :
+                    health.summary.health >= 60 ? 'bg-yellow-700 text-yellow-200' :
+                    'bg-red-700 text-red-200'
+                }`;
+                
+                document.getElementById('healthStatus').textContent = health.summary.status.emoji;
+
+                // Update metrics
+                if (health.metrics) {
+                    document.getElementById('winRate').textContent = `${health.metrics.winRate.toFixed(0)}%`;
+                    document.getElementById('winRate').className = `text-xl font-bold ${
+                        health.metrics.winRate >= 60 ? 'text-green-400' : 
+                        health.metrics.winRate >= 40 ? 'text-yellow-400' : 'text-red-400'
+                    }`;
+
+                    document.getElementById('bestPerformer').textContent = 
+                        `${health.metrics.bestPerformer.symbol} +${health.metrics.bestPerformer.return.toFixed(0)}%`;
+
+                    document.getElementById('volatility').textContent = `${health.metrics.volatility.toFixed(1)}%`;
+                }
+
+                // Update risk level
+                if (health.riskProfile) {
+                    document.getElementById('riskLevel').textContent = health.riskProfile.level;
+                    document.getElementById('riskLevel').className = `text-xl font-bold ${
+                        health.riskProfile.level === 'LOW' ? 'text-green-400' :
+                        health.riskProfile.level === 'MODERATE' ? 'text-yellow-400' : 'text-red-400'
+                    }`;
+                }
+
+                // Update outlook
+                if (health.outlook) {
+                    document.getElementById('outlookSummary').textContent = health.outlook.summary;
+                    
+                    document.getElementById('outlookSentiment').textContent = health.outlook.sentiment;
+                    document.getElementById('outlookSentiment').className = `ml-2 text-sm px-2 py-1 rounded ${
+                        health.outlook.sentiment === 'BULLISH' ? 'bg-green-700 text-green-200' :
+                        health.outlook.sentiment === 'BEARISH' ? 'bg-red-700 text-red-200' :
+                        'bg-gray-700 text-gray-200'
+                    }`;
+                    
+                    document.getElementById('keyFocus').textContent = health.outlook.keyFocus.join(', ');
+                    document.getElementById('timeframe').textContent = health.outlook.timeframe;
+                }
+
+                // Update recommendations
+                this.renderRecommendations(health.recommendations || []);
+                this.renderOpportunities(health.opportunities || []);
+            }
+
+            renderRecommendations(recommendations) {
+                const container = document.getElementById('recommendations');
+                
+                if (recommendations.length === 0) {
+                    container.innerHTML = '<div class="text-center text-blue-200 py-4">No specific recommendations at this time</div>';
+                    return;
+                }
+
+                container.innerHTML = recommendations.map(rec => `
+                    <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 border-l-4 ${
+                        rec.priority === 'HIGH' ? 'border-red-400' : 
+                        rec.priority === 'MEDIUM' ? 'border-yellow-400' : 'border-blue-400'
+                    }">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="font-bold text-sm">${rec.action.replace(/_/g, ' ')}</span>
+                            <span class="text-xs px-2 py-1 rounded ${
+                                rec.priority === 'HIGH' ? 'bg-red-600 text-red-200' :
+                                rec.priority === 'MEDIUM' ? 'bg-yellow-600 text-yellow-200' :
+                                'bg-blue-600 text-blue-200'
+                            }">${rec.priority}</span>
+                        </div>
+                        <div class="text-sm text-blue-200">${rec.description}</div>
+                        ${rec.targets && rec.targets.length > 0 ? `
+                            <div class="text-xs text-blue-300 mt-1">
+                                Targets: ${rec.targets.join(', ')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('');
+            }
+
+            renderOpportunities(opportunities) {
+                const container = document.getElementById('opportunities');
+                
+                if (opportunities.length === 0) {
+                    container.innerHTML = '<div class="text-center text-blue-200 py-4">No opportunities identified</div>';
+                    return;
+                }
+
+                container.innerHTML = opportunities.map(opp => `
+                    <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 hover:bg-opacity-70 transition-all">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold">${opp.symbol}</span>
+                                <span class="text-xs px-2 py-1 rounded ${
+                                    opp.type === 'ADD' ? 'bg-green-700 text-green-200' :
+                                    opp.type === 'REDUCE' ? 'bg-red-700 text-red-200' :
+                                    'bg-blue-700 text-blue-200'
+                                }">${opp.type}</span>
+                            </div>
+                            <div class="text-sm font-bold">${(opp.confidence * 100).toFixed(0)}%</div>
+                        </div>
+                        <div class="text-sm text-blue-200">${opp.reason}</div>
+                        <div class="mt-2">
+                            <button onclick="showTradeModal('${opp.type.toLowerCase().includes('add') ? 'buy' : 'sell'}', '${opp.symbol}', 10)" 
+                                    class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs">
+                                Action
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
             }
         }
 

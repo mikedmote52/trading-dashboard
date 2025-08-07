@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "pre-tool-use": [
+      {
+        "name": "validate-api-keys",
+        "script": "./hooks/validate-api-keys.js",
+        "description": "Validates API keys before making external requests"
+      },
+      {
+        "name": "check-rate-limits",
+        "script": "./hooks/check-rate-limits.js",
+        "description": "Ensures rate limits are not exceeded"
+      },
+      {
+        "name": "optimize-context",
+        "script": "./hooks/optimize-context.js",
+        "description": "Optimizes context for large data processing"
+      }
+    ],
+    "post-tool-use": [
+      {
+        "name": "process-discoveries",
+        "script": "./hooks/process-discoveries.js",
+        "description": "Processes and filters market discoveries"
+      },
+      {
+        "name": "update-database",
+        "script": "./hooks/update-database.js",
+        "description": "Updates discovery signals database"
+      },
+      {
+        "name": "calculate-signals",
+        "script": "./hooks/calculate-signals.js",
+        "description": "Calculates signal strength and convergence"
+      }
+    ],
+    "notification": [
+      {
+        "name": "filter-high-probability",
+        "script": "./hooks/filter-high-probability.js",
+        "description": "Filters for high probability signals"
+      },
+      {
+        "name": "alert-confluences",
+        "script": "./hooks/alert-confluences.js",
+        "description": "Alerts when multiple signals converge"
+      }
+    ],
+    "stop": [
+      {
+        "name": "summarize-discoveries",
+        "script": "./hooks/summarize-discoveries.js",
+        "description": "Summarizes discovered opportunities"
+      },
+      {
+        "name": "update-learning-models",
+        "script": "./hooks/update-learning-models.js",
+        "description": "Updates learning models with feedback"
+      }
+    ]
+  },
+  "config": {
+    "enabled": true,
+    "logLevel": "info",
+    "timeout": 30000,
+    "retryAttempts": 3
+  }
+}

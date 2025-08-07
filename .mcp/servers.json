@@ -1,0 +1,45 @@
+{
+  "mcpServers": {
+    "market-intelligence": {
+      "command": "node",
+      "args": ["./mcp/market-intelligence-server.js"],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "capabilities": {
+        "tools": true,
+        "prompts": true,
+        "resources": true
+      }
+    },
+    "reddit-monitor": {
+      "command": "node",
+      "args": ["./mcp/reddit-monitor-server.js"],
+      "env": {
+        "REDDIT_CLIENT_ID": "${REDDIT_CLIENT_ID}",
+        "REDDIT_CLIENT_SECRET": "${REDDIT_CLIENT_SECRET}"
+      },
+      "capabilities": {
+        "tools": true
+      }
+    },
+    "financial-apis": {
+      "command": "node",
+      "args": ["./mcp/financial-apis-server.js"],
+      "env": {
+        "ALPACA_API_KEY": "${ALPACA_API_KEY}",
+        "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
+        "POLYGON_API_KEY": "${POLYGON_API_KEY}"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true
+      }
+    }
+  },
+  "clientSettings": {
+    "timeout": 30000,
+    "retryAttempts": 3,
+    "logLevel": "info"
+  }
+}
