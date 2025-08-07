@@ -13,3 +13,5 @@ services:
         sync: false  
       - key: APCA_API_BASE_URL
         value: https://paper-api.alpaca.markets
+      - key: POLYGON_API_KEY
+        sync: false

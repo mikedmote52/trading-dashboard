@@ -317,7 +317,13 @@
                                     stock.recommendation === 'STRONG BUY' ? 'status-green' : 
                                     stock.recommendation === 'BUY' ? 'status-yellow' : 'text-white'
                                 }">${stock.recommendation}</div>
-                                <div class="text-xs text-blue-200">Risk: ${stock.riskLevel}</div>
+                                <div class="text-xs text-blue-200 mb-2">Risk: ${stock.riskLevel}</div>
+                                ${stock.recommendation === 'STRONG BUY' || stock.recommendation === 'BUY' ? `
+                                    <button onclick="buyStock('${stock.symbol}', 10)" 
+                                            class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs transition-colors">
+                                        Buy 10
+                                    </button>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
@@ -368,7 +374,21 @@
                                     pos.riskAnalysis?.recommendation === 'SELL' ? 'status-red' : 
                                     pos.riskAnalysis?.recommendation === 'BUY_MORE' ? 'status-green' : 'status-yellow'
                                 }">${pos.riskAnalysis?.recommendation || 'HOLD'}</div>
-                                <div class="text-xs text-blue-200">${pos.riskAnalysis?.action || ''}</div>
+                                <div class="text-xs text-blue-200 mb-2">${pos.riskAnalysis?.action || ''}</div>
+                                <div class="flex space-x-1">
+                                    ${pos.riskAnalysis?.recommendation === 'BUY_MORE' ? `
+                                        <button onclick="buyStock('${pos.symbol}', 5)" 
+                                                class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs transition-colors">
+                                            +5
+                                        </button>
+                                    ` : ''}
+                                    ${pos.riskAnalysis?.recommendation === 'SELL' ? `
+                                        <button onclick="sellStock('${pos.symbol}', ${Math.min(pos.qty, 10)})" 
+                                                class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs transition-colors">
+                                            Sell ${Math.min(pos.qty, 10)}
+                                        </button>
+                                    ` : ''}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -438,6 +458,50 @@
             stopAutoRefresh() {
                 if (this.refreshInterval) {
                     clearInterval(this.refreshInterval);
+                }
+            }
+
+            async executeTrade(action, symbol, qty) {
+                try {
+                    this.showLoading(true);
+                    const response = await fetch('/api/trade', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action, symbol, qty })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.showSuccess(`${result.message} - Order ID: ${result.orderId}`);
+                        // Refresh dashboard to show updated positions
+                        setTimeout(() => this.loadDashboard(), 2000);
+                    } else {
+                        this.showError(result.error || 'Trade failed');
+                    }
+                    
+                } catch (error) {
+                    console.error('Trade execution error:', error);
+                    this.showError('Failed to execute trade');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+        }
+
+        // Global trading functions for button clicks
+        function buyStock(symbol, qty) {
+            if (window.dashboard) {
+                if (confirm(`Buy ${qty} shares of ${symbol}?`)) {
+                    window.dashboard.executeTrade('buy', symbol, qty);
+                }
+            }
+        }
+
+        function sellStock(symbol, qty) {
+            if (window.dashboard) {
+                if (confirm(`Sell ${qty} shares of ${symbol}?`)) {
+                    window.dashboard.executeTrade('sell', symbol, qty);
                 }
             }
         }

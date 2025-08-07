@@ -275,11 +275,10 @@ function scanForViglPatterns() {
   return new Promise((resolve) => {
     console.log('🔍 Running real VIGL Discovery system...');
     
-    // Run the actual VIGL discovery Python script
-    const viglPath = '/Users/michaelmote/Desktop/Trading-Systems/VIGL-Discovery';
+    // Run the actual VIGL discovery Python script (now local to project)
     const pythonProcess = spawn('python3', ['VIGL_Discovery_Complete.py'], {
-      cwd: viglPath,
-      env: { ...process.env, POLYGON_API_KEY: 'nTXyESvlVLpQE3hKCJWtsS5BHkhAqq1C' }
+      cwd: __dirname,
+      env: { ...process.env, POLYGON_API_KEY: process.env.POLYGON_API_KEY || 'nTXyESvlVLpQE3hKCJWtsS5BHkhAqq1C' }
     });
 
     let output = '';
@@ -471,6 +470,104 @@ app.post('/api/analyze', async (req, res) => {
     res.status(500).json({ error: 'Analysis failed' });
   }
 });
+
+// Trading actions
+app.post('/api/trade', async (req, res) => {
+  try {
+    const { action, symbol, qty } = req.body;
+    
+    if (!ALPACA_CONFIG.apiKey) {
+      return res.status(400).json({ error: 'Alpaca API not configured' });
+    }
+    
+    const orderData = {
+      symbol: symbol.toString(),
+      qty: qty.toString(),
+      side: action, // 'buy' or 'sell'
+      type: 'market',
+      time_in_force: 'day'
+    };
+    
+    console.log(`🔄 Placing ${action} order: ${qty} shares of ${symbol}`);
+    
+    const result = await makeAlpacaTradeRequest('orders', 'POST', orderData);
+    
+    if (result) {
+      console.log(`✅ Order placed successfully: ${result.id}`);
+      res.json({ 
+        success: true, 
+        orderId: result.id,
+        message: `${action.toUpperCase()} order placed: ${qty} shares of ${symbol}`
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to place order' });
+    }
+    
+  } catch (error) {
+    console.error('❌ Trading error:', error);
+    res.status(500).json({ error: 'Trading operation failed' });
+  }
+});
+
+// Helper function for trading requests
+function makeAlpacaTradeRequest(endpoint, method, data) {
+  return new Promise((resolve, reject) => {
+    if (!ALPACA_CONFIG.apiKey) {
+      console.log('❌ No API key configured for trading');
+      resolve(null);
+      return;
+    }
+
+    const url = new URL(ALPACA_CONFIG.baseUrl);
+    const postData = JSON.stringify(data);
+    
+    const options = {
+      hostname: url.hostname,
+      path: `/v2/${endpoint}`,
+      method: method,
+      headers: {
+        'APCA-API-KEY-ID': ALPACA_CONFIG.apiKey,
+        'APCA-API-SECRET-KEY': ALPACA_CONFIG.secretKey,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log(`📡 Trading request: ${method} https://${url.hostname}/v2/${endpoint}`);
+
+    const req = https.request(options, (res) => {
+      let responseData = '';
+      res.on('data', chunk => responseData += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseData);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(parsed);
+          } else {
+            console.error(`❌ Alpaca trading error: ${res.statusCode} - ${responseData}`);
+            resolve(null);
+          }
+        } catch (e) {
+          console.error('❌ Failed to parse trading response:', e.message);
+          resolve(null);
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error('❌ Trading request failed:', err.message);
+      resolve(null);
+    });
+    
+    req.setTimeout(10000, () => {
+      console.error('❌ Trading request timeout');
+      resolve(null);
+    });
+    
+    req.write(postData);
+    req.end();
+  });
+}
 
 // Serve frontend
 app.get('/', (req, res) => {
