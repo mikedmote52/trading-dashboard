@@ -8,6 +8,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const https = require('https');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -271,52 +272,80 @@ function calculateViglSimilarity(stock) {
 }
 
 function scanForViglPatterns() {
-  // Mock VIGL-like discoveries (in production, this would scan market data)
-  const mockDiscoveries = [
-    {
-      symbol: 'MKTW',
-      name: 'MarketWatch Corp',
-      currentPrice: 3.45,
-      marketCap: 45e6,
-      volumeSpike: 18.5,
-      momentum: 67.8,
-      breakoutStrength: 0.8,
-      sector: 'Technology',
-      catalysts: ['FDA approval expected', 'Insider buying']
-    },
-    {
-      symbol: 'BIOX',
-      name: 'BioTech Innovations',
-      currentPrice: 4.12,
-      marketCap: 62e6,
-      volumeSpike: 15.2,
-      momentum: 45.3,
-      breakoutStrength: 0.7,
-      sector: 'Biotechnology',
-      catalysts: ['Clinical trial results', 'Partnership rumor']
-    },
-    {
-      symbol: 'ENRG',
-      name: 'Energy Solutions Ltd',
-      currentPrice: 2.78,
-      marketCap: 38e6,
-      volumeSpike: 22.1,
-      momentum: 89.5,
-      breakoutStrength: 0.9,
-      sector: 'Energy',
-      catalysts: ['Government contract', 'Earnings beat']
-    }
-  ];
-  
-  return mockDiscoveries.map(stock => {
-    const viglAnalysis = calculateViglSimilarity(stock);
-    return {
-      ...stock,
-      ...viglAnalysis,
-      discoveredAt: new Date().toISOString(),
-      riskLevel: viglAnalysis.confidence >= 0.8 ? 'MODERATE' : 'HIGH',
-      recommendation: viglAnalysis.confidence >= 0.8 ? 'STRONG BUY' : viglAnalysis.confidence >= 0.6 ? 'BUY' : 'WATCH'
-    };
+  return new Promise((resolve) => {
+    console.log('🔍 Running real VIGL Discovery system...');
+    
+    // Run the actual VIGL discovery Python script
+    const viglPath = '/Users/michaelmote/Desktop/Trading-Systems/VIGL-Discovery';
+    const pythonProcess = spawn('python3', ['VIGL_Discovery_Complete.py'], {
+      cwd: viglPath,
+      env: { ...process.env, POLYGON_API_KEY: 'nTXyESvlVLpQE3hKCJWtsS5BHkhAqq1C' }
+    });
+
+    let output = '';
+    let discoveries = [];
+
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      const logData = data.toString();
+      console.log('VIGL:', logData.trim());
+      
+      // Parse VIGL matches from log output
+      const matches = logData.match(/🎯 VIGL MATCH: (\w+) - ([\d.]+) similarity \(([\d.]+)x volume, \+([\d.]+)% momentum\)/g);
+      
+      if (matches) {
+        matches.forEach(match => {
+          const parts = match.match(/🎯 VIGL MATCH: (\w+) - ([\d.]+) similarity \(([\d.]+)x volume, \+([\d.]+)% momentum\)/);
+          if (parts) {
+            const [, symbol, similarity, volumeSpike, momentum] = parts;
+            
+            discoveries.push({
+              symbol: symbol,
+              name: `${symbol} Corp`, // Simplified name
+              currentPrice: Math.random() * 10 + 2, // Placeholder - would need real price lookup
+              marketCap: Math.random() * 200e6 + 20e6, // Placeholder
+              volumeSpike: parseFloat(volumeSpike),
+              momentum: parseFloat(momentum),
+              breakoutStrength: parseFloat(similarity),
+              sector: 'Market Discovery',
+              catalysts: ['Volume spike detected', 'VIGL pattern match'],
+              similarity: parseFloat(similarity),
+              confidence: parseFloat(similarity),
+              isHighConfidence: parseFloat(similarity) >= 0.8,
+              estimatedUpside: parseFloat(similarity) >= 0.8 ? '200-400%' : 
+                              parseFloat(similarity) >= 0.6 ? '100-200%' : '50-100%',
+              discoveredAt: new Date().toISOString(),
+              riskLevel: parseFloat(similarity) >= 0.8 ? 'MODERATE' : 'HIGH',
+              recommendation: parseFloat(similarity) >= 0.8 ? 'STRONG BUY' : 
+                             parseFloat(similarity) >= 0.6 ? 'BUY' : 'WATCH'
+            });
+          }
+        });
+      }
+    });
+
+    // Set timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      console.log('⏱️ VIGL scan timeout - using existing discoveries');
+      pythonProcess.kill();
+      resolve(discoveries);
+    }, 30000); // 30 second timeout
+
+    pythonProcess.on('close', (code) => {
+      clearTimeout(timeout);
+      console.log(`🎯 VIGL scan complete: Found ${discoveries.length} patterns`);
+      resolve(discoveries);
+    });
+
+    pythonProcess.on('error', (error) => {
+      clearTimeout(timeout);
+      console.error('❌ VIGL scan error:', error.message);
+      // Return empty array on error instead of crashing
+      resolve([]);
+    });
   });
 }
 
@@ -388,7 +417,7 @@ app.get('/api/dashboard', async (req, res) => {
       riskAnalysis: analyzePositionRisk(position)
     }));
     
-    const discoveries = scanForViglPatterns();
+    const discoveries = await scanForViglPatterns();
     const alerts = generateAlerts(portfolio, discoveries);
     
     dashboardData = {
@@ -432,7 +461,7 @@ app.post('/api/analyze', async (req, res) => {
     }
     
     if (type === 'vigl' || type === 'both') {
-      result.discoveries = scanForViglPatterns();
+      result.discoveries = await scanForViglPatterns();
     }
     
     result.timestamp = new Date().toISOString();
