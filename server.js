@@ -10,6 +10,7 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 const PortfolioIntelligence = require('./portfolio_intelligence');
+const { saveSimpleBackup } = require('./simple_data_backup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -391,6 +392,9 @@ app.get('/api/dashboard', async (req, res) => {
         viglOpportunities: discoveries.filter(d => d.confidence >= 0.6).length
       }
     };
+    
+    // Simple backup (non-critical, won't affect functionality)
+    saveSimpleBackup(dashboardData);
     
     res.json(dashboardData);
   } catch (error) {
