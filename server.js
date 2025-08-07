@@ -286,9 +286,9 @@ let viglDiscoveryCache = [];
 let lastViglScan = null;
 let viglScanInProgress = false;
 
-// Use real VIGL discoveries from your proven Python system
+// Run JavaScript VIGL Discovery (pure Node.js - no Python needed)
 async function scanForViglPatterns() {
-  console.log('🔍 Running real VIGL discovery scan...');
+  console.log('🔍 Running JavaScript VIGL Discovery...');
   
   // Prevent multiple simultaneous scans
   if (viglScanInProgress) {
@@ -296,88 +296,23 @@ async function scanForViglPatterns() {
     throw new Error('VIGL scan already in progress. Please wait for current scan to complete (1-2 minutes).');
   }
   
-  // Check cache first (5 minute refresh for active trading)
-  if (lastViglScan && (Date.now() - lastViglScan) < 300000 && viglDiscoveryCache.length > 0) {
+  // Check cache first (2 minute refresh for active trading)
+  if (lastViglScan && (Date.now() - lastViglScan) < 120000 && viglDiscoveryCache.length > 0) {
     console.log(`✅ Using cached VIGL discoveries: ${viglDiscoveryCache.length} patterns (${Math.round((Date.now() - lastViglScan) / 1000)}s ago)`);
     return viglDiscoveryCache;
   }
 
   // Set scan in progress flag
   viglScanInProgress = true;
-  console.log('🚀 Running fresh VIGL pattern scan...');
+  console.log('📁 Loading fresh VIGL discoveries from live data file...');
 
   try {
-    // Run the actual Python VIGL discovery script
-    const fs = require('fs');
-    const path = require('path');
-    const { execSync } = require('child_process');
+    // Use pure JavaScript VIGL discovery system
+    const JavaScriptVIGLDiscovery = require('./vigl_discovery_js');
+    const viglDiscovery = new JavaScriptVIGLDiscovery();
     
-    const pythonScript = path.join(__dirname, 'VIGL_Discovery_Complete.py');
-    console.log('🐍 Executing VIGL Python script:', pythonScript);
-
-    // Set environment variable for API key if available
-    const env = { ...process.env };
-    if (!env.POLYGON_API_KEY) {
-      console.log('⚠️ Warning: POLYGON_API_KEY not set - using mock data');
-    }
-
-    // Run Python script with timeout
-    let discoveries = [];
-    try {
-      const output = execSync(`cd "${__dirname}" && python3 VIGL_Discovery_Complete.py --json`, {
-        timeout: 180000, // 3 minute timeout
-        encoding: 'utf8',
-        env: env
-      });
-      
-      // Parse JSON output directly
-      discoveries = JSON.parse(output.trim());
-      console.log(`✅ Live VIGL scan found ${discoveries.length} patterns from Python script`);
-    } catch (pythonError) {
-      console.log('⚠️ Python script failed:', pythonError.message);
-      console.log('Full error:', pythonError);
-      
-      // Create mock VIGL data as fallback when Python fails
-      console.log('📁 Creating mock VIGL data as fallback');
-      discoveries = [
-        {
-          symbol: "RMSG",
-          name: "RiverNorth/DoubleLine Strategic Opportunity Fund",
-          currentPrice: 12.45,
-          marketCap: 125000000,
-          volumeSpike: 0.5,
-          momentum: 25.4,
-          breakoutStrength: 0.65,
-          sector: "Financial",
-          catalysts: ["Price momentum", "Pattern breakout"],
-          similarity: 0.65,
-          confidence: 0.65,
-          isHighConfidence: false,
-          estimatedUpside: "100-200%",
-          discoveredAt: new Date().toISOString(),
-          riskLevel: "MODERATE",
-          recommendation: "BUY"
-        },
-        {
-          symbol: "IMG",
-          name: "ImageWare Systems Inc",
-          currentPrice: 2.87,
-          marketCap: 85000000,
-          volumeSpike: 275.2,
-          momentum: 89.3,
-          breakoutStrength: 0.85,
-          sector: "Technology",
-          catalysts: ["Extreme volume spike", "Strong momentum"],
-          similarity: 0.85,
-          confidence: 0.85,
-          isHighConfidence: true,
-          estimatedUpside: "200-400%",
-          discoveredAt: new Date().toISOString(),
-          riskLevel: "MODERATE",
-          recommendation: "STRONG BUY"
-        }
-      ];
-    }
+    const discoveries = await viglDiscovery.findVIGLPatterns();
+    console.log(`✅ JavaScript VIGL Discovery found ${discoveries.length} patterns`);
     
     // Enhance discoveries with proper target prices
     discoveries = discoveries.map(stock => {
