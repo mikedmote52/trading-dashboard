@@ -493,6 +493,33 @@ app.get('/api/debug/alpaca', async (req, res) => {
   }
 });
 
+// Fetch portfolio alerts from API
+async function fetchPortfolioAlerts() {
+  const viglApiUrl = process.env.VIGL_API_URL || 'https://vigl-api-service.onrender.com';
+  const https = require('https');
+  
+  try {
+    const response = await new Promise((resolve, reject) => {
+      https.get(`${viglApiUrl}/portfolio/critical`, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve({ data: [] });
+          }
+        });
+      }).on('error', () => resolve({ data: [] }));
+    });
+    
+    return response.data || [];
+  } catch (error) {
+    console.log('Portfolio alerts unavailable');
+    return [];
+  }
+}
+
 // Main dashboard data
 app.get('/api/dashboard', async (req, res) => {
   try {
@@ -511,7 +538,28 @@ app.get('/api/dashboard', async (req, res) => {
     });
     
     const discoveries = await scanForViglPatterns();
+    
+    // Fetch real portfolio alerts from API service
+    const portfolioAlerts = await fetchPortfolioAlerts();
+    
+    // Combine with existing alert system
     const alerts = await generateAlerts(portfolio, discoveries);
+    
+    // Add critical portfolio alerts to the top
+    if (portfolioAlerts.length > 0) {
+      portfolioAlerts.forEach(alert => {
+        alerts.unshift({
+          id: `portfolio-${alert.symbol}`,
+          type: 'PORTFOLIO',
+          severity: alert.alert_level === 'CRITICAL' ? 'HIGH' : alert.alert_level,
+          title: `${alert.symbol}: ${alert.action}`,
+          message: alert.message,
+          symbol: alert.symbol,
+          timestamp: alert.created_at,
+          action: alert.action
+        });
+      });
+    }
     
     // Generate comprehensive portfolio health analysis
     const healthAnalysis = PortfolioHealth.analyzePortfolioHealth(portfolio, discoveries);
