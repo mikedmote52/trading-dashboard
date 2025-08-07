@@ -12,14 +12,44 @@ yarn-error.log*
 .env.production.local
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
 
 # Logs
-logs
+logs/
 *.log
+server.log
+
+# Cache and temporary files
+.cache/
+.tmp/
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+
+# Trading data (sensitive)
+trading_logs/
+*.json.backup
+real_portfolio_data.json
+position_*.json
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS generated files
 .DS_Store
@@ -29,3 +59,4 @@ logs
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini

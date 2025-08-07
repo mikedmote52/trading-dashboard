@@ -53,21 +53,27 @@ class PortfolioIntelligence {
             const alerts = [];
             const currentTime = new Date().toISOString();
 
-            // Portfolio summary alert
+            // Add learning system summary
+            const learningInsights = await this.getLearningSystemSummary();
+            alerts.push(...learningInsights);
+
+            // Portfolio summary alert - only if significant change
             const portfolioValue = parseFloat(account.portfolio_value || 0);
             const dayPnL = parseFloat(account.day_trade_pl || 0);
-            const buyingPower = parseFloat(account.buying_power || 0);
             
-            const pnlEmoji = dayPnL > 0 ? '📈' : dayPnL < 0 ? '📉' : '➡️';
-            
-            alerts.push({
-                id: 'portfolio-summary',
-                type: 'PORTFOLIO',
-                severity: Math.abs(dayPnL) > 1000 ? 'HIGH' : 'MEDIUM',
-                title: `💰 Portfolio: $${portfolioValue.toLocaleString()}`,
-                message: `${pnlEmoji} Day P&L: $${dayPnL >= 0 ? '+' : ''}${dayPnL.toLocaleString()} | ${positions.length} positions`,
-                timestamp: currentTime
-            });
+            // Only show portfolio alert for significant daily moves (>$500 or >0.5%)
+            if (Math.abs(dayPnL) > 500 || Math.abs(dayPnL / portfolioValue) > 0.005) {
+                const pnlEmoji = dayPnL > 0 ? '📈' : dayPnL < 0 ? '📉' : '➡️';
+                
+                alerts.push({
+                    id: 'portfolio-summary',
+                    type: 'PORTFOLIO',
+                    severity: Math.abs(dayPnL) > 1000 ? 'HIGH' : 'MEDIUM',
+                    title: `💰 Portfolio: $${portfolioValue.toLocaleString()}`,
+                    message: `${pnlEmoji} Day P&L: $${dayPnL >= 0 ? '+' : ''}${dayPnL.toLocaleString()} | ${positions.length} positions`,
+                    timestamp: currentTime
+                });
+            }
 
             // Analyze positions for alerts
             const bigWinners = [];
@@ -221,6 +227,151 @@ class PortfolioIntelligence {
         }
 
         return alerts;
+    }
+
+    async getLearningSystemSummary() {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            
+            const logsDir = path.join(process.env.HOME, 'trading_logs', 'trading_logs');
+            const alerts = [];
+            const timestamp = new Date().toISOString();
+
+            // Check for recent learning data
+            const dataFiles = [
+                { file: 'vigl_discoveries.json', type: 'VIGL Discoveries' },
+                { file: 'portfolio_positions.json', type: 'Portfolio Snapshots' },
+                { file: 'user_trades.json', type: 'Trade Decisions' },
+                { file: `daily_summary_${new Date().toISOString().split('T')[0]}.json`, type: "Today's Summary" }
+            ];
+
+            let totalDataPoints = 0;
+            let recentActivity = [];
+            const today = new Date().toDateString();
+
+            // Count data points and recent activity
+            for (const {file, type} of dataFiles) {
+                const filePath = path.join(logsDir, file);
+                
+                try {
+                    if (fs.existsSync(filePath)) {
+                        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                        
+                        if (Array.isArray(data)) {
+                            totalDataPoints += data.length;
+                            
+                            // Check for today's activity
+                            const todayItems = data.filter(item => {
+                                const itemDate = new Date(item.timestamp || item.date || Date.now()).toDateString();
+                                return itemDate === today;
+                            });
+                            
+                            if (todayItems.length > 0) {
+                                recentActivity.push(`${todayItems.length} ${type.toLowerCase()}`);
+                            }
+                        } else if (typeof data === 'object') {
+                            totalDataPoints += Object.keys(data).length;
+                            
+                            if (file.includes('daily_summary') && data.timestamp) {
+                                const summaryDate = new Date(data.timestamp).toDateString();
+                                if (summaryDate === today) {
+                                    recentActivity.push(`Daily summary (${data.positions || 0} positions analyzed)`);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // File might not exist or be corrupted, skip silently
+                }
+            }
+
+            // Learning system status alert
+            if (totalDataPoints > 0) {
+                const daysIntoExperiment = Math.floor((Date.now() - new Date('2025-08-07').getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                const daysRemaining = 30 - daysIntoExperiment;
+                
+                alerts.push({
+                    id: 'learning-system-status',
+                    type: 'LEARNING',
+                    severity: 'MEDIUM',
+                    title: `🧠 Learning System: Day ${daysIntoExperiment}/30`,
+                    message: `${totalDataPoints} data points captured | ${recentActivity.length > 0 ? 'Today: ' + recentActivity.join(', ') : 'No activity today'}`,
+                    timestamp
+                });
+
+                // Progress milestone alerts
+                if (daysRemaining <= 7) {
+                    alerts.push({
+                        id: 'experiment-deadline',
+                        type: 'LEARNING',
+                        severity: 'HIGH',
+                        title: `⏰ Experiment Analysis: ${daysRemaining} days left`,
+                        message: `Learning phase ends Sep 6 - Analysis phase begins soon`,
+                        timestamp
+                    });
+                } else if (daysIntoExperiment % 7 === 0) {  // Weekly milestone
+                    alerts.push({
+                        id: 'weekly-progress',
+                        type: 'LEARNING',
+                        severity: 'MEDIUM',
+                        title: `📈 Week ${Math.ceil(daysIntoExperiment/7)} Complete`,
+                        message: `${totalDataPoints} total learning points collected`,
+                        timestamp
+                    });
+                }
+            } else {
+                // No learning data found
+                alerts.push({
+                    id: 'learning-system-inactive',
+                    type: 'LEARNING',
+                    severity: 'HIGH',
+                    title: `🔍 Learning System: Inactive`,
+                    message: `No data collection detected - Check ~/trading_logs/`,
+                    timestamp
+                });
+            }
+
+            // Pattern learning insights
+            try {
+                const viglFile = path.join(logsDir, 'vigl_discoveries.json');
+                const performanceFile = path.join(logsDir, 'vigl_performance.json');
+                
+                if (fs.existsSync(viglFile) && fs.existsSync(performanceFile)) {
+                    const discoveries = JSON.parse(fs.readFileSync(viglFile, 'utf8'));
+                    const performance = JSON.parse(fs.readFileSync(performanceFile, 'utf8'));
+                    
+                    if (discoveries.length > 0 && performance.length > 0) {
+                        const successful = performance.filter(p => p.outcome === 'success').length;
+                        const successRate = ((successful / performance.length) * 100).toFixed(1);
+                        
+                        alerts.push({
+                            id: 'pattern-learning',
+                            type: 'LEARNING',
+                            severity: 'MEDIUM',
+                            title: `🎯 Pattern Success: ${successRate}%`,
+                            message: `${successful}/${performance.length} VIGL patterns profitable | Target: >70%`,
+                            timestamp
+                        });
+                    }
+                }
+            } catch (e) {
+                // Pattern analysis not available yet
+            }
+
+            return alerts;
+
+        } catch (error) {
+            console.log('Learning system summary error:', error.message);
+            return [{
+                id: 'learning-error',
+                type: 'LEARNING',
+                severity: 'LOW',
+                title: '🧠 Learning System',
+                message: 'Data collection status unavailable',
+                timestamp: new Date().toISOString()
+            }];
+        }
     }
 }
 

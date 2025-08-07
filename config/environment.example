@@ -1,0 +1,74 @@
+# Trading Intelligence Dashboard - Environment Configuration
+
+# =============================================================================
+# TRADING API CONFIGURATION
+# =============================================================================
+
+# Alpaca Trading API (Paper Trading)
+APCA_API_KEY_ID=your_alpaca_api_key_here
+APCA_API_SECRET_KEY=your_alpaca_secret_key_here
+APCA_API_BASE_URL=https://paper-api.alpaca.markets
+
+# Polygon Market Data API
+POLYGON_API_KEY=your_polygon_api_key_here
+
+# =============================================================================
+# APPLICATION CONFIGURATION
+# =============================================================================
+
+# Environment (development, production)
+NODE_ENV=development
+
+# Server Port (auto-assigned by Render in production)
+PORT=3001
+
+# =============================================================================
+# OPTIONAL CONFIGURATION
+# =============================================================================
+
+# Cache Duration (milliseconds)
+# CACHE_DURATION=1800000  # 30 minutes (default)
+
+# Log Level (error, warn, info, debug)
+# LOG_LEVEL=info
+
+# Maximum VIGL discoveries to cache
+# MAX_VIGL_CACHE=50
+
+# =============================================================================
+# PRODUCTION DEPLOYMENT NOTES
+# =============================================================================
+
+# For Render deployment, set these in the Render dashboard:
+# - Environment tab → Add environment variables
+# - Do not include quotes around values
+# - NODE_ENV should be "production"
+# - PORT is automatically assigned by Render
+
+# For local development:
+# 1. Copy this file to .env
+# 2. Replace placeholder values with your actual API keys
+# 3. Keep .env file private (never commit to git)
+
+# =============================================================================
+# API KEY SOURCES
+# =============================================================================
+
+# Alpaca API Keys:
+# 1. Sign up at https://alpaca.markets
+# 2. Go to Paper Trading → API Keys
+# 3. Generate new API key pair
+
+# Polygon API Key:
+# 1. Sign up at https://polygon.io
+# 2. Dashboard → API Keys
+# 3. Copy your API key
+
+# =============================================================================
+# SECURITY NOTES
+# =============================================================================
+
+# - Never commit real API keys to git
+# - Use paper trading keys only during development
+# - Rotate API keys regularly
+# - Monitor API usage and set appropriate limits
