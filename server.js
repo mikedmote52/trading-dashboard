@@ -14,6 +14,7 @@ const { saveSimpleBackup } = require('./utils/simple_data_backup');
 // const MarketIntelligence = require('./market_intelligence'); // TODO: Enable when ready
 const PositionThesis = require('./utils/position_thesis');
 const PortfolioHealth = require('./utils/portfolio_health');
+const DataValidation = require('./utils/data_validation');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -126,74 +127,43 @@ async function fetchAlpacaPositions() {
     
     console.log(`✅ Found ${positions.length} real positions from Alpaca`);
     
-    // Fetch latest quotes for accurate daily P&L
-    const symbols = positions.map(p => p.symbol).join(',');
-    const latestQuotes = await makeAlpacaRequest(`quotes/latest?symbols=${symbols}`);
-
-    // Calculate actual daily P&L for each position
-    const enhancedPositions = await Promise.all(positions.map(async (pos) => {
-      const qty = parseFloat(pos.qty);
-      const currentPrice = parseFloat(pos.current_price || pos.market_value / pos.qty);
-      const avgEntry = parseFloat(pos.avg_entry_price);
-      const marketValue = parseFloat(pos.market_value);
-      const totalPnL = parseFloat(pos.unrealized_pl);
-      const totalPnLPercent = parseFloat(pos.unrealized_plpc) * 100;
-      
-      // Try to get daily change from position data or calculate from bars
-      let changeToday = parseFloat(pos.change_today || 0);
-      let changeTodayPercent = parseFloat(pos.percent_change_today || 0) * 100;
-      let dailyPnL = qty * changeToday;
-      
-      // If no daily change data, fetch last bar to calculate
-      if (changeToday === 0 && latestQuotes) {
-        try {
-          const bars = await makeAlpacaRequest(`bars/latest?symbols=${pos.symbol}`);
-          if (bars && bars.bars && bars.bars[pos.symbol]) {
-            const bar = bars.bars[pos.symbol];
-            const openPrice = parseFloat(bar.o);
-            changeToday = currentPrice - openPrice;
-            changeTodayPercent = ((currentPrice - openPrice) / openPrice) * 100;
-            dailyPnL = qty * changeToday;
-          }
-        } catch (err) {
-          console.log(`Could not fetch bars for ${pos.symbol}`);
-        }
-      }
-      
-      return {
-        symbol: pos.symbol,
-        qty: qty,
-        currentPrice: currentPrice,
-        marketValue: marketValue,
-        avgEntryPrice: avgEntry,
-        // Total P&L (since purchase)
-        unrealizedPnL: totalPnL,
-        unrealizedPnLPercent: totalPnLPercent,
-        // Daily P&L
-        dailyPnL: dailyPnL,
-        dailyPnLPercent: changeTodayPercent,
-        changeToday: changeToday,
-        // Additional data
-        side: pos.side,
-        costBasis: avgEntry * qty
-      };
-    });
+    // Debug: Log the first position to see what data we're getting
+    if (positions.length > 0) {
+      console.log('📊 Sample position data:', {
+        symbol: positions[0].symbol,
+        qty: positions[0].qty,
+        current_price: positions[0].current_price,
+        avg_entry_price: positions[0].avg_entry_price,
+        market_value: positions[0].market_value,
+        unrealized_pl: positions[0].unrealized_pl,
+        unrealized_plpc: positions[0].unrealized_plpc,
+        change_today: positions[0].change_today,
+        percent_change_today: positions[0].percent_change_today
+      });
+    }
     
-    // Calculate actual daily P&L (sum of all position daily changes)
-    const actualDailyPnL = enhancedPositions.reduce((sum, pos) => sum + pos.dailyPnL, 0);
+    // Validate and clean position data
+    const enhancedPositions = positions.map(pos => DataValidation.validatePosition(pos));
     
-    // Calculate total unrealized P&L (all time)
-    const totalUnrealizedPnL = enhancedPositions.reduce((sum, pos) => sum + pos.unrealizedPnL, 0);
+    // Validate portfolio summary
+    const portfolioSummary = DataValidation.validatePortfolioSummary(enhancedPositions, account);
+    
+    // Generate data quality report
+    const qualityReport = DataValidation.generateQualityReport(enhancedPositions, portfolioSummary);
+    
+    console.log(`📊 Portfolio data quality: ${qualityReport.quality} (${qualityReport.completeness.toFixed(0)}% complete)`);
+    if (qualityReport.warnings.length > 0) {
+      console.log('⚠️ Data warnings:', qualityReport.warnings);
+    }
+    if (qualityReport.issues.length > 0) {
+      console.log('❌ Data issues:', qualityReport.issues);
+    }
     
     return {
       positions: enhancedPositions,
-      totalValue: parseFloat(account.portfolio_value || 0),
-      dailyPnL: actualDailyPnL,
-      totalPnL: totalUnrealizedPnL,
-      totalPnLPercent: (totalUnrealizedPnL / (parseFloat(account.portfolio_value) - totalUnrealizedPnL)) * 100,
-      buyingPower: parseFloat(account.buying_power || 0),
-      cash: parseFloat(account.cash || 0),
-      isConnected: true
+      ...portfolioSummary,
+      isConnected: true,
+      dataQuality: qualityReport
     };
   } catch (error) {
     console.log('❌ Alpaca connection failed:', error.message);
@@ -458,6 +428,22 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });
+});
+
+// Debug endpoint to see raw Alpaca data
+app.get('/api/debug/alpaca', async (req, res) => {
+  try {
+    const positions = await makeAlpacaRequest('positions');
+    const account = await makeAlpacaRequest('account');
+    
+    res.json({
+      positions: positions || [],
+      account: account || {},
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Main dashboard data

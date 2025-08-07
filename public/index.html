@@ -591,7 +591,8 @@
                                     ${pos.unrealizedPnLPercent >= 0 ? '+' : ''}${pos.unrealizedPnLPercent.toFixed(1)}%
                                 </span>
                                 <span class="text-xs ${(pos.dailyPnLPercent || 0) >= 0 ? 'text-green-300' : 'text-red-300'}">
-                                    (${(pos.dailyPnLPercent || 0) >= 0 ? '+' : ''}${(pos.dailyPnLPercent || 0).toFixed(1)}% today)
+                                    ${pos.dailyPnLPercent === 0 || !pos.dailyPnLPercent ? '(--% today)' : 
+                                      `(${(pos.dailyPnLPercent || 0) >= 0 ? '+' : ''}${(pos.dailyPnLPercent || 0).toFixed(1)}% today)`}
                                 </span>
                             </div>
                             <div class="flex items-center space-x-2">
@@ -610,7 +611,9 @@
                             <div>Entry: <span class="text-white">$${pos.avgEntryPrice.toFixed(2)}</span></div>
                             <div>Current: <span class="text-white">$${pos.currentPrice.toFixed(2)}</span></div>
                             <div>Target: <span class="text-yellow-400">$${priceTarget}</span></div>
-                            <div>Upside: <span class="${upside > 0 ? 'text-green-400' : 'text-red-400'}">${upside > 0 ? '+' : ''}${upside.toFixed(0)}%</span></div>
+                            <div>Upside: <span class="${upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'}">
+                                ${isNaN(upside) ? '--' : `${upside > 0 ? '+' : ''}${upside.toFixed(0)}%`}
+                            </span></div>
                             <div>Risk: <span class="text-white">${Math.round((pos.riskAnalysis?.wolfScore || 0) * 100)}%</span></div>
                         </div>
                         

@@ -88,10 +88,40 @@ class PositionThesis {
    * Calculate realistic target prices
    */
   static calculateTargetPrices(entryPrice, currentPrice, currentReturn) {
-    // Base targets on entry price for consistency
-    const conservative = entryPrice * 1.15; // 15% gain from entry
-    const moderate = entryPrice * 1.35;     // 35% gain from entry
-    const aggressive = entryPrice * 1.75;   // 75% gain from entry
+    // Ensure we have valid prices
+    if (!entryPrice || !currentPrice || entryPrice <= 0 || currentPrice <= 0) {
+      return {
+        conservative: currentPrice * 1.1,
+        moderate: currentPrice * 1.2,
+        aggressive: currentPrice * 1.5,
+        upside: { conservative: 10, moderate: 20, aggressive: 50, primary: 20 }
+      };
+    }
+    
+    // Base targets on current price and performance context
+    let conservative, moderate, aggressive;
+    
+    if (currentReturn > 20) {
+      // Already up significantly - more conservative targets
+      conservative = currentPrice * 1.05; // 5% more
+      moderate = currentPrice * 1.15;     // 15% more  
+      aggressive = currentPrice * 1.30;   // 30% more
+    } else if (currentReturn > 0) {
+      // Profitable but room to grow
+      conservative = currentPrice * 1.10; // 10% more
+      moderate = currentPrice * 1.25;     // 25% more
+      aggressive = currentPrice * 1.50;   // 50% more
+    } else if (currentReturn > -15) {
+      // Small loss - recovery targets
+      conservative = entryPrice * 0.98;   // Just below breakeven
+      moderate = entryPrice * 1.15;       // 15% above entry
+      aggressive = entryPrice * 1.40;     // 40% above entry
+    } else {
+      // Significant loss - recovery focus
+      conservative = entryPrice * 0.90;   // 10% below entry (damage control)
+      moderate = entryPrice * 1.05;       // 5% above entry
+      aggressive = entryPrice * 1.25;     // 25% above entry
+    }
     
     // Calculate actual upside percentages from current price
     const conservativeUpside = ((conservative - currentPrice) / currentPrice) * 100;
