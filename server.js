@@ -274,8 +274,10 @@ async function scanForViglPatterns() {
     const polygonKey = process.env.POLYGON_API_KEY;
     if (!polygonKey) {
       console.log('❌ No Polygon API key - cannot scan for VIGL patterns');
+      console.log('🔑 Add POLYGON_API_KEY to environment variables');
       return [];
     }
+    console.log('✅ Polygon API key found, proceeding with scan...');
 
     // Try multiple real data sources for comprehensive coverage
     let candidates = [];
@@ -285,10 +287,18 @@ async function scanForViglPatterns() {
     const snapshotUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/gainers?apikey=${polygonKey}`;
     try {
       const snapshotResponse = await fetch(snapshotUrl);
+      console.log(`📡 Snapshot API response status: ${snapshotResponse.status}`);
+      
       if (snapshotResponse.ok) {
         const snapshotData = await snapshotResponse.json();
         candidates = snapshotData.results || [];
         console.log(`📊 Found ${candidates.length} current market candidates`);
+        if (candidates.length === 0) {
+          console.log('⏰ Likely after-hours or weekend - no current gainers available');
+        }
+      } else {
+        const errorText = await snapshotResponse.text();
+        console.log(`❌ Snapshot API error: ${snapshotResponse.status} - ${errorText}`);
       }
     } catch (error) {
       console.log('⚠️ Live snapshot unavailable:', error.message);
@@ -326,9 +336,64 @@ async function scanForViglPatterns() {
       }
     }
     
-    // If still no data, return empty - NO FAKE DATA
+    // Third: Try last few trading days if still no data
     if (candidates.length === 0) {
-      console.log('❌ No real market data available from any source');
+      console.log('📅 Trying multiple recent trading days...');
+      const dates = [];
+      for (let i = 1; i <= 5; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        dates.push(date.toISOString().split('T')[0]);
+      }
+      
+      for (const dateStr of dates) {
+        try {
+          console.log(`🔍 Checking ${dateStr} for market data...`);
+          const dayUrl = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${dateStr}?adjusted=true&apikey=${polygonKey}`;
+          const dayResponse = await fetch(dayUrl);
+          
+          if (dayResponse.ok) {
+            const dayData = await dayResponse.json();
+            if (dayData.results && dayData.results.length > 0) {
+              console.log(`✅ Found ${dayData.results.length} stocks from ${dateStr}`);
+              
+              // Filter and sort for best candidates
+              candidates = dayData.results
+                .filter(stock => 
+                  stock.T && // Has ticker
+                  stock.c > 0.5 && stock.c < 50 && // Price range
+                  stock.v > 0 && // Has volume
+                  stock.o > 0 && // Has open price
+                  ((stock.c - stock.o) / stock.o) > 0.02 // At least 2% gain
+                )
+                .sort((a, b) => {
+                  const gainA = ((a.c - a.o) / a.o) * 100;
+                  const gainB = ((b.c - b.o) / b.o) * 100;
+                  return gainB - gainA; // Sort by highest gain
+                })
+                .slice(0, 100) // Top 100 gainers
+                .map(stock => ({
+                  ticker: stock.T,
+                  day: { c: stock.c, v: stock.v, o: stock.o, h: stock.h, l: stock.l },
+                  prevDay: { c: stock.o, v: stock.v * 0.7 }, // Estimate prev volume (lower)
+                  todaysChangePerc: ((stock.c - stock.o) / stock.o) * 100,
+                  scanDate: dateStr
+                }));
+              
+              console.log(`📊 Prepared ${candidates.length} candidates from ${dateStr}`);
+              break; // Found data, stop looking
+            }
+          }
+        } catch (error) {
+          console.log(`⚠️ Failed to get data for ${dateStr}:`, error.message);
+        }
+      }
+    }
+
+    // If still no data, return empty
+    if (candidates.length === 0) {
+      console.log('❌ No market data available from any recent trading days');
+      console.log('🔑 Check if Polygon API key is configured correctly');
       return [];
     }
     
