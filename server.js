@@ -311,47 +311,11 @@ async function scanForViglPatterns() {
     
     console.log(`📊 Analyzing ${candidates.length} market candidates...`);
     
-    // If market is closed or no data, use recent historical data
+    // If market is closed or no data available
     if (candidates.length === 0) {
-      console.log('⏰ Market closed or no gainers - using historical VIGL-like patterns for demo');
-      return [
-        {
-          symbol: 'FTFT',
-          name: 'Future FinTech Group',
-          currentPrice: 2.45,
-          marketCap: 85e6,
-          volumeSpike: 8.3,
-          momentum: 45.2,
-          breakoutStrength: 0.78,
-          sector: 'Technology',
-          catalysts: ['Volume surge', 'Breakout pattern'],
-          similarity: 0.78,
-          confidence: 0.85,
-          isHighConfidence: true,
-          estimatedUpside: '200-400%',
-          discoveredAt: new Date().toISOString(),
-          riskLevel: 'MODERATE',
-          recommendation: 'STRONG BUY'
-        },
-        {
-          symbol: 'CPOP',
-          name: 'Pop Culture Group',
-          currentPrice: 1.89,
-          marketCap: 42e6,
-          volumeSpike: 12.7,
-          momentum: 67.8,
-          breakoutStrength: 0.92,
-          sector: 'Consumer',
-          catalysts: ['High volume spike', 'Strong momentum'],
-          similarity: 0.92,
-          confidence: 0.95,
-          isHighConfidence: true,
-          estimatedUpside: '200-400%',
-          discoveredAt: new Date().toISOString(),
-          riskLevel: 'MODERATE',
-          recommendation: 'STRONG BUY'
-        }
-      ];
+      console.log('⏰ Market closed - no live gainers data available');
+      console.log('🔍 VIGL Discovery requires active market hours for real patterns');
+      return []; // Return empty array - no fake data
     }
     
     const discoveries = [];
