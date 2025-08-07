@@ -20,8 +20,12 @@ class DataValidation {
     };
     
     // Calculate daily change if available
-    const dailyChange = this.validateNumber(position.change_today, null);
-    const dailyChangePercent = this.validatePercent(position.percent_change_today);
+    // Alpaca provides change_today as percentage (e.g., 0.1376 = 13.76%)
+    const dailyChangePercent = this.validatePercent(position.change_today);
+    // Calculate daily dollar change from percentage and current price
+    const dailyChange = dailyChangePercent !== null && cleaned.currentPrice > 0 
+      ? (dailyChangePercent / 100) * cleaned.currentPrice 
+      : null;
     
     cleaned.dailyPnL = dailyChange !== null ? cleaned.qty * dailyChange : null;
     cleaned.dailyPnLPercent = dailyChangePercent;

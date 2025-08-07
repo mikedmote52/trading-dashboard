@@ -746,4 +746,43 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import json
+    
+    # Check if JSON output is requested
+    if len(sys.argv) > 1 and sys.argv[1] == '--json':
+        try:
+            # Run VIGL discovery silently
+            vigl = VIGLDiscoveryAPI()
+            discoveries = vigl.find_daily_opportunities()
+            
+            # Convert to JSON format for the web dashboard
+            json_output = []
+            for stock in discoveries:
+                json_output.append({
+                    "symbol": stock.ticker,
+                    "name": stock.company_name,
+                    "currentPrice": stock.current_price,
+                    "marketCap": stock.market_cap,
+                    "volumeSpike": stock.volume_spike_ratio,
+                    "momentum": stock.price_momentum,
+                    "breakoutStrength": stock.pattern_strength,
+                    "sector": getattr(stock, 'sector', 'Technology'),
+                    "catalysts": stock.risk_factors,
+                    "similarity": stock.vigl_similarity,
+                    "confidence": stock.confidence_score,
+                    "isHighConfidence": stock.confidence_score >= 0.8,
+                    "estimatedUpside": stock.upside_potential,
+                    "discoveredAt": datetime.now().isoformat(),
+                    "riskLevel": stock.risk_level,
+                    "recommendation": "STRONG BUY" if stock.confidence_score >= 0.8 else "BUY"
+                })
+            
+            # Output JSON to stdout
+            print(json.dumps(json_output, indent=2))
+            
+        except Exception as e:
+            # Output empty array on error
+            print("[]")
+    else:
+        # Normal interactive mode
+        main()

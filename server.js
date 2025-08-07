@@ -288,7 +288,7 @@ let viglScanInProgress = false;
 
 // Use real VIGL discoveries from your proven Python system
 async function scanForViglPatterns() {
-  console.log('🔍 Loading real VIGL discoveries from your proven system...');
+  console.log('🔍 Running real VIGL discovery scan...');
   
   // Prevent multiple simultaneous scans
   if (viglScanInProgress) {
@@ -296,27 +296,56 @@ async function scanForViglPatterns() {
     throw new Error('VIGL scan already in progress. Please wait for current scan to complete (1-2 minutes).');
   }
   
-  // Check cache first (30 minute refresh for real trading)
-  if (lastViglScan && (Date.now() - lastViglScan) < 1800000 && viglDiscoveryCache.length > 0) {
-    console.log(`✅ Using cached VIGL discoveries: ${viglDiscoveryCache.length} patterns`);
+  // Check cache first (5 minute refresh for active trading)
+  if (lastViglScan && (Date.now() - lastViglScan) < 300000 && viglDiscoveryCache.length > 0) {
+    console.log(`✅ Using cached VIGL discoveries: ${viglDiscoveryCache.length} patterns (${Math.round((Date.now() - lastViglScan) / 1000)}s ago)`);
     return viglDiscoveryCache;
   }
 
   // Set scan in progress flag
   viglScanInProgress = true;
-  console.log('🚀 Loading your proven VIGL discoveries...');
+  console.log('🚀 Running fresh VIGL pattern scan...');
 
   try {
-    // Load real VIGL data from your Python system results
+    // Run the actual Python VIGL discovery script
     const fs = require('fs');
     const path = require('path');
+    const { execSync } = require('child_process');
     
-    const dataPath = path.join(__dirname, 'real_vigl_data.json');
-    console.log('📁 Loading VIGL data from:', dataPath);
+    const pythonScript = path.join(__dirname, 'VIGL_Discovery_Complete.py');
+    console.log('🐍 Executing VIGL Python script:', pythonScript);
 
-    // Read your real VIGL discoveries
-    const rawData = fs.readFileSync(dataPath, 'utf8');
-    let discoveries = JSON.parse(rawData);
+    // Set environment variable for API key if available
+    const env = { ...process.env };
+    if (!env.POLYGON_API_KEY) {
+      console.log('⚠️ Warning: POLYGON_API_KEY not set - using mock data');
+    }
+
+    // Run Python script with timeout
+    let discoveries = [];
+    try {
+      const output = execSync(`cd "${__dirname}" && python3 VIGL_Discovery_Complete.py --json`, {
+        timeout: 180000, // 3 minute timeout
+        encoding: 'utf8',
+        env: env
+      });
+      
+      // Parse JSON output directly
+      discoveries = JSON.parse(output.trim());
+      console.log(`✅ Live VIGL scan found ${discoveries.length} patterns from Python script`);
+    } catch (pythonError) {
+      console.log('⚠️ Python script failed, falling back to cached data:', pythonError.message);
+      
+      // Fallback to existing data file if Python fails
+      const dataPath = path.join(__dirname, 'real_vigl_data.json');
+      if (fs.existsSync(dataPath)) {
+        const rawData = fs.readFileSync(dataPath, 'utf8');
+        discoveries = JSON.parse(rawData);
+        console.log(`📁 Using fallback data: ${discoveries.length} patterns`);
+      } else {
+        discoveries = [];
+      }
+    }
     
     // Enhance discoveries with proper target prices
     discoveries = discoveries.map(stock => {

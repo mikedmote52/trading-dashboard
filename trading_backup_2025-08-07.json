@@ -1,0 +1,24 @@
+[
+  {
+    "timestamp": "2025-08-07T20:07:47.451Z",
+    "date": "2025-08-07",
+    "portfolio_value": "100471.66",
+    "daily_pnl": 70.75737908785628,
+    "position_count": 7,
+    "vigl_discoveries": 3,
+    "high_confidence_vigl": 1,
+    "alerts_count": 5,
+    "high_priority_alerts": 3
+  },
+  {
+    "timestamp": "2025-08-07T20:07:52.001Z",
+    "date": "2025-08-07",
+    "portfolio_value": "100471.66",
+    "daily_pnl": 70.75737908785628,
+    "position_count": 7,
+    "vigl_discoveries": 3,
+    "high_confidence_vigl": 1,
+    "alerts_count": 5,
+    "high_priority_alerts": 3
+  }
+]
