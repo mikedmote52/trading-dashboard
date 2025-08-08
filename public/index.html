@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trading Intelligence Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/tradeClient.js"></script>
     <style>
         .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
         .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
@@ -553,9 +554,9 @@
                                 }">${stock.recommendation}</div>
                                 <div class="text-xs text-blue-200 mb-2">Risk: ${stock.riskLevel}</div>
                                 ${stock.recommendation === 'STRONG BUY' || stock.recommendation === 'BUY' ? `
-                                    <button onclick="showTradeModal('buy', '${stock.symbol}', 10)" 
+                                    <button onclick="dashboard.executeTradeAction('starter', '${stock.symbol}', ${window.REACT_APP_STARTER_BUY || 1000})" 
                                             class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs transition-colors">
-                                        Buy 10
+                                        Buy Starter
                                     </button>
                                 ` : ''}
                             </div>
@@ -603,18 +604,22 @@
                         upside = ((priceTarget - pos.currentPrice) / pos.currentPrice * 100);
                     }
                     
-                    // Action button
+                    // Action buttons using new trade client
                     let actionButton = '';
                     if (pos.riskAnalysis?.recommendation === 'SELL') {
-                        actionButton = `<button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.min(pos.qty, 10)})" class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs">🔻 Sell</button>`;
+                        actionButton = `
+                            <button onclick="dashboard.executeTradeAction('close', '${pos.symbol}', ${pos.qty})" class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs">🔻 Close</button>`;
                     } else if (pos.riskAnalysis?.recommendation === 'BUY_MORE') {
-                        actionButton = `<button onclick="showTradeModal('buy', '${pos.symbol}', 10)" class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs">📈 Add</button>`;
+                        actionButton = `
+                            <button onclick="dashboard.executeTradeAction('buy', '${pos.symbol}', 1000)" class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs">📈 Buy More</button>`;
                     } else if (pos.riskAnalysis?.recommendation === 'REDUCE') {
-                        actionButton = `<button onclick="showTradeModal('sell', '${pos.symbol}', ${Math.floor(pos.qty / 2)})" class="bg-orange-600 hover:bg-orange-700 px-2 py-1 rounded text-xs">⚖️ Reduce</button>`;
+                        actionButton = `
+                            <button onclick="dashboard.executeTradeAction('reduce', '${pos.symbol}', ${Math.floor(pos.qty / 2)})" class="bg-orange-600 hover:bg-orange-700 px-2 py-1 rounded text-xs">⚖️ Reduce</button>`;
                     } else {
                         actionButton = `
-                            <button onclick="showTradeModal('sell', '${pos.symbol}', 5)" class="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs mr-1">Sell</button>
-                            <button onclick="showTradeModal('buy', '${pos.symbol}', 5)" class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs">Buy</button>`;
+                            <button onclick="dashboard.executeTradeAction('reduce', '${pos.symbol}', ${Math.min(5, pos.qty)})" class="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-xs mr-1">Reduce</button>
+                            <button onclick="dashboard.executeTradeAction('buy', '${pos.symbol}', 500)" class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs mr-1">Buy More</button>
+                            <button onclick="dashboard.executeTradeAction('close', '${pos.symbol}', ${pos.qty})" class="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs">Close</button>`;
                     }
                     
                     return `
@@ -715,6 +720,48 @@
             showError(message) {
                 console.error('Error:', message);
                 // Could show toast notification here
+            }
+
+            async executeTradeAction(action, symbol, param) {
+                try {
+                    this.showLoading(true);
+                    let result;
+
+                    switch(action) {
+                        case 'buy':
+                        case 'starter':
+                            const dollars = param || 1000;
+                            result = await window.tradeClient.tradeBuy(symbol, dollars, {
+                                notes: `${action} order via dashboard`
+                            });
+                            this.showSuccess(`✅ Buy order placed: $${dollars} in ${symbol}`);
+                            break;
+                            
+                        case 'reduce':
+                            const qtyToSell = param || 10;
+                            result = await window.tradeClient.tradeSell(symbol, qtyToSell, 'Reduce position via dashboard');
+                            this.showSuccess(`✅ Sell order placed: ${qtyToSell} shares of ${symbol}`);
+                            break;
+                            
+                        case 'close':
+                            const allQty = param;
+                            result = await window.tradeClient.tradeSell(symbol, allQty, 'Close position via dashboard');
+                            this.showSuccess(`✅ Close order placed: ${allQty} shares of ${symbol}`);
+                            break;
+                            
+                        default:
+                            throw new Error(`Unknown action: ${action}`);
+                    }
+
+                    // Refresh dashboard after successful trade
+                    setTimeout(() => this.loadDashboard(), 2000);
+                    
+                } catch (error) {
+                    console.error('Trade action failed:', error);
+                    this.showError(`Trade failed: ${error.message}`);
+                } finally {
+                    this.showLoading(false);
+                }
             }
 
             startAutoRefresh() {
