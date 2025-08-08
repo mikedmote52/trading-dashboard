@@ -329,7 +329,7 @@ async function scanForViglPatterns() {
         });
         
         req.on('error', reject);
-        req.setTimeout(10000, () => reject(new Error('VIGL API timeout')));
+        req.setTimeout(30000, () => reject(new Error('VIGL API timeout')));
       });
       
       if (apiResponse.success && apiResponse.data) {
