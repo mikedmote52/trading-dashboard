@@ -370,6 +370,122 @@ async def get_portfolio_health():
         logger.error(f"❌ Portfolio health error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/health/db")
+async def health_db():
+    """Database connectivity check"""
+    try:
+        cursor = db.connection.cursor()
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+        cursor.close()
+        
+        return {
+            "db": "ok", 
+            "result": result[0] if result else None,
+            "timestamp": datetime.now()
+        }
+    except Exception as e:
+        return {
+            "db": "error",
+            "error": str(e),
+            "timestamp": datetime.now()
+        }
+
+@app.get("/discoveries/debug")
+async def discoveries_debug():
+    """Debug endpoint to check raw discovery data"""
+    try:
+        cursor = db.connection.cursor()
+        cursor.execute("""
+            SELECT id, symbol, vigl_similarity, confidence_score, created_at, discovered_at
+            FROM vigl_discoveries
+            ORDER BY created_at DESC
+            LIMIT 10
+        """)
+        
+        columns = [desc[0] for desc in cursor.description]
+        rows = []
+        
+        for row in cursor.fetchall():
+            row_dict = dict(zip(columns, row))
+            # Convert datetime objects to strings for JSON serialization
+            for key, value in row_dict.items():
+                if isinstance(value, datetime):
+                    row_dict[key] = value.isoformat()
+            rows.append(row_dict)
+        
+        cursor.close()
+        
+        return {
+            "count": len(rows),
+            "rows": rows,
+            "timestamp": datetime.now(),
+            "table": "vigl_discoveries"
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug endpoint error: {e}")
+        return {
+            "count": 0,
+            "rows": [],
+            "error": str(e),
+            "timestamp": datetime.now()
+        }
+
+@app.get("/system/status")
+async def system_status():
+    """Complete system status check"""
+    try:
+        cursor = db.connection.cursor()
+        
+        # Check database connection
+        cursor.execute("SELECT 1")
+        db_status = "ok"
+        
+        # Count total discoveries
+        cursor.execute("SELECT COUNT(*) FROM vigl_discoveries")
+        total_discoveries = cursor.fetchone()[0]
+        
+        # Get latest discovery
+        cursor.execute("""
+            SELECT symbol, created_at, vigl_similarity 
+            FROM vigl_discoveries 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """)
+        latest = cursor.fetchone()
+        
+        # Get discoveries in last hour
+        cursor.execute("""
+            SELECT COUNT(*) FROM vigl_discoveries 
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """)
+        recent_count = cursor.fetchone()[0]
+        
+        cursor.close()
+        
+        return {
+            "api_status": "healthy",
+            "database_status": db_status,
+            "total_discoveries": total_discoveries,
+            "discoveries_last_hour": recent_count,
+            "latest_discovery": {
+                "symbol": latest[0] if latest else None,
+                "created_at": latest[1].isoformat() if latest else None,
+                "similarity": float(latest[2]) if latest else None
+            } if latest else None,
+            "database_host": db.database_url.split('@')[1].split('/')[0] if '@' in db.database_url else "unknown",
+            "timestamp": datetime.now()
+        }
+        
+    except Exception as e:
+        return {
+            "api_status": "error",
+            "database_status": "error",
+            "error": str(e),
+            "timestamp": datetime.now()
+        }
+
 @app.get("/health")
 async def health_check():
     """Service health check"""
