@@ -543,6 +543,22 @@ async function generateAlerts(portfolio, discoveries) {
 // API ENDPOINTS
 // =============================================================================
 
+// Mount discovery routes
+const discoveriesRouter = require('./server/routes/discoveries');
+app.use('/api/discoveries', discoveriesRouter);
+
+// Mount trading routes
+const tradeRouter = require('./server/routes/trade');
+app.use('/api/trade', tradeRouter);
+
+// Learning summary endpoint
+const { generateLearningSummary } = require('./server/jobs/evaluate');
+app.get('/api/learning/summary', (req, res) => {
+  const days = parseInt(req.query.days) || 30;
+  const summary = generateLearningSummary(days);
+  res.json(summary);
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({

@@ -185,6 +185,48 @@ The system is currently in active learning mode, collecting data on:
 - **AI Accuracy**: >60% of recommendations outperform naive decisions
 - **Learning Data**: >100 data points across all categories by month-end
 
+## 🛡️ **Trading API and Learning Ledger**
+
+### **Trading Endpoints**
+```
+POST /api/trade/buy
+Body: { symbol, dollars, features?, confidence?, notes? }
+Returns: { ok: true, decision_id, order: { id, status, qty } }
+
+POST /api/trade/sell  
+Body: { symbol, qty, notes? }
+Returns: { ok: true, decision_id, order: { id, status, qty } }
+
+POST /api/trade/adjust
+Body: { symbol, deltaQty, notes? }
+Returns: { ok: true, decision_id, order: { id, status, qty, side } }
+
+GET /api/learning/summary
+Returns: { summary, buckets } - Performance data bucketed by confidence levels
+```
+
+### **SQLite Ledger Tables**
+- **decisions**: Records trading decisions with metadata (id, kind, symbol, ts, policy, features, recommendation, confidence, notes)
+- **orders**: Tracks actual orders placed (id, decision_id, symbol, side, qty, avg_price, status, ts, raw)
+- **outcomes**: Stores performance outcomes (decision_id, symbol, t1_pnl, t5_pnl, t20_pnl, max_drawdown, time_underwater, closed, last_update)
+
+### **Environment Variables**
+```bash
+# Alpaca Trading API
+ALPACA_KEY=your_api_key
+ALPACA_SECRET=your_secret_key  
+ALPACA_PAPER=1  # Required for safety
+
+# Trading Policy Limits
+MAX_SINGLE_ORDER_DOLLARS=5000  # Maximum single order size
+MAX_PER_SYMBOL_EXPOSURE=0.15   # Maximum 15% exposure per symbol
+MAX_DAY_DRAWDOWN=0.05          # Stop trading if down 5% for the day
+ALLOW_LIVE=0                   # Explicit override for live trading (dangerous!)
+
+# UI Configuration
+REACT_APP_STARTER_BUY=1000     # Default starter position size
+```
+
 ## 🛡️ **Risk Management**
 
 ### **Built-in Safeguards**
