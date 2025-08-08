@@ -24,6 +24,12 @@ class VIGLDatabaseManager:
     def __init__(self, database_url: str):
         self.database_url = database_url
         self.connection = None
+        
+        # Log database connection details for debugging
+        from urllib.parse import urlparse
+        u = urlparse(database_url)
+        logger.warning(f"SCANNER DB wiring: host={u.hostname} db={u.path.lstrip('/')} user={u.username} ssl={('sslmode=' in database_url)}")
+        
         self.connect()
     
     def connect(self):
@@ -59,15 +65,18 @@ class VIGLDatabaseManager:
         cursor = self.connection.cursor()
         
         try:
-            for discovery in discoveries:
+            logger.warning(f"SCANNER attempting to save {len(discoveries)} discoveries to database")
+            
+            for i, discovery in enumerate(discoveries):
+                logger.warning(f"SCANNER saving discovery {i+1}: {discovery.ticker} - {discovery.vigl_similarity}")
                 cursor.execute("""
                     INSERT INTO vigl_discoveries (
                         symbol, company_name, current_price, market_cap,
                         volume_spike_ratio, momentum, pattern_strength,
                         sector, catalysts, vigl_similarity, confidence_score,
                         is_high_confidence, estimated_upside, risk_level,
-                        recommendation, scan_session_id
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        recommendation, scan_session_id, discovered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 """, (
                     discovery.ticker,
                     discovery.company_name,
@@ -87,10 +96,14 @@ class VIGLDatabaseManager:
                     session_id
                 ))
             
-            logger.info(f"✅ Saved {len(discoveries)} discoveries to database")
+            # EXPLICIT COMMIT
+            self.connection.commit()
+            logger.warning(f"SCANNER wrote {len(discoveries)} rows - COMMITTED")
             
         except Exception as e:
-            logger.error(f"❌ Failed to save discoveries: {e}")
+            self.connection.rollback()
+            logger.exception(f"SCANNER DB write failed: {e}")
+            raise
         finally:
             cursor.close()
     

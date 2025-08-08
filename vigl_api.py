@@ -79,6 +79,11 @@ class DatabaseManager:
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
         
+        # Log database connection details for debugging
+        from urllib.parse import urlparse
+        u = urlparse(self.database_url)
+        logger.warning(f"API DB wiring: host={u.hostname} db={u.path.lstrip('/')} user={u.username} ssl={('sslmode=' in self.database_url)}")
+        
         self.connection = None
         self.connect()
     
