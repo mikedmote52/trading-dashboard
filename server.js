@@ -543,6 +543,10 @@ async function generateAlerts(portfolio, discoveries) {
 // API ENDPOINTS
 // =============================================================================
 
+// Mount discovery routes
+const discoveriesRouter = require('./server/routes/discoveries');
+app.use('/api/discoveries', discoveriesRouter);
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({

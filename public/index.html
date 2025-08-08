@@ -285,6 +285,22 @@
                     if (!response.ok) throw new Error('Failed to load dashboard');
                     
                     this.data = await response.json();
+                    
+                    // Also fetch latest discoveries
+                    try {
+                        const discoveryResponse = await fetch('/api/discoveries/latest');
+                        if (discoveryResponse.ok) {
+                            const discoveryData = await discoveryResponse.json();
+                            this.data.discoveries = discoveryData.items || [];
+                            this.data.discoveryRun = discoveryData.run;
+                            this.data.offlineMode = false;
+                            this.saveDiscoveriesToCache(discoveryData);
+                        }
+                    } catch (err) {
+                        console.log('Using cached discoveries');
+                        this.loadCachedDiscoveries();
+                    }
+                    
                     this.updateUI();
                     this.updateConnectionStatus(this.data.portfolio?.isConnected);
                     
@@ -294,6 +310,29 @@
                     this.updateConnectionStatus(false);
                 } finally {
                     this.showLoading(false);
+                }
+            }
+
+            async loadCachedDiscoveries() {
+                // Simple localStorage fallback
+                try {
+                    const cached = localStorage.getItem('lastDiscoveries');
+                    if (cached) {
+                        const data = JSON.parse(cached);
+                        this.data.discoveries = data.items || [];
+                        this.data.discoveryRun = data.run;
+                        this.data.offlineMode = true;
+                    }
+                } catch (err) {
+                    console.error('Failed to load cached discoveries:', err);
+                }
+            }
+
+            saveDiscoveriesToCache(data) {
+                try {
+                    localStorage.setItem('lastDiscoveries', JSON.stringify(data));
+                } catch (err) {
+                    console.error('Failed to cache discoveries:', err);
                 }
             }
 
