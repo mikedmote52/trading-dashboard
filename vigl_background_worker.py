@@ -68,7 +68,7 @@ class VIGLDatabaseManager:
             logger.warning(f"SCANNER attempting to save {len(discoveries)} discoveries to database")
             
             for i, discovery in enumerate(discoveries):
-                logger.warning(f"SCANNER saving discovery {i+1}: {discovery.ticker} - {discovery.vigl_similarity}")
+                logger.warning(f"SCANNER saving discovery {i+1}: {discovery.ticker} - {discovery.vigl_similarity_score}")
                 cursor.execute("""
                     INSERT INTO vigl_discoveries (
                         symbol, company_name, current_price, market_cap,
@@ -84,15 +84,15 @@ class VIGLDatabaseManager:
                     discovery.market_cap,
                     discovery.volume_spike_ratio,
                     discovery.price_momentum,
-                    getattr(discovery, 'pattern_strength', discovery.vigl_similarity),  # Use vigl_similarity as fallback
+                    discovery.vigl_similarity_score,  # Use correct field name
                     getattr(discovery, 'sector', 'Unknown'),
                     discovery.risk_factors,
-                    discovery.vigl_similarity,
-                    getattr(discovery, 'confidence_score', discovery.vigl_similarity),  # Use vigl_similarity as confidence
-                    discovery.vigl_similarity >= 0.8,
-                    discovery.upside_potential,
-                    discovery.risk_level,
-                    "STRONG BUY" if discovery.vigl_similarity >= 0.8 else "BUY",
+                    discovery.vigl_similarity_score,  # Use correct field name
+                    discovery.confidence_level,  # Use correct field name
+                    discovery.confidence_level >= 0.8,
+                    discovery.estimated_upside,
+                    discovery.risk_level_text,  # Use property for risk level text
+                    "STRONG BUY" if discovery.confidence_level >= 0.8 else "BUY",
                     session_id
                 ))
             
