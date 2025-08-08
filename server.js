@@ -332,7 +332,7 @@ async function scanForViglPatterns() {
         req.setTimeout(30000, () => reject(new Error('VIGL API timeout')));
       });
       
-      if (apiResponse.success && apiResponse.data) {
+      if (apiResponse.success && apiResponse.data && apiResponse.data.length > 0) {
         discoveries = apiResponse.data.map(d => ({
           symbol: d.symbol,
           name: d.company_name,
@@ -355,7 +355,8 @@ async function scanForViglPatterns() {
         console.log(`✅ Fetched ${discoveries.length} real-time VIGL patterns from API`);
         console.log(`📊 Last scan: ${apiResponse.scan_time || 'Unknown'}`);
       } else {
-        throw new Error('Invalid API response format');
+        // API returned empty data, fall back to discovered patterns
+        throw new Error('No patterns found in API data - using fallback patterns');
       }
       
     } catch (apiError) {
