@@ -88,35 +88,62 @@ const getLatestDecision = db.prepare(`
   LIMIT 1
 `);
 
-// Prepared statements for scoring weights
+// Backward-compatible scoring weights functions
 const getScoringWeights = () => {
-  const stmt = db.prepare(`SELECT key, value FROM scoring_weights`);
-  const rows = stmt.all();
-  
-  // Convert to object format expected by the code
-  const weights = {};
-  rows.forEach(row => {
-    weights[row.key] = row.value;
-  });
-  
-  // Return default if no weights found
-  if (Object.keys(weights).length === 0) {
-    return {
-      short_interest_weight: 2.0,
-      borrow_fee_weight: 1.5,
-      volume_weight: 1.2,
-      momentum_weight: 1.0,
-      catalyst_weight: 0.8,
-      float_penalty_weight: -0.6
-    };
+  // Try KV table first
+  try {
+    const kvStmt = db.prepare(`SELECT key, value FROM scoring_weights_kv`);
+    const kvRows = kvStmt.all();
+    
+    if (kvRows.length > 0) {
+      const weights = {};
+      kvRows.forEach(row => {
+        weights[row.key] = row.value;
+      });
+      return weights;
+    }
+  } catch (err) {
+    console.log('ℹ️  scoring_weights_kv table not available, trying legacy...');
   }
   
-  return weights;
+  // Try legacy table format
+  try {
+    const legacyStmt = db.prepare(`
+      SELECT weight_short_interest, weight_borrow_fee, weight_volume, 
+             weight_momentum, weight_catalyst, weight_float_penalty 
+      FROM scoring_weights LIMIT 1
+    `);
+    const legacyRow = legacyStmt.get();
+    
+    if (legacyRow) {
+      return {
+        short_interest_weight: legacyRow.weight_short_interest || 2.0,
+        borrow_fee_weight: legacyRow.weight_borrow_fee || 1.5,
+        volume_weight: legacyRow.weight_volume || 1.2,
+        momentum_weight: legacyRow.weight_momentum || 1.0,
+        catalyst_weight: legacyRow.weight_catalyst || 0.8,
+        float_penalty_weight: legacyRow.weight_float_penalty || -0.6
+      };
+    }
+  } catch (err) {
+    console.log('ℹ️  Legacy scoring_weights format not available, using defaults');
+  }
+  
+  // Fall back to defaults
+  return {
+    short_interest_weight: 2.0,
+    borrow_fee_weight: 1.5,
+    volume_weight: 1.2,
+    momentum_weight: 1.0,
+    catalyst_weight: 0.8,
+    float_penalty_weight: -0.6
+  };
 };
 
 const upsertScoringWeights = (weights) => {
+  // Always write to KV table (new format)
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO scoring_weights (key, value)
+    INSERT OR REPLACE INTO scoring_weights_kv (key, value)
     VALUES (?, ?)
   `);
   

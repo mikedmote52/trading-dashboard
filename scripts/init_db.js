@@ -47,10 +47,20 @@ CREATE TABLE IF NOT EXISTS discoveries (
   features_json TEXT NOT NULL
 );
 
--- Scoring weights table
-CREATE TABLE IF NOT EXISTS scoring_weights (
+-- Scoring weights KV table (new format)
+CREATE TABLE IF NOT EXISTS scoring_weights_kv (
   key TEXT PRIMARY KEY,
-  value REAL NOT NULL,
+  value REAL
+);
+
+-- Legacy scoring weights table (for backward compatibility)
+CREATE TABLE IF NOT EXISTS scoring_weights (
+  weight_short_interest REAL DEFAULT 2.0,
+  weight_borrow_fee REAL DEFAULT 1.5,
+  weight_volume REAL DEFAULT 1.2,
+  weight_momentum REAL DEFAULT 1.0,
+  weight_catalyst REAL DEFAULT 0.8,
+  weight_float_penalty REAL DEFAULT -0.6,
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -152,25 +162,56 @@ CREATE INDEX IF NOT EXISTS idx_vigl_discoveries_date ON vigl_discoveries(discove
   console.log('✅ Database tables verified:');
   tableNames.forEach(name => console.log(`   - ${name}`));
   
-  // Initialize default scoring weights if none exist
-  const weightCount = db.prepare("SELECT COUNT(*) as count FROM scoring_weights").get();
-  if (weightCount.count === 0) {
-    const weights = [
-      ['short_interest_weight', 2.0],
-      ['borrow_fee_weight', 1.5], 
-      ['volume_weight', 1.2],
-      ['momentum_weight', 1.0],
-      ['catalyst_weight', 0.8],
-      ['float_penalty_weight', -0.6]
-    ];
+  // Initialize scoring weights with backward compatibility
+  const kvCount = db.prepare("SELECT COUNT(*) as count FROM scoring_weights_kv").get();
+  
+  if (kvCount.count === 0) {
+    console.log('🔄 No KV scoring weights found, attempting migration...');
     
-    const insertWeight = db.prepare('INSERT INTO scoring_weights (key, value) VALUES (?, ?)');
-    
-    for (const [key, value] of weights) {
-      insertWeight.run(key, value);
+    // Try to migrate from legacy scoring_weights table
+    let migrated = false;
+    try {
+      const legacyWeights = db.prepare(`
+        SELECT weight_short_interest, weight_borrow_fee, weight_volume, 
+               weight_momentum, weight_catalyst, weight_float_penalty 
+        FROM scoring_weights LIMIT 1
+      `).get();
+      
+      if (legacyWeights) {
+        console.log('📦 Migrating from legacy scoring_weights table...');
+        const insertKV = db.prepare('INSERT INTO scoring_weights_kv (key, value) VALUES (?, ?)');
+        insertKV.run('short_interest_weight', legacyWeights.weight_short_interest || 2.0);
+        insertKV.run('borrow_fee_weight', legacyWeights.weight_borrow_fee || 1.5);
+        insertKV.run('volume_weight', legacyWeights.weight_volume || 1.2);
+        insertKV.run('momentum_weight', legacyWeights.weight_momentum || 1.0);
+        insertKV.run('catalyst_weight', legacyWeights.weight_catalyst || 0.8);
+        insertKV.run('float_penalty_weight', legacyWeights.weight_float_penalty || -0.6);
+        migrated = true;
+        console.log('✅ Legacy weights migrated to KV format');
+      }
+    } catch (err) {
+      console.log('ℹ️  No legacy scoring_weights data to migrate');
     }
     
-    console.log('✅ Default scoring weights initialized');
+    // If no migration happened, seed from environment or defaults
+    if (!migrated) {
+      console.log('🌱 Seeding default scoring weights...');
+      const defaultWeights = process.env.SCORING_WEIGHTS_JSON ? 
+        JSON.parse(process.env.SCORING_WEIGHTS_JSON) : {
+          short_interest_weight: 2.0,
+          borrow_fee_weight: 1.5,
+          volume_weight: 1.2,
+          momentum_weight: 1.0,
+          catalyst_weight: 0.8,
+          float_penalty_weight: -0.6
+        };
+      
+      const insertKV = db.prepare('INSERT INTO scoring_weights_kv (key, value) VALUES (?, ?)');
+      Object.entries(defaultWeights).forEach(([key, value]) => {
+        insertKV.run(key, value);
+      });
+      console.log('✅ Default scoring weights initialized');
+    }
   }
   
   // Clean up
