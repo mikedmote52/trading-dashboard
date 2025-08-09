@@ -34,52 +34,55 @@ function getCurrentWeights() {
     console.log('Database weights error:', error.message);
   }
   
-  // Default weights if none available
+  // Default weights for volume-focused scoring (no short interest data needed)
   return {
-    short_interest_weight: 2.0,
-    borrow_fee_weight: 1.5,
-    volume_weight: 1.2,
-    momentum_weight: 1.0,
-    catalyst_weight: 0.8,
-    float_penalty_weight: 0.8
+    volume_weight: 2.0,              // Base volume activity
+    volume_spike_weight: 2.5,        // Volume spike intensity (most important)
+    momentum_weight: 1.5,            // Price momentum
+    catalyst_weight: 1.0,            // Event catalyst
+    market_cap_weight: 0.8,          // Market cap factor
+    float_penalty_weight: 0.6        // Float size penalty
   };
 }
 
 /**
- * Calculate squeeze score using weighted features (with dynamic weights)
+ * Calculate squeeze score using weighted features (Alpha Vantage + Polygon data)
  * @param {Object} features Feature data
  * @param {Object} customWeights Optional custom weights to override defaults
  * @returns {number} Squeeze score (0+, rounded to 3 decimals)
  */
 function squeezeScore(features, customWeights = null) {
   const {
-    short_interest_pct = 0,
-    borrow_fee_7d_change = 0,
     rel_volume = 1,
     momentum_5d = 0,
     catalyst_flag = 0,
-    float_shares = 50000000
+    float_shares = 50000000,
+    volume_spike_factor = 0, // New: volume above normal levels
+    market_cap = null
   } = features;
   
   // Get current weights (dynamic or custom)
   const weights = customWeights || getCurrentWeights();
   
   // Normalize and clamp terms to [0,1]
-  const shortInterestTerm = Math.min(Math.max(short_interest_pct / 0.5, 0), 1); // Normalize by 50%
-  const borrowFeeTerm = Math.min(Math.max((borrow_fee_7d_change + 0.2) / 0.4, 0), 1); // -20% to +20% range
   const volumeTerm = Math.min(Math.max((rel_volume - 1) / 4, 0), 1); // 1x to 5x range
+  const volumeSpikeTerm = Math.min(Math.max(volume_spike_factor / 3, 0), 1); // 0 to 3x spike range
   const momentumTerm = Math.min(Math.max((momentum_5d + 0.2) / 0.4, 0), 1); // -20% to +20% range
   const catalystTerm = catalyst_flag; // Already 0 or 1
   const floatPenalty = Math.min(Math.max((100000000 - float_shares) / 95000000, 0), 1); // Penalty for large float
   
-  // Weighted scoring with dynamic coefficients
+  // Market cap factor (favor smaller caps for squeeze potential)
+  const marketCapTerm = market_cap ? 
+    Math.min(Math.max((10000000000 - market_cap) / 9000000000, 0), 1) : 0.5; // Favor sub-10B market cap
+  
+  // Weighted scoring with volume-focused approach (no short interest data needed)
   const score = 
-    weights.short_interest_weight * shortInterestTerm +
-    weights.borrow_fee_weight * borrowFeeTerm +
-    weights.volume_weight * volumeTerm +
-    weights.momentum_weight * momentumTerm +
-    weights.catalyst_weight * catalystTerm -
-    weights.float_penalty_weight * floatPenalty;
+    weights.volume_weight * volumeTerm +                    // Base volume activity
+    weights.volume_spike_weight * volumeSpikeTerm +         // Volume spike intensity  
+    weights.momentum_weight * momentumTerm +                // Price momentum
+    weights.catalyst_weight * catalystTerm +                // Event catalyst
+    weights.market_cap_weight * marketCapTerm -             // Market cap factor
+    weights.float_penalty_weight * floatPenalty;            // Float size penalty
   
   // Ensure non-negative and round to 3 decimals
   return Math.round(Math.max(score, 0) * 1000) / 1000;

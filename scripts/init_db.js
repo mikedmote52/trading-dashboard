@@ -211,11 +211,11 @@ CREATE INDEX IF NOT EXISTS idx_data_status_updated_at ON data_status(updated_at)
       console.log('🌱 Seeding default scoring weights...');
       const defaultWeights = process.env.SCORING_WEIGHTS_JSON ? 
         JSON.parse(process.env.SCORING_WEIGHTS_JSON) : {
-          short_interest_weight: 2.0,
-          borrow_fee_weight: 1.5,
-          volume_weight: 1.2,
-          momentum_weight: 1.0,
-          catalyst_weight: 0.8,
+          volume_weight: 2.0,
+          volume_spike_weight: 2.5,
+          momentum_weight: 1.5,
+          catalyst_weight: 1.0,
+          market_cap_weight: 0.8,
           float_penalty_weight: -0.6
         };
       

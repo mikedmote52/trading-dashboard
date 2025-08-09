@@ -2,7 +2,7 @@
  * Feature fetching service with real data sources
  */
 
-const { readThroughCache } = require('./borrowShort');
+const { getCachedCompanyData } = require('./alphaVantage');
 
 /**
  * Fetch Polygon market data
@@ -98,9 +98,9 @@ async function fetchFeaturesFor(symbol) {
     console.log(`📊 Fetching real features for ${symbol}`);
     
     // Fetch data from all sources in parallel
-    const [polygonData, borrowShortData, catalystFlag] = await Promise.all([
+    const [polygonData, companyData, catalystFlag] = await Promise.all([
       fetchPolygonData(symbol),
-      readThroughCache(symbol),
+      getCachedCompanyData(symbol),
       detectCatalyst(symbol)
     ]);
 
@@ -109,9 +109,9 @@ async function fetchFeaturesFor(symbol) {
       throw new Error(`No market data available for ${symbol} - Polygon API failed`);
     }
 
-    // FAIL-FAST: All data sources must be available for real trading decisions
-    if (!borrowShortData) {
-      throw new Error(`No borrow/short data available for ${symbol} - cannot proceed without complete data set`);
+    // FAIL-FAST: Company data must be available for real trading decisions
+    if (!companyData) {
+      throw new Error(`No company data available for ${symbol} - Alpha Vantage API failed`);
     }
 
     // Combine all data sources - no fallbacks, all must be real
@@ -119,18 +119,22 @@ async function fetchFeaturesFor(symbol) {
       symbol,
       rel_volume: polygonData.rel_volume,
       momentum_5d: polygonData.momentum_5d,
-      short_interest_pct: borrowShortData.short_interest_pct,
-      borrow_fee_7d_change: borrowShortData.borrow_fee_7d_change,
+      // Use volume spike as proxy for short interest activity
+      volume_spike_factor: Math.max(polygonData.rel_volume - 1.0, 0), // Volume above normal
       catalyst_flag: catalystFlag,
-      float_shares: borrowShortData.float_shares,
+      float_shares: companyData.float_shares,
+      market_cap: companyData.market_cap,
+      company_name: companyData.company_name,
       current_price: polygonData.current_price,
       volume: polygonData.volume,
       avg_volume_30d: polygonData.avg_volume_30d,
-      name: `${symbol}`, // Will be enhanced with company name lookup
+      name: companyData.company_name || symbol,
+      sector: companyData.sector,
+      industry: companyData.industry,
       timestamp: new Date().toISOString()
     };
 
-    console.log(`✅ Features for ${symbol}: rel_vol=${features.rel_volume.toFixed(2)}x, momentum=${(features.momentum_5d * 100).toFixed(1)}%`);
+    console.log(`✅ Features for ${symbol}: rel_vol=${features.rel_volume.toFixed(2)}x, momentum=${(features.momentum_5d * 100).toFixed(1)}%, vol_spike=${features.volume_spike_factor.toFixed(2)}`);
     return features;
     
   } catch (error) {

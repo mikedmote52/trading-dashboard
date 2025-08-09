@@ -5,7 +5,7 @@ const { db } = require('../db/sqlite');
 const THRESHOLDS = {
   polygon: parseInt(process.env.FRESH_POLYGON_S ?? '90', 10),
   alpaca:  parseInt(process.env.FRESH_ALPACA_S  ?? '60', 10),
-  borrow:  parseInt(process.env.FRESH_BORROW_S  ?? '86400', 10), // 24h
+  alpha_vantage: parseInt(process.env.FRESH_ALPHA_VANTAGE_S ?? '3600', 10), // 1 hour
   db:      0
 };
 
@@ -39,22 +39,13 @@ async function checkAlpaca(){
   }catch(e){return down('alpaca',e.message);}
 }
 
-async function checkBorrowShort(){
+async function checkAlphaVantage(){
   try{
-    // For now, since we don't have a real borrow/short provider, we'll check if the env vars are set
-    // This should be replaced with actual provider ping when implemented
-    if (!process.env.BORROW_SHORT_PROVIDER || !process.env.BORROW_SHORT_API_KEY) {
-      throw new Error('BORROW_SHORT_PROVIDER or BORROW_SHORT_API_KEY not configured');
-    }
-    
-    // TODO: Replace with actual provider ping when borrow/short provider is implemented
-    // const provider = require('../providers/borrowShort'); 
-    // const { asOfIso } = await provider.ping();
-    // const age = (Date.now() - new Date(asOfIso))/1000;
-    // return age <= THRESHOLDS.borrow ? ok('borrow_short') : stale('borrow_short',`age=${age.toFixed(0)}s`);
-    
-    return down('borrow_short', 'Provider not implemented - will fail fast until configured');
-  }catch(e){return down('borrow_short',e.message);}
+    const { testConnection } = require('../services/alphaVantage');
+    const result = await testConnection();
+    const age = (Date.now() - new Date(result.timestamp))/1000;
+    return age <= THRESHOLDS.alpha_vantage ? ok('alpha_vantage') : stale('alpha_vantage',`age=${age.toFixed(1)}s`);
+  }catch(e){return down('alpha_vantage',e.message);}
 }
 
 function checkDb(){
@@ -63,7 +54,7 @@ function checkDb(){
 }
 
 async function runHeartbeat(){
-  const checks = await Promise.all([checkPolygon(), checkAlpaca(), checkBorrowShort(), Promise.resolve(checkDb())]);
+  const checks = await Promise.all([checkPolygon(), checkAlpaca(), checkAlphaVantage(), Promise.resolve(checkDb())]);
   const version = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'local';
   
   // Add version to each check result
