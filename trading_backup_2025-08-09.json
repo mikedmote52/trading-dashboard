@@ -1,0 +1,24 @@
+[
+  {
+    "timestamp": "2025-08-09T06:11:18.860Z",
+    "date": "2025-08-09",
+    "portfolio_value": 0,
+    "daily_pnl": 0,
+    "position_count": 0,
+    "vigl_discoveries": 4,
+    "high_confidence_vigl": 0,
+    "alerts_count": 6,
+    "high_priority_alerts": 2
+  },
+  {
+    "timestamp": "2025-08-09T06:12:28.433Z",
+    "date": "2025-08-09",
+    "portfolio_value": 0,
+    "daily_pnl": 0,
+    "position_count": 0,
+    "vigl_discoveries": 4,
+    "high_confidence_vigl": 0,
+    "alerts_count": 6,
+    "high_priority_alerts": 2
+  }
+]
