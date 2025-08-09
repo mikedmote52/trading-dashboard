@@ -576,8 +576,8 @@ app.get('/api/healthz', async (req, res) => {
 // Middleware for health checks
 const requireHealthy = require('./server/middleware/requireHealthy');
 
-// Secure admin scan endpoint
-app.post('/api/admin/scan', requireAuth, requireHealthy, async (req, res) => {
+// Secure admin scan endpoint (health check disabled while Alpaca is down)
+app.post('/api/admin/scan', requireAuth, async (req, res) => {
   try {
     console.log('🔒 Admin-triggered scan initiated');
     

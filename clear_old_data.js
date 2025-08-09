@@ -8,15 +8,19 @@ const { db } = require('./server/db/sqlite');
 console.log('🧹 Clearing old discovery data...');
 
 try {
-  // Clear old discoveries
-  const result = db.prepare('DELETE FROM discoveries WHERE created_at < datetime("now", "-1 day")').run();
-  console.log(`✅ Cleared ${result.changes} old discoveries`);
+  // Clear ALL discoveries for fresh start
+  const result = db.prepare('DELETE FROM discoveries').run();
+  console.log(`✅ Cleared ${result.changes} discoveries`);
   
-  // Clear old VIGL discoveries too
-  const viglResult = db.prepare('DELETE FROM vigl_discoveries WHERE discovered_at < datetime("now", "-1 day")').run();
-  console.log(`✅ Cleared ${viglResult.changes} old VIGL discoveries`);
+  // Clear ALL VIGL discoveries too
+  const viglResult = db.prepare('DELETE FROM vigl_discoveries').run();
+  console.log(`✅ Cleared ${viglResult.changes} VIGL discoveries`);
   
-  console.log('🎯 Old data cleared - new scans will show fresh results');
+  // Clear data status to force fresh scan
+  const statusResult = db.prepare('DELETE FROM data_status').run();
+  console.log(`✅ Cleared ${statusResult.changes} data status entries`);
+  
+  console.log('🎯 All data cleared - ready for fresh scans');
   
 } catch (error) {
   console.error('❌ Error clearing data:', error.message);
