@@ -90,19 +90,72 @@ function startDailyCapture() {
 }
 
 /**
+ * Get all active tradeable stocks from market
+ */
+async function getMarketUniverse() {
+  try {
+    const axios = require('axios');
+    const POLYGON_KEY = process.env.POLYGON_API_KEY;
+    
+    if (!POLYGON_KEY) {
+      console.log('⚠️ No Polygon API key, using default symbols');
+      return process.env.SCAN_SYMBOLS 
+        ? process.env.SCAN_SYMBOLS.split(',')
+        : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL'];
+    }
+    
+    // Get all US stocks snapshot for high-volume movers
+    const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?apiKey=${POLYGON_KEY}`;
+    const response = await axios.get(url);
+    
+    if (response.data && response.data.tickers) {
+      // Filter for liquid, tradeable stocks
+      const tradeable = response.data.tickers
+        .filter(t => {
+          return t.day && 
+                 t.day.v > 1000000 && // Volume > 1M shares
+                 t.day.c > 2 &&        // Price > $2
+                 t.day.c < 500 &&      // Price < $500 (avoid BRK.A type stocks)
+                 !t.ticker.includes('.') && // No special securities
+                 t.ticker.length <= 5;  // Normal tickers only
+        })
+        .sort((a, b) => (b.day.v * b.day.c) - (a.day.v * a.day.c)) // Sort by dollar volume
+        .slice(0, 200) // Top 200 most liquid
+        .map(t => t.ticker);
+      
+      if (tradeable.length > 0) {
+        console.log(`📊 Scanning ${tradeable.length} liquid stocks from market`);
+        return tradeable;
+      }
+    }
+    
+    // Fallback to configured symbols or defaults
+    console.log('⚠️ Using fallback symbols');
+    return process.env.SCAN_SYMBOLS 
+      ? process.env.SCAN_SYMBOLS.split(',')
+      : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL', 
+         'SPY', 'QQQ', 'NVAX', 'SNDL', 'PLTR', 'NIO', 'AAL', 'F', 'GE', 'BAC'];
+  } catch (error) {
+    console.error('⚠️ Error fetching market universe:', error.message);
+    // Return defaults on error
+    return process.env.SCAN_SYMBOLS 
+      ? process.env.SCAN_SYMBOLS.split(',')
+      : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL'];
+  }
+}
+
+/**
  * Run discovery capture immediately
  */
 async function runDiscoveryCapture() {
   try {
     console.log('🔍 Running discovery capture...');
     
-    // Default symbols to scan
-    const symbols = process.env.SCAN_SYMBOLS 
-      ? process.env.SCAN_SYMBOLS.split(',') 
-      : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL'];
+    // Get full market universe or use configured symbols
+    const symbols = await getMarketUniverse();
     
     const discoveries = await captureDaily(symbols);
-    console.log(`✅ Capture complete: ${discoveries.length} discoveries`);
+    console.log(`✅ Capture complete: ${discoveries.length} discoveries from ${symbols.length} stocks`);
     
     return discoveries;
   } catch (error) {

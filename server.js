@@ -608,6 +608,94 @@ app.post('/api/admin/scan', requireAuth, async (req, res) => {
   }
 });
 
+// Admin fix dashboard endpoint - runs Python script to fix data flow
+app.post('/api/admin/fix-dashboard', requireAuth, async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  try {
+    console.log('🔧 Starting dashboard fix process...');
+    
+    // Path to Python script
+    const scriptPath = path.join(__dirname, 'server', 'fix_dashboard_connection_v2.py');
+    
+    // Set DB path environment variable
+    const env = Object.assign({}, process.env, {
+      DB_PATH: path.join(__dirname, 'trading_dashboard.db'),
+      POLYGON_API_KEY: process.env.POLYGON_API_KEY
+    });
+    
+    // Spawn Python process
+    const pythonProcess = spawn('python3', [scriptPath], {
+      env: env,
+      cwd: __dirname
+    });
+    
+    let output = '';
+    let errorOutput = '';
+    
+    // Stream output
+    pythonProcess.stdout.on('data', (data) => {
+      const text = data.toString();
+      output += text;
+      console.log(text.trim());
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      const text = data.toString();
+      errorOutput += text;
+      console.error(text.trim());
+    });
+    
+    // Handle completion
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        // Success - get updated discoveries
+        const db = require('./server/db/sqlite');
+        const discoveries = db.db.prepare('SELECT COUNT(*) as count FROM discoveries').get();
+        
+        res.json({
+          success: true,
+          message: 'Dashboard fixed successfully',
+          discoveries_count: discoveries.count,
+          output: output,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // Failure
+        res.status(500).json({
+          success: false,
+          error: 'Fix process failed',
+          code: code,
+          output: output,
+          error_output: errorOutput,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+    
+    // Handle process errors
+    pythonProcess.on('error', (err) => {
+      console.error('❌ Failed to start fix process:', err.message);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start fix process',
+        message: err.message,
+        timestamp: new Date().toISOString()
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Fix dashboard error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Fix dashboard failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Admin status endpoint
 app.get('/api/admin/status', requireAuth, (req, res) => {
   const db = require('./server/db/sqlite');
