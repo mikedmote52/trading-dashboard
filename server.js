@@ -7,6 +7,49 @@
 // Load environment variables first
 require('dotenv').config();
 
+// Validate required environment variables
+function validateEnvironment() {
+  const required = [
+    'APCA_API_KEY_ID',
+    'APCA_API_SECRET_KEY', 
+    'POLYGON_API_KEY'
+  ];
+  
+  const optional_borrow = [
+    'BORROW_SHORT_PROVIDER',
+    'BORROW_SHORT_API_KEY'
+  ];
+  
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missing.forEach(key => console.error(`  - ${key}`));
+    console.error('🚫 Server cannot start without these environment variables');
+    process.exit(1);
+  }
+  
+  // Validate borrow provider configuration (optional)
+  const borrowMissing = optional_borrow.filter(key => !process.env[key]);
+  if (borrowMissing.length === 0) {
+    try {
+      const { validateBorrowConfig } = require('./server/services/providers/borrow');
+      validateBorrowConfig();
+      console.log('✅ Borrow provider configured');
+    } catch (error) {
+      console.warn('⚠️ Borrow provider configuration warning:', error.message);
+      console.log('ℹ️ System will run without borrow/short data');
+    }
+  } else {
+    console.log('ℹ️ Borrow provider not configured - running without short interest data');
+  }
+  
+  console.log('✅ Environment validation passed');
+}
+
+// Run validation
+validateEnvironment();
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -896,30 +939,33 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Startup health check - TEMPORARILY DISABLED for debugging
-console.log('⚠️  Startup health check DISABLED for debugging - will start with any API status');
-// (async () => {
-//   const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
-//   console.log('🔍 Performing startup health check...');
-//   
-//   try {
-//     const snap = await runHeartbeat();
-//     if (!allHealthy(snap)) {
-//       console.error('❌ Startup blocked: data feeds not healthy');
-//       snap.forEach(s => {
-//         if (s.status !== 'OK') {
-//           console.error(`  - ${s.source}: ${s.status} (${s.detail})`);
-//         }
-//       });
-//       console.error('🚫 Server will not start with degraded data feeds in fail-safe mode');
-//       process.exit(1);
-//     }
-//     console.log('✅ All data feeds healthy - starting server');
-//   } catch (error) {
-//     console.error('❌ Startup health check failed:', error.message);
-//     process.exit(1);
-//   }
-// })();
+// Startup health check - can be enabled with STRICT_STARTUP=true
+if (process.env.STRICT_STARTUP === 'true') {
+  (async () => {
+    const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
+    console.log('🔍 Performing startup health check...');
+    
+    try {
+      const snap = await runHeartbeat();
+      if (!allHealthy(snap)) {
+        console.error('❌ Startup blocked: data feeds not healthy');
+        snap.forEach(s => {
+          if (s.status !== 'OK') {
+            console.error(`  - ${s.source}: ${s.status} (${s.detail})`);
+          }
+        });
+        console.error('🚫 Server will not start with degraded data feeds in strict mode');
+        process.exit(1);
+      }
+      console.log('✅ All data feeds healthy - starting server');
+    } catch (error) {
+      console.error('❌ Startup health check failed:', error.message);
+      process.exit(1);
+    }
+  })();
+} else {
+  console.log('ℹ️  Startup health check disabled (set STRICT_STARTUP=true to enable)');
+}
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {

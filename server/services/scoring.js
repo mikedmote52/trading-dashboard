@@ -75,14 +75,27 @@ function squeezeScore(features, customWeights = null) {
   const marketCapTerm = market_cap ? 
     Math.min(Math.max((10000000000 - market_cap) / 9000000000, 0), 1) : 0.5; // Favor sub-10B market cap
   
-  // Weighted scoring with volume-focused approach (no short interest data needed)
-  const score = 
-    weights.volume_weight * volumeTerm +                    // Base volume activity
-    weights.volume_spike_weight * volumeSpikeTerm +         // Volume spike intensity  
-    weights.momentum_weight * momentumTerm +                // Price momentum
-    weights.catalyst_weight * catalystTerm +                // Event catalyst
-    weights.market_cap_weight * marketCapTerm -             // Market cap factor
-    weights.float_penalty_weight * floatPenalty;            // Float size penalty
+  // Weighted scoring - now supports full borrow data when available
+  let score = 0;
+  
+  // Core volume and momentum factors (always available)
+  score += (weights.volume_weight || 1.0) * volumeTerm;
+  score += (weights.volume_spike_weight || 1.5) * volumeSpikeTerm;
+  score += (weights.momentum_weight || 1.0) * momentumTerm;
+  score += (weights.catalyst_weight || 0.8) * catalystTerm;
+  score += (weights.market_cap_weight || 0.5) * marketCapTerm;
+  score -= (weights.float_penalty_weight || 0.3) * floatPenalty;
+  
+  // Short interest factors (when borrow data is available)
+  if (features.short_interest_pct !== undefined) {
+    const shortInterestTerm = Math.min(Math.max(features.short_interest_pct / 0.5, 0), 1);
+    score += (weights.short_interest_weight || 2.0) * shortInterestTerm;
+  }
+  
+  if (features.borrow_fee_7d_change !== undefined) {
+    const borrowFeeTerm = Math.min(Math.max((features.borrow_fee_7d_change + 0.2) / 0.4, 0), 1);
+    score += (weights.borrow_fee_weight || 1.5) * borrowFeeTerm;
+  }
   
   // Ensure non-negative and round to 3 decimals
   return Math.round(Math.max(score, 0) * 1000) / 1000;

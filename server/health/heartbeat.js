@@ -5,7 +5,8 @@ const { db } = require('../db/sqlite');
 const THRESHOLDS = {
   polygon: parseInt(process.env.FRESH_POLYGON_S ?? '90', 10),
   alpaca:  parseInt(process.env.FRESH_ALPACA_S  ?? '60', 10),
-  alpha_vantage: parseInt(process.env.FRESH_ALPHA_VANTAGE_S ?? '3600', 10), // 1 hour
+  alpaca_market_data: parseInt(process.env.FRESH_ALPACA_S ?? '60', 10),
+  borrow: parseInt(process.env.FRESH_BORROW_S ?? '86400', 10), // 24 hours
   db:      0
 };
 
@@ -39,13 +40,22 @@ async function checkAlpaca(){
   }catch(e){return down('alpaca',e.message);}
 }
 
-async function checkAlphaVantage(){
+async function checkAlpacaMarketData(){
   try{
-    const { testConnection } = require('../services/alphaVantage');
+    const { testConnection } = require('../services/providers/prices');
     const result = await testConnection();
     const age = (Date.now() - new Date(result.timestamp))/1000;
-    return age <= THRESHOLDS.alpha_vantage ? ok('alpha_vantage') : stale('alpha_vantage',`age=${age.toFixed(1)}s`);
-  }catch(e){return down('alpha_vantage',e.message);}
+    return age <= THRESHOLDS.alpaca_market_data ? ok('alpaca_market_data') : stale('alpaca_market_data',`age=${age.toFixed(1)}s`);
+  }catch(e){return down('alpaca_market_data',e.message);}
+}
+
+async function checkBorrowProvider(){
+  try{
+    const { testConnection } = require('../services/providers/borrow');
+    const result = await testConnection();
+    const age = (Date.now() - new Date(result.timestamp))/1000;
+    return age <= THRESHOLDS.borrow ? ok('borrow') : stale('borrow',`age=${age.toFixed(1)}s`);
+  }catch(e){return down('borrow',e.message);}
 }
 
 function checkDb(){
@@ -54,7 +64,15 @@ function checkDb(){
 }
 
 async function runHeartbeat(){
-  const checks = await Promise.all([checkPolygon(), checkAlpaca(), checkAlphaVantage(), Promise.resolve(checkDb())]);
+  // Core checks - always run
+  const coreChecks = [checkPolygon(), checkAlpaca(), checkAlpacaMarketData(), Promise.resolve(checkDb())];
+  
+  // Optional borrow check - only if configured
+  if (process.env.BORROW_SHORT_PROVIDER && process.env.BORROW_SHORT_API_KEY) {
+    coreChecks.push(checkBorrowProvider());
+  }
+  
+  const checks = await Promise.all(coreChecks);
   const version = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'local';
   
   // Add version to each check result
