@@ -19,15 +19,15 @@ function getCurrentWeights() {
   
   // Try database weights
   try {
-    const weightsRecord = getScoringWeights.get();
+    const weightsRecord = getScoringWeights(); // Call function, not .get()
     if (weightsRecord) {
       return {
-        short_interest_weight: weightsRecord.weight_short_interest,
-        borrow_fee_weight: weightsRecord.weight_borrow_fee,
-        volume_weight: weightsRecord.weight_volume,
-        momentum_weight: weightsRecord.weight_momentum,
-        catalyst_weight: weightsRecord.weight_catalyst,
-        float_penalty_weight: 0.8
+        short_interest_weight: weightsRecord.weight_short_interest || weightsRecord.short_interest_weight || 2.0,
+        borrow_fee_weight: weightsRecord.weight_borrow_fee || weightsRecord.borrow_fee_weight || 1.5,
+        volume_weight: weightsRecord.weight_volume || weightsRecord.volume_weight || 1.2,
+        momentum_weight: weightsRecord.weight_momentum || weightsRecord.momentum_weight || 1.0,
+        catalyst_weight: weightsRecord.weight_catalyst || weightsRecord.catalyst_weight || 0.8,
+        float_penalty_weight: weightsRecord.float_penalty_weight || -0.6
       };
     }
   } catch (error) {
