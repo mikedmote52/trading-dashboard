@@ -26,10 +26,10 @@ async function checkPolygon(){
 
 async function checkAlpaca(){
   try{
-    const r = await fetch(`${process.env.ALPACA_BASE_URL}/clock`,{
+    const r = await fetch(`${process.env.APCA_API_BASE_URL}/v2/clock`,{
       headers:{
-        'APCA-API-KEY-ID':process.env.ALPACA_API_KEY,
-        'APCA-API-SECRET-KEY':process.env.ALPACA_SECRET_KEY
+        'APCA-API-KEY-ID':process.env.APCA_API_KEY_ID,
+        'APCA-API-SECRET-KEY':process.env.APCA_API_SECRET_KEY
       }, timeout:8000
     });
     if(!r.ok) throw new Error('HTTP '+r.status);

@@ -7,7 +7,12 @@
 // Load environment variables first
 require('dotenv').config();
 
-// Validate required environment variables
+// Load and validate environment with comprehensive validation
+const { validateAndLoadEnvironment } = require('./server/utils/environmentValidator');
+console.log('🔧 Validating environment variables...');
+const envValidation = validateAndLoadEnvironment({ exitOnFailure: true });
+
+// Legacy validation function (keeping for compatibility)
 function validateEnvironment() {
   const required = [
     'APCA_API_KEY_ID',
