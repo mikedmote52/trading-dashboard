@@ -873,6 +873,63 @@ app.get('/api/admin/debug-alpaca', requireAuth, async (req, res) => {
   }
 });
 
+// Debug endpoint - Alpaca 403 error diagnostics
+app.get('/api/admin/debug-alpaca-403', requireAuth, async (req, res) => {
+  try {
+    const { debugAlpaca403 } = require('./server/debug_alpaca_403');
+    
+    // Capture console output
+    const originalLog = console.log;
+    const originalError = console.error;
+    let output = '';
+    
+    console.log = (...args) => {
+      const message = args.join(' ');
+      output += message + '\n';
+      originalLog(...args);
+    };
+    
+    console.error = (...args) => {
+      const message = args.join(' ');
+      output += 'ERROR: ' + message + '\n';
+      originalError(...args);
+    };
+    
+    // Run 403 debug
+    const success = await debugAlpaca403();
+    
+    // Restore console
+    console.log = originalLog;
+    console.error = originalError;
+    
+    // Extract key diagnostic info
+    const apiKey = process.env.APCA_API_KEY_ID;
+    const secretKey = process.env.APCA_API_SECRET_KEY;
+    
+    res.json({
+      success,
+      output,
+      timestamp: new Date().toISOString(),
+      environment_diagnostics: {
+        api_key_pattern: apiKey ? `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 5)}` : 'NOT SET',
+        api_key_length: apiKey ? apiKey.length : 0,
+        has_whitespace: apiKey ? /\s/.test(apiKey) || /\s/.test(secretKey) : null,
+        has_special_chars: apiKey ? /[^\w-]/.test(apiKey) : null,
+        base_url: process.env.APCA_API_BASE_URL || 'default',
+        expected_key_match: apiKey ? apiKey.startsWith('PKX1W') && apiKey.endsWith('LBAR8') : false
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug Alpaca 403 endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint - check database directly for VIGL symbols
 app.get('/api/admin/debug-db', requireAuth, (req, res) => {
   try {
