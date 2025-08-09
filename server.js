@@ -821,6 +821,58 @@ app.post('/api/admin/fix-dashboard-validated', requireAuth, async (req, res) => 
   }
 });
 
+// Debug endpoint - Alpaca environment diagnostics
+app.get('/api/admin/debug-alpaca', requireAuth, async (req, res) => {
+  try {
+    const { debugAlpacaEnvironment } = require('./server/debug_alpaca_env');
+    
+    // Capture console output
+    const originalLog = console.log;
+    const originalError = console.error;
+    let output = '';
+    
+    console.log = (...args) => {
+      const message = args.join(' ');
+      output += message + '\n';
+      originalLog(...args);
+    };
+    
+    console.error = (...args) => {
+      const message = args.join(' ');
+      output += 'ERROR: ' + message + '\n';
+      originalError(...args);
+    };
+    
+    // Run debug
+    const success = await debugAlpacaEnvironment();
+    
+    // Restore console
+    console.log = originalLog;
+    console.error = originalError;
+    
+    res.json({
+      success,
+      output,
+      timestamp: new Date().toISOString(),
+      environment_vars: {
+        has_apca_key_id: !!process.env.APCA_API_KEY_ID,
+        has_apca_secret: !!process.env.APCA_API_SECRET_KEY,
+        has_base_url: !!process.env.APCA_API_BASE_URL,
+        base_url: process.env.APCA_API_BASE_URL || 'default',
+        node_env: process.env.NODE_ENV
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug Alpaca endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint - check database directly for VIGL symbols
 app.get('/api/admin/debug-db', requireAuth, (req, res) => {
   try {

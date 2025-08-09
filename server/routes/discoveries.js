@@ -1,6 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/sqlite');
+const { createDeduplicationMiddleware } = require('../utils/deduplicateDiscoveries');
+
+// Apply deduplication middleware to all discovery routes
+router.use(createDeduplicationMiddleware({
+  enableSymbolDeduplication: true,
+  enableNearDuplicateFiltering: true,
+  enableQualityFilter: true,
+  qualityThresholds: {
+    minScore: 2.0,
+    minVolumeSpike: 1.5,
+    maxPrice: 1000,
+    minPrice: 0.01
+  }
+}));
 
 // GET /api/discoveries/top - Get today's top discoveries
 router.get('/top', async (req, res) => {

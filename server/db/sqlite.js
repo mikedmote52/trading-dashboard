@@ -43,17 +43,31 @@ const upsertDiscovery = db.prepare(`
 const getTodaysDiscoveries = () => {
   const today = new Date().toISOString().split('T')[0];
   const stmt = db.prepare(`
-    SELECT * FROM discoveries 
-    WHERE DATE(created_at) = DATE(?)
-    ORDER BY score DESC
+    SELECT d1.* FROM discoveries d1
+    INNER JOIN (
+      SELECT symbol, MAX(score) as max_score, MAX(created_at) as latest_created
+      FROM discoveries 
+      WHERE DATE(created_at) = DATE(?)
+      GROUP BY symbol
+    ) d2 ON d1.symbol = d2.symbol 
+         AND d1.score = d2.max_score 
+         AND d1.created_at = d2.latest_created
+    ORDER BY d1.score DESC
   `);
   return stmt.all(today);
 };
 
 const getLatestDiscoveries = (limit = 10) => {
   const stmt = db.prepare(`
-    SELECT * FROM discoveries 
-    ORDER BY created_at DESC 
+    SELECT d1.* FROM discoveries d1
+    INNER JOIN (
+      SELECT symbol, MAX(score) as max_score, MAX(created_at) as latest_created
+      FROM discoveries 
+      GROUP BY symbol
+    ) d2 ON d1.symbol = d2.symbol 
+         AND d1.score = d2.max_score 
+         AND d1.created_at = d2.latest_created
+    ORDER BY d1.created_at DESC
     LIMIT ?
   `);
   return stmt.all(limit);
