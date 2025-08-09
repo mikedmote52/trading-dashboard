@@ -873,6 +873,82 @@ app.get('/api/admin/debug-alpaca', requireAuth, async (req, res) => {
   }
 });
 
+// Test Alpaca API directly from Node.js environment
+app.get('/api/admin/test-alpaca-direct', requireAuth, async (req, res) => {
+  try {
+    const https = require('https');
+    const apiKey = process.env.APCA_API_KEY_ID;
+    const secretKey = process.env.APCA_API_SECRET_KEY;
+    const baseUrl = process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets';
+    
+    // Make direct API call
+    const url = new URL(baseUrl);
+    const options = {
+      hostname: url.hostname,
+      path: '/v2/account',
+      method: 'GET',
+      headers: {
+        'APCA-API-KEY-ID': apiKey,
+        'APCA-API-SECRET-KEY': secretKey
+      }
+    };
+    
+    const result = await new Promise((resolve) => {
+      const req = https.request(options, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+          resolve({
+            statusCode: response.statusCode,
+            statusMessage: response.statusMessage,
+            headers: response.headers,
+            body: data
+          });
+        });
+      });
+      
+      req.on('error', (err) => {
+        resolve({ error: err.message });
+      });
+      
+      req.end();
+    });
+    
+    res.json({
+      environment: {
+        api_key: apiKey ? `${apiKey.substring(0, 5)}...${apiKey.substring(15)}` : 'NOT SET',
+        secret_key: secretKey ? 'SET' : 'NOT SET',
+        base_url: baseUrl,
+        node_env: process.env.NODE_ENV
+      },
+      request: {
+        url: `https://${options.hostname}${options.path}`,
+        headers_sent: {
+          'APCA-API-KEY-ID': apiKey,
+          'APCA-API-SECRET-KEY': '[REDACTED]'
+        }
+      },
+      response: {
+        statusCode: result.statusCode,
+        statusMessage: result.statusMessage,
+        body: result.body ? JSON.parse(result.body) : null
+      },
+      diagnosis: result.statusCode === 403 ? 
+        'Environment variables may not be loaded correctly or process needs restart' :
+        result.statusCode === 200 ? 'API working correctly' : 'Unexpected status'
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+      environment: {
+        has_api_key: !!process.env.APCA_API_KEY_ID,
+        has_secret_key: !!process.env.APCA_API_SECRET_KEY
+      }
+    });
+  }
+});
+
 // Debug endpoint - Alpaca 403 error diagnostics
 app.get('/api/admin/debug-alpaca-403', requireAuth, async (req, res) => {
   try {

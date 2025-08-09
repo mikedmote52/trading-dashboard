@@ -20,5 +20,60 @@
     "high_confidence_vigl": 0,
     "alerts_count": 6,
     "high_priority_alerts": 2
+  },
+  {
+    "timestamp": "2025-08-09T21:48:57.700Z",
+    "date": "2025-08-09",
+    "portfolio_value": "100488.55",
+    "daily_pnl": 0,
+    "position_count": 3,
+    "vigl_discoveries": 995,
+    "high_confidence_vigl": 0,
+    "alerts_count": 3,
+    "high_priority_alerts": 1
+  },
+  {
+    "timestamp": "2025-08-09T21:49:04.122Z",
+    "date": "2025-08-09",
+    "portfolio_value": "100488.55",
+    "daily_pnl": 0,
+    "position_count": 3,
+    "vigl_discoveries": 995,
+    "high_confidence_vigl": 0,
+    "alerts_count": 3,
+    "high_priority_alerts": 1
+  },
+  {
+    "timestamp": "2025-08-09T21:49:58.292Z",
+    "date": "2025-08-09",
+    "portfolio_value": "100488.55",
+    "daily_pnl": 0,
+    "position_count": 3,
+    "vigl_discoveries": 995,
+    "high_confidence_vigl": 0,
+    "alerts_count": 3,
+    "high_priority_alerts": 1
+  },
+  {
+    "timestamp": "2025-08-09T22:03:20.069Z",
+    "date": "2025-08-09",
+    "portfolio_value": "100488.55",
+    "daily_pnl": 0,
+    "position_count": 3,
+    "vigl_discoveries": 995,
+    "high_confidence_vigl": 0,
+    "alerts_count": 4,
+    "high_priority_alerts": 2
+  },
+  {
+    "timestamp": "2025-08-09T22:36:41.340Z",
+    "date": "2025-08-09",
+    "portfolio_value": "100488.55",
+    "daily_pnl": 0,
+    "position_count": 3,
+    "vigl_discoveries": 1193,
+    "high_confidence_vigl": 0,
+    "alerts_count": 4,
+    "high_priority_alerts": 2
   }
 ]
