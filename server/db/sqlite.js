@@ -93,8 +93,13 @@ CREATE INDEX IF NOT EXISTS idx_discoveries_date ON vigl_discoveries(discovered_a
 CREATE INDEX IF NOT EXISTS idx_decisions_symbol ON trading_decisions(symbol);
 `;
 
-// Run schema initialization
-db.exec(initSchema);
+// Run schema initialization - safe with CREATE IF NOT EXISTS
+try {
+  db.exec(initSchema);
+  console.log('✅ SQLite schema verified/created');
+} catch (error) {
+  console.log('⚠️ Schema initialization:', error.message);
+}
 
 // Prepared statements for features
 const insertFeaturesSnapshot = db.prepare(`
