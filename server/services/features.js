@@ -98,10 +98,8 @@ async function fetchFeaturesFor(symbol) {
   try {
     console.log(`📊 Fetching comprehensive features for ${symbol}`);
     
-    // Fetch data from all providers - borrow data optional
-    const [quote, lastTrade, polygonData, companyData, catalystFlag] = await Promise.all([
-      getQuote(symbol),
-      getLastTrade(symbol),
+    // Fetch data from available providers - Polygon only for now  
+    const [polygonData, companyData, catalystFlag] = await Promise.all([
       fetchPolygonData(symbol),
       getCompanyProfile(symbol),
       Promise.resolve(detectCatalyst(symbol))
@@ -118,8 +116,6 @@ async function fetchFeaturesFor(symbol) {
     }
 
     // Core data sources must succeed - borrow data optional
-    if (!quote) throw new Error(`No quote data for ${symbol}`);
-    if (!lastTrade) throw new Error(`No trade data for ${symbol}`);
     if (!polygonData) throw new Error(`No historical data for ${symbol}`);
     if (!companyData) throw new Error(`No company data for ${symbol}`);
 
@@ -127,11 +123,11 @@ async function fetchFeaturesFor(symbol) {
     const features = {
       symbol: symbol.toUpperCase(),
       
-      // Price data (Alpaca Market Data v2)
-      current_price: lastTrade.price,
-      bid: quote.bid,
-      ask: quote.ask,
-      spread: quote.spread,
+      // Price data (from Polygon)
+      current_price: polygonData.current_price,
+      bid: 0,
+      ask: 0,
+      spread: 0,
       
       // Volume and momentum (Polygon)
       volume: polygonData.volume,
@@ -162,8 +158,8 @@ async function fetchFeaturesFor(symbol) {
       name: companyData.company_name || symbol,
       timestamp: new Date().toISOString(),
       sources: {
-        prices: quote.source,
-        trades: lastTrade.source,
+        prices: 'polygon',
+        trades: 'polygon',
         historical: 'polygon',
         fundamentals: companyData.source,
         borrow: borrowData?.source || 'none'
