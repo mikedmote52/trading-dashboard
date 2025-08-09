@@ -106,7 +106,7 @@ async function runDiscoveryCapture() {
     return discoveries;
   } catch (error) {
     console.error('❌ Capture job error:', error);
-    return [];
+    throw new Error(`Discovery capture failed: ${error.message}`);
   }
 }
 

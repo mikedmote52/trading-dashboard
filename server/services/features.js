@@ -106,19 +106,23 @@ async function fetchFeaturesFor(symbol) {
 
     // If no Polygon data, we can't compute key metrics
     if (!polygonData) {
-      console.warn(`⚠️ No market data available for ${symbol}`);
-      return null;
+      throw new Error(`No market data available for ${symbol} - Polygon API failed`);
     }
 
-    // Combine all data sources
+    // FAIL-FAST: All data sources must be available for real trading decisions
+    if (!borrowShortData) {
+      throw new Error(`No borrow/short data available for ${symbol} - cannot proceed without complete data set`);
+    }
+
+    // Combine all data sources - no fallbacks, all must be real
     const features = {
       symbol,
       rel_volume: polygonData.rel_volume,
       momentum_5d: polygonData.momentum_5d,
-      short_interest_pct: borrowShortData?.short_interest_pct || 0,
-      borrow_fee_7d_change: borrowShortData?.borrow_fee_7d_change || 0,
+      short_interest_pct: borrowShortData.short_interest_pct,
+      borrow_fee_7d_change: borrowShortData.borrow_fee_7d_change,
       catalyst_flag: catalystFlag,
-      float_shares: borrowShortData?.float_shares || 50000000, // Default 50M shares
+      float_shares: borrowShortData.float_shares,
       current_price: polygonData.current_price,
       volume: polygonData.volume,
       avg_volume_30d: polygonData.avg_volume_30d,

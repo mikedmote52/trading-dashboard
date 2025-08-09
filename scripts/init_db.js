@@ -149,6 +149,19 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_decisions_symbol ON portfolio_decisions
 CREATE INDEX IF NOT EXISTS idx_portfolio_decisions_created ON portfolio_decisions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_vigl_discoveries_symbol ON vigl_discoveries(symbol);
 CREATE INDEX IF NOT EXISTS idx_vigl_discoveries_date ON vigl_discoveries(discovered_at);
+
+-- Heartbeat status table
+CREATE TABLE IF NOT EXISTS data_status (
+  source TEXT PRIMARY KEY,            -- polygon | alpaca | borrow_short | db
+  status TEXT NOT NULL,               -- OK | STALE | DOWN | ERROR
+  detail TEXT,
+  last_ok_iso TEXT,
+  last_check_iso TEXT,
+  freshness_s INTEGER NOT NULL,
+  version TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_data_status_updated_at ON data_status(updated_at);
 `;
 
   // Execute schema synchronously

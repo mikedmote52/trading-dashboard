@@ -87,8 +87,7 @@ let dashboardData = {
 function makeAlpacaRequest(endpoint) {
   return new Promise((resolve, reject) => {
     if (!ALPACA_CONFIG.apiKey) {
-      console.log('❌ No API key configured');
-      resolve(null); // Return null for mock data fallback
+      reject(new Error('Alpaca API key not configured - cannot proceed with real data requirement'));
       return;
     }
 
@@ -484,14 +483,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Legacy health endpoint
-app.get('/api/healthz', (req, res) => {
+// Enhanced health endpoint with data feeds status
+app.get('/api/healthz', async (req, res) => {
+  const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
   const dbPath = process.env.SQLITE_DB_PATH || require('path').join(__dirname, 'trading_dashboard.db');
   
   let schemaStatus = 'ok';
   try {
     const db = require('./server/db/sqlite');
-    const requiredTables = ['features_snapshot', 'discoveries', 'theses', 'trading_decisions', 'scoring_weights'];
+    const requiredTables = ['features_snapshot', 'discoveries', 'theses', 'trading_decisions', 'scoring_weights_kv', 'data_status'];
     
     for (const table of requiredTables) {
       try {
@@ -507,16 +507,34 @@ app.get('/api/healthz', (req, res) => {
     schemaStatus = 'error';
   }
 
+  // Get data feeds status
+  let feeds = {};
+  let overallStatus = 'healthy';
+  try {
+    const snap = await runHeartbeat();
+    snap.forEach(s => feeds[s.source] = s.status);
+    if (!allHealthy(snap)) {
+      overallStatus = 'degraded';
+    }
+  } catch (error) {
+    overallStatus = 'degraded';
+    feeds = { error: 'Failed to check data feeds' };
+  }
+
   res.json({
-    status: 'healthy',
-    db_path: dbPath,
+    status: overallStatus,
     schema: schemaStatus,
+    db_path: dbPath,
+    feeds,
     timestamp: new Date().toISOString()
   });
 });
 
+// Middleware for health checks
+const requireHealthy = require('./server/middleware/requireHealthy');
+
 // Secure admin scan endpoint
-app.post('/api/admin/scan', requireAuth, async (req, res) => {
+app.post('/api/admin/scan', requireAuth, requireHealthy, async (req, res) => {
   try {
     console.log('🔒 Admin-triggered scan initiated');
     
@@ -578,6 +596,27 @@ app.get('/api/admin/status', requireAuth, (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Admin data status endpoint - shows heartbeat of all data sources
+app.get('/api/admin/data-status', requireAuth, async (req, res) => {
+  const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
+  try {
+    const snap = await runHeartbeat();
+    res.json({
+      ok: allHealthy(snap),
+      overall: allHealthy(snap) ? 'OK' : 'DEGRADED',
+      sources: snap,
+      version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'local'
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      overall: 'ERROR',
+      error: error.message,
       timestamp: new Date().toISOString()
     });
   }
@@ -856,6 +895,30 @@ function makeAlpacaTradeRequest(endpoint, method, data) {
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Startup health check - ensure all data feeds are healthy before serving
+(async () => {
+  const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
+  console.log('🔍 Performing startup health check...');
+  
+  try {
+    const snap = await runHeartbeat();
+    if (!allHealthy(snap)) {
+      console.error('❌ Startup blocked: data feeds not healthy');
+      snap.forEach(s => {
+        if (s.status !== 'OK') {
+          console.error(`  - ${s.source}: ${s.status} (${s.detail})`);
+        }
+      });
+      console.error('🚫 Server will not start with degraded data feeds in fail-safe mode');
+      process.exit(1);
+    }
+    console.log('✅ All data feeds healthy - starting server');
+  } catch (error) {
+    console.error('❌ Startup health check failed:', error.message);
+    process.exit(1);
+  }
+})();
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {

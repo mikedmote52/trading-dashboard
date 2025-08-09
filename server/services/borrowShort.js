@@ -52,46 +52,24 @@ async function fetchFromProvider(symbol) {
 }
 
 /**
- * TODO: Ortex provider implementation
+ * Ortex provider implementation - requires real API integration
  */
 async function fetchFromOrtex(symbol, apiKey) {
-  console.log(`📋 TODO: Implement Ortex API for ${symbol}`);
-  // Example return structure:
-  return {
-    short_interest_pct: 0.15 + Math.random() * 0.3, // 15-45%
-    borrow_fee_7d_change: (Math.random() - 0.5) * 0.2, // -10% to +10%
-    float_shares: 20000000 + Math.random() * 80000000,
-    source: 'ortex',
-    updated_at: new Date().toISOString()
-  };
+  throw new Error(`Ortex provider not implemented - cannot provide real borrow/short data for ${symbol}`);
 }
 
 /**
- * TODO: S3 partner provider implementation
+ * S3 Partners provider implementation - requires real API integration
  */
 async function fetchFromS3(symbol, apiKey) {
-  console.log(`📋 TODO: Implement S3 Partners API for ${symbol}`);
-  return {
-    short_interest_pct: 0.10 + Math.random() * 0.4,
-    borrow_fee_7d_change: (Math.random() - 0.5) * 0.25,
-    float_shares: 15000000 + Math.random() * 85000000,
-    source: 's3',
-    updated_at: new Date().toISOString()
-  };
+  throw new Error(`S3 Partners provider not implemented - cannot provide real borrow/short data for ${symbol}`);
 }
 
 /**
- * TODO: Fintel provider implementation
+ * Fintel provider implementation - requires real API integration
  */
 async function fetchFromFintel(symbol, apiKey) {
-  console.log(`📋 TODO: Implement Fintel API for ${symbol}`);
-  return {
-    short_interest_pct: 0.08 + Math.random() * 0.35,
-    borrow_fee_7d_change: (Math.random() - 0.5) * 0.3,
-    float_shares: 25000000 + Math.random() * 75000000,
-    source: 'fintel',
-    updated_at: new Date().toISOString()
-  };
+  throw new Error(`Fintel provider not implemented - cannot provide real borrow/short data for ${symbol}`);
 }
 
 /**
