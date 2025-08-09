@@ -1,0 +1,118 @@
+[dotenv@17.2.1] injecting env (6) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+🔐 Alpaca Config: {
+  hasApiKey: false,
+  hasSecretKey: false,
+  baseUrl: 'https://paper-api.alpaca.markets',
+  apiKeyLength: 0,
+  secretKeyLength: 0
+}
+🚀 Trading Intelligence Dashboard running on port 3001
+📊 Dashboard: http://localhost:3001
+🔗 API: http://localhost:3001/api/dashboard
+🔑 Alpaca Connected: false
+🔍 Running discovery capture...
+🧠 Starting daily feature capture for 8 symbols
+📊 Capturing features for AAPL
+📊 Fetching real features for AAPL
+📋 TODO: Configure borrow/short data provider for AAPL
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+📡 Capture job started - will run every 30 minutes
+✅ Features for AAPL: rel_vol=1.94x, momentum=13.3%
+📈 AAPL squeeze score: 1.601
+💾 Persisted discovery for AAPL with score 1.601
+📊 Capturing features for TSLA
+📊 Fetching real features for TSLA
+📋 TODO: Configure borrow/short data provider for TSLA
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for TSLA: rel_vol=1.01x, momentum=8.9%
+📈 TSLA squeeze score: 1.213
+💾 Persisted discovery for TSLA with score 1.213
+📊 Capturing features for NVDA
+📊 Fetching real features for NVDA
+📋 TODO: Configure borrow/short data provider for NVDA
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for NVDA: rel_vol=0.77x, momentum=5.2%
+📈 NVDA squeeze score: 1.116
+💾 Persisted discovery for NVDA with score 1.116
+📊 Capturing features for AMD
+📊 Fetching real features for AMD
+📋 TODO: Configure borrow/short data provider for AMD
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for AMD: rel_vol=1.03x, momentum=0.6%
+📈 AMD squeeze score: 1.012
+💾 Persisted discovery for AMD with score 1.012
+📊 Capturing features for MSFT
+📊 Fetching real features for MSFT
+📋 TODO: Configure borrow/short data provider for MSFT
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for MSFT: rel_vol=0.80x, momentum=-0.4%
+📈 MSFT squeeze score: 0.977
+💾 Persisted discovery for MSFT with score 0.977
+📊 Capturing features for AMZN
+📊 Fetching real features for AMZN
+📋 TODO: Configure borrow/short data provider for AMZN
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for AMZN: rel_vol=0.71x, momentum=3.7%
+📈 AMZN squeeze score: 1.079
+💾 Persisted discovery for AMZN with score 1.079
+📊 Capturing features for META
+📊 Fetching real features for META
+📋 TODO: Configure borrow/short data provider for META
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for META: rel_vol=0.56x, momentum=2.6%
+📈 META squeeze score: 1.051
+💾 Persisted discovery for META with score 1.051
+📊 Capturing features for GOOGL
+📊 Fetching real features for GOOGL
+📋 TODO: Configure borrow/short data provider for GOOGL
+   Set BORROW_SHORT_PROVIDER and BORROW_SHORT_API_KEY environment variables
+✅ Features for GOOGL: rel_vol=1.02x, momentum=6.5%
+📈 GOOGL squeeze score: 1.157
+💾 Persisted discovery for GOOGL with score 1.157
+✅ Feature capture complete. 8 high-score discoveries found.
+✅ Capture complete: 8 discoveries
+🔍 Manual discovery scan triggered
+🔍 Running discovery capture...
+🧠 Starting daily feature capture for 8 symbols
+📊 Capturing features for AAPL
+📊 Fetching real features for AAPL
+✅ Features for AAPL: rel_vol=1.94x, momentum=13.3%
+📈 AAPL squeeze score: 1.601
+💾 Persisted discovery for AAPL with score 1.601
+📊 Capturing features for TSLA
+📊 Fetching real features for TSLA
+✅ Features for TSLA: rel_vol=1.01x, momentum=8.9%
+📈 TSLA squeeze score: 1.213
+💾 Persisted discovery for TSLA with score 1.213
+📊 Capturing features for NVDA
+📊 Fetching real features for NVDA
+✅ Features for NVDA: rel_vol=0.77x, momentum=5.2%
+📈 NVDA squeeze score: 1.116
+💾 Persisted discovery for NVDA with score 1.116
+📊 Capturing features for AMD
+📊 Fetching real features for AMD
+✅ Features for AMD: rel_vol=1.03x, momentum=0.6%
+📈 AMD squeeze score: 1.012
+💾 Persisted discovery for AMD with score 1.012
+📊 Capturing features for MSFT
+📊 Fetching real features for MSFT
+✅ Features for MSFT: rel_vol=0.80x, momentum=-0.4%
+📈 MSFT squeeze score: 0.977
+💾 Persisted discovery for MSFT with score 0.977
+📊 Capturing features for AMZN
+📊 Fetching real features for AMZN
+✅ Features for AMZN: rel_vol=0.71x, momentum=3.7%
+📈 AMZN squeeze score: 1.079
+💾 Persisted discovery for AMZN with score 1.079
+📊 Capturing features for META
+📊 Fetching real features for META
+✅ Features for META: rel_vol=0.56x, momentum=2.6%
+📈 META squeeze score: 1.051
+💾 Persisted discovery for META with score 1.051
+📊 Capturing features for GOOGL
+📊 Fetching real features for GOOGL
+✅ Features for GOOGL: rel_vol=1.02x, momentum=6.5%
+📈 GOOGL squeeze score: 1.157
+💾 Persisted discovery for GOOGL with score 1.157
+✅ Feature capture complete. 8 high-score discoveries found.
+✅ Capture complete: 8 discoveries
