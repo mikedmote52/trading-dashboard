@@ -33,6 +33,21 @@ const portfolioRoutes = require('./server/routes/portfolio');
 app.use('/api/discoveries', discoveryRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 
+// Token-based authentication middleware for secure endpoints
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const validToken = process.env.ADMIN_TOKEN || 'default-dev-token';
+  
+  if (!token || token !== validToken) {
+    return res.status(401).json({ 
+      error: 'Unauthorized', 
+      message: 'Valid admin token required' 
+    });
+  }
+  
+  next();
+}
+
 // Configuration
 const ALPACA_CONFIG = {
   apiKey: process.env.APCA_API_KEY_ID || '',
@@ -442,8 +457,78 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    database: 'connected',
+    environment: process.env.NODE_ENV || 'development'
   });
+});
+
+// Secure admin scan endpoint
+app.post('/api/admin/scan', requireAuth, async (req, res) => {
+  try {
+    console.log('🔒 Admin-triggered scan initiated');
+    
+    // Run the capture job
+    const capture = require('./server/jobs/capture');
+    await capture.runDiscoveryCapture();
+    
+    // Get latest discoveries
+    const db = require('./server/db/sqlite');
+    const discoveries = await db.getTodaysDiscoveries();
+    
+    res.json({
+      success: true,
+      message: 'Scan completed successfully',
+      timestamp: new Date().toISOString(),
+      discoveries_count: discoveries.length,
+      discoveries: discoveries.slice(0, 10) // Top 10 for response size
+    });
+    
+  } catch (error) {
+    console.error('❌ Admin scan failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Scan failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Admin status endpoint
+app.get('/api/admin/status', requireAuth, (req, res) => {
+  const db = require('./server/db/sqlite');
+  
+  try {
+    const todaysDiscoveries = db.getTodaysDiscoveries();
+    const latestFeatures = db.getLatestDiscoveries(5);
+    
+    res.json({
+      status: 'operational',
+      timestamp: new Date().toISOString(),
+      database: {
+        discoveries_today: todaysDiscoveries.length,
+        latest_discoveries: latestFeatures.length,
+        database_path: process.env.SQLITE_DB_PATH || 'default'
+      },
+      environment: {
+        node_env: process.env.NODE_ENV || 'development',
+        port: process.env.PORT || 3001,
+        has_polygon_key: !!process.env.POLYGON_API_KEY,
+        has_alpaca_keys: !!(process.env.APCA_API_KEY_ID && process.env.APCA_API_SECRET_KEY)
+      },
+      scoring: {
+        weights_configured: !!process.env.SCORING_WEIGHTS_JSON
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Debug endpoint to see raw Alpaca data

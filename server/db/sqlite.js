@@ -1,8 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-// Initialize database
-const dbPath = path.join(__dirname, '../../trading_dashboard.db');
+// Initialize database with configurable path for cloud deployment
+const dbPath = process.env.SQLITE_DB_PATH || path.join(__dirname, '../../trading_dashboard.db');
+console.log(`📊 SQLite database path: ${dbPath}`);
 const db = new Database(dbPath);
 
 // Enable foreign keys

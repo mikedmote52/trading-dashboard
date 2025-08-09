@@ -5,7 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js || node server.js"
+    "dev": "nodemon server.js || node server.js",
+    "build": "echo 'No build step required for Node.js app'",
+    "test": "node -e \"console.log('Tests not implemented yet')\"",
+    "scan": "node -e \"require('./server/jobs/capture').runDiscoveryCapture().catch(console.error)\"",
+    "db:status": "node -e \"const db = require('./server/db/sqlite'); console.log('Database initialized:', !!db.db)\"",
+    "health": "curl -f http://localhost:3001/api/health || echo 'Server not running'",
+    "render:build": "npm install",
+    "render:start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
