@@ -14,7 +14,7 @@ router.get('/top', async (req, res) => {
       return {
         symbol: d.symbol,
         name: features.name || d.symbol,
-        currentPrice: features.price || 50,
+        currentPrice: features.current_price || features.price || 50,
         marketCap: features.market_cap || 100000000,
         volumeSpike: features.rel_volume || 1.0,
         momentum: (features.momentum_5d || 0) * 100, // Convert to percentage
