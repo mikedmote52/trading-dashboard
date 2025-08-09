@@ -3,19 +3,6 @@ const router = express.Router();
 const db = require('../db/sqlite');
 const { createDeduplicationMiddleware } = require('../utils/deduplicateDiscoveries');
 
-// Apply deduplication middleware to all discovery routes
-router.use(createDeduplicationMiddleware({
-  enableSymbolDeduplication: true,
-  enableNearDuplicateFiltering: true,
-  enableQualityFilter: true,
-  qualityThresholds: {
-    minScore: 2.0,
-    minVolumeSpike: 1.5,
-    maxPrice: 1000,
-    minPrice: 0.01
-  }
-}));
-
 // GET /api/discoveries/top - Get today's top discoveries
 router.get('/top', async (req, res) => {
   try {
@@ -45,10 +32,28 @@ router.get('/top', async (req, res) => {
       };
     });
     
+    // Apply deduplication to the formatted data
+    const { processDiscoveries } = require('../utils/deduplicateDiscoveries');
+    const deduplicationResult = processDiscoveries(formatted, {
+      enableSymbolDeduplication: true,
+      enableNearDuplicateFiltering: false, // Disable for now to avoid over-filtering
+      enableQualityFilter: true,
+      qualityThresholds: {
+        minScore: 0.1, // Lower threshold since UI scores are 0-1
+        minVolumeSpike: 1.1,
+        maxPrice: 10000,
+        minPrice: 0.001
+      }
+    });
+    
     res.json({
       success: true,
-      count: formatted.length,
-      discoveries: formatted
+      count: deduplicationResult.discoveries.length,
+      discoveries: deduplicationResult.discoveries,
+      deduplication: {
+        stats: deduplicationResult.stats,
+        reductionPercentage: deduplicationResult.reductionPercentage
+      }
     });
   } catch (error) {
     console.error('Error fetching discoveries:', error);

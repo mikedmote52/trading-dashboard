@@ -92,7 +92,7 @@ function applyQualityFilter(discoveries, thresholds = {}) {
     minVolumeSpike = 1.5,     // Minimum volume spike multiplier
     maxPrice = 1000,          // Maximum price filter (avoid weird data)
     minPrice = 0.01,          // Minimum price filter (avoid penny stocks if desired)
-    requiredFields = ['symbol', 'score', 'volumeSpike', 'currentPrice']
+    requiredFields = ['symbol']
   } = thresholds;
   
   return discoveries.filter(discovery => {
@@ -103,14 +103,18 @@ function applyQualityFilter(discoveries, thresholds = {}) {
       }
     }
     
-    // Apply quality thresholds
-    if ((discovery.score || 0) < minScore) return false;
-    if ((discovery.volumeSpike || 0) < minVolumeSpike) return false;
-    if ((discovery.currentPrice || 0) < minPrice) return false;
-    if ((discovery.currentPrice || 0) > maxPrice) return false;
+    // Apply quality thresholds (handle both raw and UI field names)
+    const score = discovery.score || discovery.viglScore || 0;
+    const volumeSpike = discovery.volumeSpike || discovery.rel_volume || 0;
+    const price = discovery.currentPrice || discovery.price || 0;
+    
+    if (score < minScore) return false;
+    if (volumeSpike < minVolumeSpike) return false;
+    if (price > 0 && price < minPrice) return false;
+    if (price > maxPrice) return false;
     
     // Filter out placeholder data
-    if (discovery.currentPrice === 50 || discovery.currentPrice === 100) return false;
+    if (price === 50 || price === 100) return false;
     
     return true;
   });
