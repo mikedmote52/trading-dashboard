@@ -37,7 +37,13 @@ router.get('/top', async (req, res) => {
     const deduplicationResult = processDiscoveries(formatted, {
       enableSymbolDeduplication: true,
       enableNearDuplicateFiltering: false,
-      enableQualityFilter: false  // TEMPORARILY DISABLE to debug
+      enableQualityFilter: true,
+      qualityThresholds: {
+        minScore: 1.0,           // Lower threshold for more discoveries
+        minVolumeSpike: 1.0,     // Lower threshold for more discoveries  
+        minPrice: 0.01,
+        maxPrice: 10000
+      }
     });
     
     res.json({
