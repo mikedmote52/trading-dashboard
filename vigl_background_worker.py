@@ -86,7 +86,7 @@ class VIGLDatabaseManager:
                     discovery.price_momentum,
                     discovery.vigl_similarity_score,  # Use correct field name
                     getattr(discovery, 'sector', 'Unknown'),
-                    discovery.risk_factors,
+                    json.dumps(["Volume spike", "Momentum pattern"] if discovery.volume_spike_ratio > 10 else ["Pattern match"]),
                     discovery.vigl_similarity_score,  # Use correct field name
                     discovery.confidence_level,  # Use correct field name
                     discovery.confidence_level >= 0.8,

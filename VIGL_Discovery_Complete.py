@@ -767,7 +767,7 @@ if __name__ == "__main__":
                     "momentum": stock.price_momentum,
                     "breakoutStrength": stock.pattern_strength,
                     "sector": getattr(stock, 'sector', 'Technology'),
-                    "catalysts": stock.risk_factors,
+                    "catalysts": ["Volume spike", "Momentum pattern"] if stock.volume_spike_ratio > 10 else ["Pattern match"],
                     "similarity": stock.vigl_similarity,
                     "confidence": stock.confidence_score,
                     "isHighConfidence": stock.confidence_score >= 0.8,
