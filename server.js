@@ -696,6 +696,126 @@ app.post('/api/admin/fix-dashboard', requireAuth, async (req, res) => {
   }
 });
 
+// Admin validated fix endpoint - uses real market data with strict validation
+app.post('/api/admin/fix-dashboard-validated', requireAuth, async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  try {
+    console.log('🔒 Starting VALIDATED dashboard fix with real market data...');
+    
+    // Path to Python script with validation
+    const scriptPath = path.join(__dirname, 'server', 'fix_dashboard_connection_v3.py');
+    
+    // Set environment variables for production validation
+    const env = Object.assign({}, process.env, {
+      SQLITE_DB_PATH: process.env.SQLITE_DB_PATH || path.join(__dirname, 'trading_dashboard.db'),
+      POLYGON_API_KEY: process.env.POLYGON_API_KEY,
+      NODE_ENV: process.env.NODE_ENV || 'production'
+    });
+    
+    // Validate API key exists
+    if (!env.POLYGON_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'MISSING_API_KEY',
+        message: 'Polygon API key required for real market data validation'
+      });
+    }
+    
+    console.log('🔑 API Key verified, fetching real market data...');
+    
+    // Spawn Python validation process
+    const pythonProcess = spawn('python3', [scriptPath], {
+      env: env,
+      cwd: __dirname
+    });
+    
+    let output = '';
+    let errorOutput = '';
+    let discoveryCount = 0;
+    
+    // Stream output
+    pythonProcess.stdout.on('data', (data) => {
+      const text = data.toString();
+      output += text;
+      console.log(text.trim());
+      
+      // Extract discovery count from output
+      const countMatch = text.match(/Successfully inserted (\d+) VALIDATED discoveries/);
+      if (countMatch) {
+        discoveryCount = parseInt(countMatch[1]);
+      }
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      const text = data.toString();
+      errorOutput += text;
+      console.error('Fix script error:', text.trim());
+    });
+    
+    // Handle process completion
+    pythonProcess.on('close', (code) => {
+      const timestamp = new Date().toISOString();
+      
+      if (code === 0) {
+        console.log('✅ Validated fix process completed successfully');
+        res.json({
+          success: true,
+          message: `Dashboard fixed with REAL validated market data`,
+          discoveries_count: discoveryCount,
+          validation_status: 'REAL_DATA_VALIDATED',
+          output: output,
+          timestamp: timestamp
+        });
+      } else {
+        console.error('❌ Validated fix process failed with code:', code);
+        res.status(500).json({
+          success: false,
+          error: 'VALIDATION_FAILED',
+          message: `Real data validation failed (exit code: ${code})`,
+          output: output,
+          error_output: errorOutput,
+          timestamp: timestamp
+        });
+      }
+    });
+    
+    // Handle process errors
+    pythonProcess.on('error', (error) => {
+      console.error('❌ Failed to start validated fix process:', error);
+      res.status(500).json({
+        success: false,
+        error: 'PROCESS_START_FAILED',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+    });
+    
+    // Set timeout for real market data fetching
+    setTimeout(() => {
+      if (!res.headersSent) {
+        pythonProcess.kill();
+        res.status(408).json({
+          success: false,
+          error: 'VALIDATION_TIMEOUT',
+          message: 'Real market data validation timed out after 60 seconds',
+          timestamp: new Date().toISOString()
+        });
+      }
+    }, 60000); // 60 second timeout for API calls
+    
+  } catch (error) {
+    console.error('❌ Validated fix endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'INTERNAL_ERROR',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint - check database directly for VIGL symbols
 app.get('/api/admin/debug-db', requireAuth, (req, res) => {
   try {
