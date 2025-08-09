@@ -452,14 +452,66 @@ async function generateAlerts(portfolio, discoveries) {
 // API ENDPOINTS
 // =============================================================================
 
-// Health check
+// Health check with schema validation
 app.get('/api/health', (req, res) => {
+  const dbPath = process.env.SQLITE_DB_PATH || require('path').join(__dirname, 'trading_dashboard.db');
+  
+  let schemaStatus = 'ok';
+  try {
+    const db = require('./server/db/sqlite');
+    // Test critical tables exist by attempting to prepare statements
+    const requiredTables = ['features_snapshot', 'discoveries', 'theses', 'trading_decisions', 'scoring_weights'];
+    
+    for (const table of requiredTables) {
+      try {
+        db.db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+      } catch (error) {
+        if (error.message.includes('no such table')) {
+          schemaStatus = 'missing';
+          break;
+        }
+      }
+    }
+  } catch (error) {
+    schemaStatus = 'error';
+  }
+
   res.json({
     status: 'healthy',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    database: 'connected',
-    environment: process.env.NODE_ENV || 'development'
+    db_path: dbPath,
+    schema: schemaStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Legacy health endpoint
+app.get('/api/healthz', (req, res) => {
+  const dbPath = process.env.SQLITE_DB_PATH || require('path').join(__dirname, 'trading_dashboard.db');
+  
+  let schemaStatus = 'ok';
+  try {
+    const db = require('./server/db/sqlite');
+    const requiredTables = ['features_snapshot', 'discoveries', 'theses', 'trading_decisions', 'scoring_weights'];
+    
+    for (const table of requiredTables) {
+      try {
+        db.db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+      } catch (error) {
+        if (error.message.includes('no such table')) {
+          schemaStatus = 'missing';
+          break;
+        }
+      }
+    }
+  } catch (error) {
+    schemaStatus = 'error';
+  }
+
+  res.json({
+    status: 'healthy',
+    db_path: dbPath,
+    schema: schemaStatus,
+    timestamp: new Date().toISOString()
   });
 });
 

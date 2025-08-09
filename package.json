@@ -4,7 +4,7 @@
   "description": "Unified VIGL Discovery and Portfolio Management Dashboard",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/init_db.js && node server.js",
     "migrate": "node scripts/init_db.js",
     "dev": "nodemon server.js || node server.js",
     "build": "echo 'No build step required for Node.js app'",
