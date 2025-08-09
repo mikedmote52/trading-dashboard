@@ -696,6 +696,48 @@ app.post('/api/admin/fix-dashboard', requireAuth, async (req, res) => {
   }
 });
 
+// Debug endpoint - check database directly for VIGL symbols
+app.get('/api/admin/debug-db', requireAuth, (req, res) => {
+  try {
+    const db = require('./server/db/sqlite');
+    
+    // Get total discoveries
+    const total = db.db.prepare('SELECT COUNT(*) as count FROM discoveries').get();
+    
+    // Get VIGL symbols specifically
+    const viglSymbols = db.db.prepare(`
+      SELECT symbol, score, created_at, 
+      substr(features_json, 1, 100) as features_preview
+      FROM discoveries 
+      WHERE symbol IN ('MRM','SPRU','ORIS','HRTX','BTAI')
+      ORDER BY score DESC
+    `).all();
+    
+    // Get top 10 by score
+    const topScores = db.db.prepare(`
+      SELECT symbol, score, created_at
+      FROM discoveries 
+      ORDER BY score DESC LIMIT 10
+    `).all();
+    
+    res.json({
+      success: true,
+      database_path: db.db.name || 'unknown',
+      total_discoveries: total.count,
+      vigl_discoveries: viglSymbols,
+      top_discoveries: topScores,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Admin status endpoint
 app.get('/api/admin/status', requireAuth, (req, res) => {
   const db = require('./server/db/sqlite');

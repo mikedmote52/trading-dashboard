@@ -194,9 +194,15 @@ def insert_discoveries(discoveries):
                 continue
         
         conn.commit()
+        
+        # Verify insertions
+        verify_cursor = conn.cursor()
+        verify_count = verify_cursor.execute('SELECT COUNT(*) FROM discoveries WHERE symbol IN ("MRM","SPRU","ORIS","HRTX","BTAI")').fetchone()[0]
+        
         conn.close()
         
         print(f"✅ Inserted {inserted} discoveries into database")
+        print(f"🔍 Verification: {verify_count} VIGL symbols found in database after insert")
         return inserted
         
     except Exception as e:
@@ -233,6 +239,8 @@ def main():
     print("=" * 60)
     print("🚀 Dashboard Connection Fix Script v2")
     print(f"📊 Database: {DB_PATH}")
+    print(f"🌍 Environment: {os.environ.get('NODE_ENV', 'development')}")
+    print(f"🔑 Polygon Key: {POLYGON_API_KEY[:10]}..." if POLYGON_API_KEY else "❌ No API Key")
     print("📈 Using REAL discoveries from working VIGL scanner")
     print("=" * 60)
     
