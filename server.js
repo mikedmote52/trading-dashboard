@@ -988,6 +988,56 @@ app.get('/api/debug/alpaca', async (req, res) => {
   }
 });
 
+// Debug endpoint specifically for portfolio frontend issue
+app.get('/api/debug/portfolio-frontend', async (req, res) => {
+  try {
+    const portfolio = await fetchAlpacaPositions();
+    
+    res.json({
+      debug_info: {
+        environment: process.env.NODE_ENV || 'development',
+        has_alpaca_credentials: {
+          api_key: !!process.env.APCA_API_KEY_ID,
+          secret_key: !!process.env.APCA_API_SECRET_KEY,
+          base_url: !!process.env.APCA_API_BASE_URL
+        },
+        alpaca_config: {
+          hasApiKey: !!ALPACA_CONFIG.apiKey,
+          hasSecretKey: !!ALPACA_CONFIG.secretKey,
+          baseUrl: ALPACA_CONFIG.baseUrl,
+          apiKeyLength: ALPACA_CONFIG.apiKey?.length || 0,
+          secretKeyLength: ALPACA_CONFIG.secretKey?.length || 0
+        }
+      },
+      portfolio_status: {
+        isConnected: portfolio.isConnected,
+        positions_count: portfolio.positions?.length || 0,
+        totalValue: portfolio.totalValue || 0,
+        hasPositions: (portfolio.positions?.length || 0) > 0
+      },
+      first_position_sample: portfolio.positions?.[0] || null,
+      frontend_expectation: {
+        expects_array: 'data.portfolio.positions',
+        expects_connected: 'data.portfolio.isConnected', 
+        renders_when: 'positions.length > 0',
+        shows_message_when: 'positions.length === 0: "No positions found..."'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error.message,
+      debug_info: {
+        has_alpaca_credentials: {
+          api_key: !!process.env.APCA_API_KEY_ID,
+          secret_key: !!process.env.APCA_API_SECRET_KEY,
+          base_url: !!process.env.APCA_API_BASE_URL
+        }
+      }
+    });
+  }
+});
+
 // Fetch portfolio alerts from API
 async function fetchPortfolioAlerts() {
   const viglApiUrl = process.env.VIGL_API_URL || 'https://vigl-api-service.onrender.com';
