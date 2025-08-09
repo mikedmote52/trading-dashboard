@@ -15,7 +15,7 @@ from pathlib import Path
 import uuid
 
 # Configuration
-DB_PATH = os.environ.get('DB_PATH', '/Users/michaelmote/Desktop/trading-dashboard/trading_dashboard.db')
+DB_PATH = os.environ.get('SQLITE_DB_PATH', os.environ.get('DB_PATH', '/Users/michaelmote/Desktop/trading-dashboard/trading_dashboard.db'))
 POLYGON_API_KEY = 'nTXyESvlVLpQE3hKCJWtsS5BHkhAqq1C'
 
 def clear_discoveries_table():
