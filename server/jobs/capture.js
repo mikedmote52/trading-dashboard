@@ -43,8 +43,8 @@ async function captureDaily(symbols = []) {
       const score = squeezeScore(features);
       console.log(`📈 ${symbol} squeeze score: ${score}`);
       
-      // If high score, persist discovery
-      if (score >= 3.8) {
+      // If high score, persist discovery (lowered threshold for testing)
+      if (score >= 0.8) {
         const discoveryId = uuidv4();
         upsertDiscovery.run({
           id: discoveryId,
@@ -75,6 +75,43 @@ async function captureDaily(symbols = []) {
   return discoveries;
 }
 
+/**
+ * Start daily capture job with interval
+ */
+function startDailyCapture() {
+  // Run initial capture
+  runDiscoveryCapture();
+  
+  // Schedule every 30 minutes
+  setInterval(() => {
+    runDiscoveryCapture();
+  }, 30 * 60 * 1000); // 30 minutes
+}
+
+/**
+ * Run discovery capture immediately
+ */
+async function runDiscoveryCapture() {
+  try {
+    console.log('🔍 Running discovery capture...');
+    
+    // Default symbols to scan
+    const symbols = process.env.SCAN_SYMBOLS 
+      ? process.env.SCAN_SYMBOLS.split(',') 
+      : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL'];
+    
+    const discoveries = await captureDaily(symbols);
+    console.log(`✅ Capture complete: ${discoveries.length} discoveries`);
+    
+    return discoveries;
+  } catch (error) {
+    console.error('❌ Capture job error:', error);
+    return [];
+  }
+}
+
 module.exports = {
-  captureDaily
+  captureDaily,
+  startDailyCapture,
+  runDiscoveryCapture
 };

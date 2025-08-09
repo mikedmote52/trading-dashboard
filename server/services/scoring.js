@@ -8,16 +8,33 @@ const { getScoringWeights } = require('../db/sqlite');
  * @returns {Object} Current weights
  */
 function getCurrentWeights() {
+  // Try environment variable first
+  try {
+    if (process.env.SCORING_WEIGHTS_JSON) {
+      return JSON.parse(process.env.SCORING_WEIGHTS_JSON);
+    }
+  } catch (error) {
+    console.log('Invalid SCORING_WEIGHTS_JSON env var:', error.message);
+  }
+  
+  // Try database weights
   try {
     const weightsRecord = getScoringWeights.get();
     if (weightsRecord) {
-      return JSON.parse(weightsRecord.weights_json);
+      return {
+        short_interest_weight: weightsRecord.weight_short_interest,
+        borrow_fee_weight: weightsRecord.weight_borrow_fee,
+        volume_weight: weightsRecord.weight_volume,
+        momentum_weight: weightsRecord.weight_momentum,
+        catalyst_weight: weightsRecord.weight_catalyst,
+        float_penalty_weight: 0.8
+      };
     }
   } catch (error) {
-    console.log('Using default scoring weights:', error.message);
+    console.log('Database weights error:', error.message);
   }
   
-  // Default weights if none calibrated
+  // Default weights if none available
   return {
     short_interest_weight: 2.0,
     borrow_fee_weight: 1.5,
