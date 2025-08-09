@@ -4,13 +4,29 @@ const Database = require("better-sqlite3");
 
 const dbPath = process.env.SQLITE_DB_PATH || path.join(__dirname, "..", "trading_dashboard.db");
 
-// Ensure directory exists
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+console.log("🔍 Initializing database at:", dbPath);
 
-const db = new Database(dbPath);
-db.pragma("journal_mode = WAL");
-db.pragma("synchronous = NORMAL");
-db.pragma("foreign_keys = ON");
+// Ensure directory exists
+try {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  console.log("✅ Directory created/verified:", path.dirname(dbPath));
+} catch (error) {
+  console.log("⚠️ Directory creation warning:", error.message);
+}
+
+let db;
+try {
+  db = new Database(dbPath);
+  console.log("✅ Database connection established");
+  
+  db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.pragma("foreign_keys = ON");
+  console.log("✅ Database pragmas set");
+} catch (error) {
+  console.error("❌ Database initialization failed:", error.message);
+  process.exit(1);
+}
 
 // Schema matching the existing server/db/sqlite.js expectations
 db.exec(`
@@ -83,5 +99,11 @@ CREATE INDEX IF NOT EXISTS idx_discoveries_date ON discoveries(created_at);
 CREATE INDEX IF NOT EXISTS idx_decisions_symbol ON trading_decisions(symbol);
 `);
 
-console.log("✅ SQLite initialized at", dbPath);
-db.close();
+console.log("✅ SQLite schema created successfully at", dbPath);
+
+try {
+  db.close();
+  console.log("✅ Database connection closed");
+} catch (error) {
+  console.log("⚠️ Database close warning:", error.message);
+}
