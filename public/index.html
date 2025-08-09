@@ -233,10 +233,15 @@
                 </div>
                 
                 <div>
-                    <label for="tradeQuantity" class="block text-sm font-medium text-blue-200 mb-1">Quantity</label>
-                    <input type="number" id="tradeQuantity" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
-                           min="1" max="1000" value="10">
+                    <label for="tradeDollarAmount" class="block text-sm font-medium text-blue-200 mb-1">Dollar Amount</label>
+                    <input type="number" id="tradeDollarAmount" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
+                           min="1" max="100000" value="1000" step="100">
                 </div>
+                
+                <div>
+                    <label for="tradeQuantity" class="block text-sm font-medium text-blue-200 mb-1">Shares (auto-calculated)</label>
+                    <input type="number" id="tradeQuantity" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
+                           min="1" max="1000" value="10" readonly>
                 
                 <div class="bg-blue-900 bg-opacity-30 rounded p-3 space-y-2">
                     <div class="text-xs text-blue-200">Current Price: <span id="modalPrice">$--</span></div>
@@ -489,6 +494,16 @@
                                         stock.confidence >= 0.8 ? 'status-green' : 
                                         stock.confidence >= 0.6 ? 'status-yellow' : 'status-red'
                                     }">${Math.round(stock.confidence * 100)}% Match</span>
+                                    ${stock.viglScore ? `
+                                        <span class="text-xs bg-purple-600 px-2 py-1 rounded" title="VIGL Score (0-5 scale)">
+                                            Score: ${(stock.viglScore * 5).toFixed(1)}
+                                        </span>
+                                    ` : ''}
+                                    ${stock.discovered ? `
+                                        <span class="text-xs text-blue-300">
+                                            Discovered: ${new Date(stock.discovered).toLocaleDateString()}
+                                        </span>
+                                    ` : ''}
                                 </div>
                                 <div class="text-sm text-blue-200 mb-2">${stock.name}</div>
                                 <div class="grid grid-cols-2 gap-4 text-sm">
@@ -600,7 +615,7 @@
                                     pos.riskAnalysis?.recommendation === 'SELL' ? 'status-red' : 
                                     pos.riskAnalysis?.recommendation === 'BUY_MORE' ? 'status-green' : 
                                     pos.riskAnalysis?.recommendation === 'REDUCE' ? 'status-yellow' : 'text-white'
-                                }">${pos.riskAnalysis?.recommendation || 'HOLD'}</div>
+                                }" ${pos.riskAnalysis?.reason ? `title="${pos.riskAnalysis.reason.replace(/"/g, '&quot;')}"` : ''}>${pos.riskAnalysis?.recommendation || 'HOLD'}</div>
                                 ${actionButton}
                             </div>
                         </div>
@@ -1027,6 +1042,10 @@
                 price: currentPrice
             };
             
+            // Set default dollar amount (defaultQty * price, or $1000)
+            const defaultDollarAmount = defaultQty && currentPrice ? (defaultQty * currentPrice) : 1000;
+            document.getElementById('tradeDollarAmount').value = Math.round(defaultDollarAmount);
+            
             // Calculate trading recommendations
             const entryTarget = action.toLowerCase() === 'buy' ? currentPrice * 0.98 : currentPrice; // 2% below for entries
             const stopLoss = action.toLowerCase() === 'buy' ? currentPrice * 0.85 : currentPrice * 1.15; // 15% risk
@@ -1069,14 +1088,14 @@
             document.getElementById('executeBtn').className = `flex-1 py-2 rounded font-medium transition-colors ${action.toLowerCase() === 'sell' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`;
             document.getElementById('executeBtn').textContent = `${action.toUpperCase()} ${symbol}`;
             
-            // Update estimated cost
-            updateEstimatedCost();
+            // Update estimated cost and shares
+            updateTradeCalculations();
             
             // Show modal
             document.getElementById('tradeModal').classList.remove('hidden');
             
-            // Add quantity change listener
-            document.getElementById('tradeQuantity').addEventListener('input', updateEstimatedCost);
+            // Add dollar amount change listener
+            document.getElementById('tradeDollarAmount').addEventListener('input', updateTradeCalculations);
         }
 
         function closeTradeModal() {
@@ -1084,10 +1103,20 @@
             currentTradeData = {};
         }
 
+        function updateTradeCalculations() {
+            const dollarAmount = parseFloat(document.getElementById('tradeDollarAmount').value) || 0;
+            const price = currentTradeData.price || 1;
+            
+            // Calculate shares from dollar amount
+            const shares = Math.floor(dollarAmount / price);
+            document.getElementById('tradeQuantity').value = shares;
+            
+            // Update estimated cost (which is just the dollar amount entered)
+            document.getElementById('estimatedCost').textContent = dollarAmount.toLocaleString();
+        }
+        
         function updateEstimatedCost() {
-            const quantity = parseInt(document.getElementById('tradeQuantity').value) || 0;
-            const cost = quantity * (currentTradeData.price || 0);
-            document.getElementById('estimatedCost').textContent = cost.toLocaleString();
+            updateTradeCalculations();
         }
 
         async function executeTrade() {
