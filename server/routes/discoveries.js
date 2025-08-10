@@ -215,48 +215,4 @@ router.get('/_debug/diagnostics', async (req, res) => {
   }
 });
 
-// POST /api/discoveries/cleanup - Fix undefined JSON in database
-router.post('/cleanup', async (req, res) => {
-  try {
-    const results = db.db.transaction(() => {
-      // Fix features_json
-      const fixFeatures = db.db.prepare(`
-        UPDATE discoveries 
-        SET features_json = '{}' 
-        WHERE features_json = 'undefined' OR features_json IS NULL
-      `).run();
-      
-      // Fix audit_json  
-      const fixAudit = db.db.prepare(`
-        UPDATE discoveries 
-        SET audit_json = '{}' 
-        WHERE audit_json = 'undefined' OR audit_json IS NULL
-      `).run();
-      
-      // Get stats
-      const stats = db.db.prepare(`
-        SELECT 
-          COUNT(*) as total_rows,
-          SUM(CASE WHEN features_json = '{}' THEN 1 ELSE 0 END) as fixed_features,
-          SUM(CASE WHEN audit_json = '{}' THEN 1 ELSE 0 END) as fixed_audit
-        FROM discoveries
-      `).get();
-      
-      return {
-        features_fixed: fixFeatures.changes,
-        audit_fixed: fixAudit.changes,
-        stats
-      };
-    })();
-    
-    res.json({
-      success: true,
-      cleanup_results: results,
-      message: `Fixed ${results.features_fixed} features_json and ${results.audit_fixed} audit_json records`
-    });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
 module.exports = router;
