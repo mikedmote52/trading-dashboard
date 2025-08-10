@@ -918,6 +918,7 @@ app.get('/api/admin/test-alpaca-direct', requireAuth, async (req, res) => {
       environment: {
         api_key: apiKey ? `${apiKey.substring(0, 5)}...${apiKey.substring(15)}` : 'NOT SET',
         secret_key: secretKey ? 'SET' : 'NOT SET',
+        secret_key_pattern: secretKey ? `${secretKey.substring(0, 5)}...${secretKey.substring(secretKey.length - 5)}` : 'NOT SET',
         base_url: baseUrl,
         node_env: process.env.NODE_ENV
       },
