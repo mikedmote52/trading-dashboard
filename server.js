@@ -73,15 +73,8 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
-// Mount API routes
-const discoveryRoutes = require('./server/routes/discoveries');
-const portfolioRoutes = require('./server/routes/portfolio');
-app.use('/api/discoveries', discoveryRoutes);
-app.use('/api/portfolio', portfolioRoutes);
-
-// --- vNext diagnostics (read-only) ---
+// --- vNext diagnostics (read-only) - BEFORE static handlers ---
 const db = require('./server/db/sqlite');
 
 app.get('/api/debug/smoke', (req, res) => {
@@ -97,7 +90,7 @@ app.get('/api/debug/smoke', (req, res) => {
 
 app.get('/api/debug/diagnostics', async (req, res) => {
   try {
-    const rows = await db.getLatestDiscoveriesForEngine
+    const rows = db.getLatestDiscoveriesForEngine
       ? await db.getLatestDiscoveriesForEngine(200)
       : await db.getLatestDiscoveries(200);
     const dropsHistogram = {};
@@ -106,9 +99,7 @@ app.get('/api/debug/diagnostics', async (req, res) => {
       const audit = JSON.parse(r.audit_json || '{}');
       const reasons = audit.drops || [];
       for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
-      if (!sample) sample = {
-        symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores
-      };
+      if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
     }
     res.json({ success: true, persisted: rows.length, drop_reasons_histogram: dropsHistogram, sample });
   } catch (e) {
@@ -116,6 +107,20 @@ app.get('/api/debug/diagnostics', async (req, res) => {
   }
 });
 // --- end diagnostics ---
+
+// Mount API routes
+const discoveryRoutes = require('./server/routes/discoveries');
+const portfolioRoutes = require('./server/routes/portfolio');
+app.use('/api/discoveries', discoveryRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+
+// Hard API 404 to prevent SPA intercepts
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
+});
+
+// Static files AFTER all API routes
+app.use(express.static('public'));
 
 // Token-based authentication middleware for secure endpoints
 function requireAuth(req, res, next) {
