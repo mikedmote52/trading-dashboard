@@ -4,6 +4,7 @@ const ActionMapper = require('./action_mapper');
 const DS = require('./data_sources');
 const { loadConfig } = require('./util/config');
 const db = require('../../db/sqlite');
+const shortInterestProvider = require('../providers/shortinterest');
 
 module.exports = class Engine {
   constructor(now=new Date()){
@@ -115,7 +116,9 @@ module.exports = class Engine {
       DS.get_sentiment(tickers),
       DS.get_borrow(tickers)
     ]);
-    return tickers.map(tk => ({
+    
+    // Create initial enriched data
+    const enriched = tickers.map(tk => ({
       ticker: tk,
       _held: holdings?.has && holdings.has(tk),
       ...(shorts[tk]||{}),
@@ -126,6 +129,30 @@ module.exports = class Engine {
       catalyst: catalysts[tk]||{},
       sentiment: sentiment[tk]||{}
     }));
+    
+    // Apply proxy short interest estimation for missing data
+    for (const t of enriched) {
+      if (!t.short_interest_pct || !t.days_to_cover) {
+        try {
+          const si = await shortInterestProvider.getWithContext(t.ticker, {
+            adv_30d_shares: t.adv_30d_shares,
+            float_shares: t.float_shares,
+            borrow_fee_trend_pp7d: t.borrow_fee_trend_pp7d,
+            borrow_fee_pct: t.borrow_fee_pct
+          });
+          if (si) {
+            t.short_interest_pct = si.short_interest_pct;
+            t.days_to_cover = si.days_to_cover;
+            t.short_interest_shares = si.short_interest_shares;
+            t._si = si;
+          }
+        } catch (e) {
+          console.warn(`Short interest proxy failed for ${t.ticker}:`, e.message);
+        }
+      }
+    }
+    
+    return enriched;
   }
 
   _formatRow(t, composite, preset, action, audit){
