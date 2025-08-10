@@ -96,6 +96,11 @@ module.exports = class Engine {
       entry_hint,
       risk
     };
+    
+    // Prevent undefined JSON strings from entering database
+    const features_json = JSON.stringify(t || {});
+    const audit_json = JSON.stringify(audit || {});
+    
     return {
       db: {
         id: `${t.ticker}-${Date.now()}`,
@@ -104,8 +109,8 @@ module.exports = class Engine {
         score: +composite.toFixed(2),
         preset,
         action,
-        features_json: JSON.stringify(t),
-        audit_json: JSON.stringify(audit)
+        features_json,
+        audit_json
       },
       emit
     };

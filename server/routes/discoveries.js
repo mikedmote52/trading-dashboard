@@ -14,13 +14,20 @@ router.post('/run', async (req, res) => {
   }
 });
 
+function safeParseJSON(x, fallback) {
+  if (x == null) return fallback;
+  if (x === 'undefined') return fallback;
+  try { return JSON.parse(x); } catch { return fallback; }
+}
+
 // GET /api/discoveries/latest - Get latest discoveries from squeeze engine
 router.get('/latest', async (req, res) => {
   try {
     const rows = await db.getLatestDiscoveriesForEngine(50);
     const items = rows.map(r => {
-      const f = JSON.parse(r.features_json);
-      const a = JSON.parse(r.audit_json);
+      const f = safeParseJSON(r.features_json, {});
+      const a = safeParseJSON(r.audit_json, {});
+
       return {
         ticker: r.symbol,
         price: r.price,
@@ -32,24 +39,23 @@ router.get('/latest', async (req, res) => {
         days_to_cover: f.days_to_cover,
         borrow_fee_pct: f.borrow_fee_pct,
         avg_dollar_liquidity_30d: f.avg_dollar_liquidity_30d,
-        entry_hint: { 
-          type: f.technicals?.vwap_held_or_reclaimed ? 'vwap_reclaim' : 'base_breakout', 
-          trigger_price: f.technicals?.vwap || f.technicals?.price 
+        entry_hint: {
+          type: f?.technicals?.vwap_held_or_reclaimed ? 'vwap_reclaim' : 'base_breakout',
+          trigger_price: f?.technicals?.vwap ?? f?.technicals?.price
         },
-        risk: { 
-          stop_loss: +(f.technicals?.price * 0.9).toFixed(2), 
-          tp1: +(f.technicals?.price * 1.2).toFixed(2), 
-          tp2: +(f.technicals?.price * 1.5).toFixed(2) 
-        },
-        audit: { 
-          subscores: a.subscores, 
-          weights: a.weights, 
-          gates: a.gates, 
-          freshness: a.freshness 
+        risk: f?.technicals?.price ? {
+          stop_loss: +(f.technicals.price * 0.9).toFixed(2),
+          tp1: +(f.technicals.price * 1.2).toFixed(2),
+          tp2: +(f.technicals.price * 1.5).toFixed(2)
+        } : null,
+        audit: {
+          subscores: a.subscores,
+          weights: a.weights,
+          gates: a.gates,
+          freshness: a.freshness
         }
       };
-    }).filter(x => x.action === 'BUY' || x.action === 'WATCHLIST');
-    
+    }).filter(x => (x.action === 'BUY' || x.action === 'WATCHLIST'));
     res.json({ success: true, discoveries: items });
   } catch (e) {
     console.error('Latest discoveries error:', e);
@@ -129,7 +135,22 @@ router.get('/diagnostics', async (req, res) => {
 // GET /api/discoveries/smoke – provider connectivity and env sanity
 router.get('/smoke', async (_req, res) => {
   try {
-    const smoke = { polygon_key_present: !!process.env.POLYGON_API_KEY, sqlite_path: process.env.SQLITE_PATH || 'default', time: new Date().toISOString() };
+    const smoke = { 
+      polygon_key_present: !!process.env.POLYGON_API_KEY, 
+      sqlite_path: process.env.SQLITE_PATH || 'default', 
+      time: new Date().toISOString(),
+      db_accessible: true
+    };
+    
+    // Test database access
+    try {
+      const testQuery = db.db.prepare('SELECT COUNT(*) as count FROM discoveries').get();
+      smoke.db_records = testQuery.count;
+    } catch (dbErr) {
+      smoke.db_accessible = false;
+      smoke.db_error = dbErr.message;
+    }
+    
     res.json({ success: true, smoke });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -146,6 +167,34 @@ router.get('/_debug/smoke', (_req, res) => {
       time: new Date().toISOString()
     }
   });
+});
+
+// GET /api/discoveries/raw - raw diagnostics without JSON parsing
+router.get('/raw', async (_req, res) => {
+  try {
+    // Direct SQL to avoid JSON parsing issues
+    const rawQuery = db.db.prepare(`
+      SELECT symbol, action, score, created_at,
+             CASE WHEN audit_json IS NULL THEN 'null'
+                  WHEN audit_json = 'undefined' THEN 'undefined_string'
+                  ELSE 'has_data' END as audit_status
+      FROM discoveries 
+      ORDER BY created_at DESC 
+      LIMIT 20
+    `).all();
+    
+    res.json({ 
+      success: true, 
+      total_records: rawQuery.length,
+      sample_data: rawQuery,
+      audit_stats: rawQuery.reduce((stats, row) => {
+        stats[row.audit_status] = (stats[row.audit_status] || 0) + 1;
+        return stats;
+      }, {})
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // GET /api/discoveries/_debug/diagnostics - debug diagnostics
