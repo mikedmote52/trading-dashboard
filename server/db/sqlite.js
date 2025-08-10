@@ -166,6 +166,25 @@ const upsertScoringWeights = (weights) => {
   });
 };
 
+// New helpers for squeeze engine
+const insertDiscovery = (row) => {
+  const stmt = db.prepare(`
+    INSERT INTO discoveries 
+    (id, symbol, price, score, preset, action, features_json, audit_json)
+    VALUES (@id, @symbol, @price, @score, @preset, @action, @features_json, @audit_json)
+  `);
+  return stmt.run(row);
+};
+
+const getLatestDiscoveriesForEngine = (limit = 50) => {
+  const stmt = db.prepare(`
+    SELECT * FROM discoveries 
+    ORDER BY created_at DESC 
+    LIMIT ?
+  `);
+  return stmt.all(limit);
+};
+
 module.exports = {
   db,
   insertFeaturesSnapshot,
@@ -173,6 +192,8 @@ module.exports = {
   upsertDiscovery,
   getTodaysDiscoveries,
   getLatestDiscoveries,
+  getLatestDiscoveriesForEngine,
+  insertDiscovery,
   getThesis,
   upsertThesis,
   insertThesisHistory,

@@ -1,0 +1,42 @@
+preset: june_july_proven
+
+thresholds:
+  short_interest_pct_min: 30
+  days_to_cover_min: 7
+  borrow_fee_pct_min: 15
+  borrow_fee_trend_min_pp_7d: 0.0
+  float_shares_max: 150000000
+  avg_dollar_liquidity_min: 5000000
+  catalyst_window_days_min: 14
+  catalyst_window_days_max: 30
+
+technicals:
+  atr_pct_min: 4
+  rsi_buy_min: 60
+  rsi_buy_max: 75
+  require_vwap_reclaim: true
+  require_ema_bullish: true
+
+weights:
+  june_july_proven:
+    squeeze: 0.55
+    catalyst: 0.25
+    liquidity: 0.10
+    technicals: 0.10
+  alphastack_v4:
+    early_volume: 0.25
+    float_short: 0.20
+    catalyst: 0.20
+    sentiment: 0.15
+    options: 0.10
+    technicals: 0.10
+
+exclusions:
+  exclude_current_holdings: true
+  exclude_halts_today: true
+  max_spread_pct: 2
+
+freshness:
+  short_interest_max_age_days: 14
+  options_max_age_minutes: 15
+  intraday_tech_bar_minutes: 1

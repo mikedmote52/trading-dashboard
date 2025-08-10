@@ -524,7 +524,9 @@ app.get('/api/health', (req, res) => {
   }
 
   res.json({
-    status: 'healthy',
+    status: 'ok',
+    model: 'squeeze-engine',
+    preset: 'june_july_proven',
     db_path: dbPath,
     schema: schemaStatus,
     timestamp: new Date().toISOString()

@@ -1,132 +1,100 @@
 const express = require('express');
 const router = express.Router();
+const Engine = require('../services/squeeze/engine');
 const db = require('../db/sqlite');
-const { createDeduplicationMiddleware } = require('../utils/deduplicateDiscoveries');
 
-// GET /api/discoveries/top - Get today's top discoveries
+// POST /api/discoveries/run - Run the squeeze engine
+router.post('/run', async (req, res) => {
+  try {
+    const out = await new Engine().run();
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('Engine run error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/discoveries/latest - Get latest discoveries from squeeze engine
+router.get('/latest', async (req, res) => {
+  try {
+    const rows = await db.getLatestDiscoveriesForEngine(50);
+    const items = rows.map(r => {
+      const f = JSON.parse(r.features_json);
+      const a = JSON.parse(r.audit_json);
+      return {
+        ticker: r.symbol,
+        price: r.price,
+        composite_score: r.score,
+        action: r.action,
+        catalyst: f.catalyst,
+        technicals: f.technicals,
+        short_interest_pct: f.short_interest_pct,
+        days_to_cover: f.days_to_cover,
+        borrow_fee_pct: f.borrow_fee_pct,
+        avg_dollar_liquidity_30d: f.avg_dollar_liquidity_30d,
+        entry_hint: { 
+          type: f.technicals?.vwap_held_or_reclaimed ? 'vwap_reclaim' : 'base_breakout', 
+          trigger_price: f.technicals?.vwap || f.technicals?.price 
+        },
+        risk: { 
+          stop_loss: +(f.technicals?.price * 0.9).toFixed(2), 
+          tp1: +(f.technicals?.price * 1.2).toFixed(2), 
+          tp2: +(f.technicals?.price * 1.5).toFixed(2) 
+        },
+        audit: { 
+          subscores: a.subscores, 
+          weights: a.weights, 
+          gates: a.gates, 
+          freshness: a.freshness 
+        }
+      };
+    }).filter(x => x.action === 'BUY' || x.action === 'WATCHLIST');
+    
+    res.json({ success: true, discoveries: items });
+  } catch (e) {
+    console.error('Latest discoveries error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/discoveries/top - Legacy endpoint for backward compatibility
 router.get('/top', async (req, res) => {
   try {
-    const discoveries = await db.getTodaysDiscoveries();
-    
-    // Transform to match UI expectations
-    const formatted = discoveries.map(d => {
-      const features = JSON.parse(d.features_json || '{}');
+    const rows = await db.getLatestDiscoveriesForEngine(10);
+    const items = rows.map(r => {
+      const f = JSON.parse(r.features_json);
       return {
-        symbol: d.symbol,
-        name: features.name || d.symbol,
-        currentPrice: features.current_price || features.price || 50,
-        marketCap: features.market_cap || 100000000,
-        volumeSpike: features.rel_volume || 1.0,
-        momentum: (features.momentum_5d || 0) * 100, // Convert to percentage
-        breakoutStrength: Math.min(d.score / 5.0, 1.0),
-        sector: features.sector || 'Technology',
-        catalysts: features.catalyst_flag ? ['Catalyst detected'] : ['Pattern match'],
-        similarity: Math.min(d.score / 5.0, 1.0),
-        confidence: Math.min(d.score / 5.0, 1.0),
-        isHighConfidence: d.score >= 4.0,
-        estimatedUpside: d.score >= 4.0 ? '100-200%' : '50-100%',
-        discoveredAt: d.created_at,
-        riskLevel: d.score >= 3.5 ? 'MODERATE' : 'HIGH',
-        recommendation: d.score >= 4.0 ? 'STRONG BUY' : 'BUY',
-        viglScore: Math.min(d.score / 5.0, 1.0)  // For UI scaling
+        symbol: r.symbol,
+        name: r.symbol,
+        currentPrice: r.price,
+        marketCap: 100000000,
+        volumeSpike: f.technicals?.rel_volume || 1.0,
+        momentum: 0,
+        breakoutStrength: Math.min(r.score / 100, 1.0),
+        sector: 'Technology',
+        catalysts: f.catalyst?.type ? [f.catalyst.type] : ['Pattern match'],
+        similarity: Math.min(r.score / 100, 1.0),
+        confidence: Math.min(r.score / 100, 1.0),
+        isHighConfidence: r.score >= 75,
+        estimatedUpside: r.score >= 75 ? '100-200%' : '50-100%',
+        discoveredAt: r.created_at,
+        riskLevel: r.score >= 70 ? 'MODERATE' : 'HIGH',
+        recommendation: r.action,
+        viglScore: Math.min(r.score / 100, 1.0)
       };
-    });
-    
-    // Apply deduplication to the formatted data
-    const { processDiscoveries } = require('../utils/deduplicateDiscoveries');
-    const deduplicationResult = processDiscoveries(formatted, {
-      enableSymbolDeduplication: true,
-      enableNearDuplicateFiltering: false,
-      enableQualityFilter: true,
-      qualityThresholds: {
-        minScore: 1.0,           // Lower threshold for more discoveries
-        minVolumeSpike: 1.0,     // Lower threshold for more discoveries  
-        minPrice: 0.01,
-        maxPrice: 10000
-      }
-    });
+    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST');
     
     res.json({
       success: true,
-      count: deduplicationResult.discoveries.length,
-      discoveries: deduplicationResult.discoveries,
-      deduplication: {
-        stats: deduplicationResult.stats,
-        reductionPercentage: deduplicationResult.reductionPercentage
-      }
+      count: items.length,
+      discoveries: items
     });
   } catch (error) {
-    console.error('Error fetching discoveries:', error);
+    console.error('Error fetching top discoveries:', error);
     res.json({
       success: false,
       error: error.message,
       discoveries: []
-    });
-  }
-});
-
-// GET /api/discoveries/latest - Get most recent discoveries
-router.get('/latest', async (req, res) => {
-  try {
-    const discoveries = await db.getLatestDiscoveries(10); // Top 10
-    
-    // Format discoveries with parsed features
-    const formatted = discoveries.map(d => {
-      let features = {};
-      try {
-        features = d.features_json ? JSON.parse(d.features_json) : {};
-      } catch (e) {
-        console.error('Failed to parse features for', d.symbol, e);
-      }
-      
-      return {
-        ...d,
-        currentPrice: features.current_price || features.price || null,
-        volumeSpike: features.volume_spike_factor || 0,
-        momentum: features.momentum_5d || 0,
-        shortInterest: features.short_interest_pct || 0,
-        borrowFee: features.borrow_fee_pct || 0,
-        catalyst: features.catalyst_flag || 0,
-        viglScore: d.score || 0,
-        features
-      };
-    });
-    
-    res.json({
-      success: true,
-      discoveries: formatted
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// POST /api/discoveries/scan - Trigger a discovery scan
-router.post('/scan', async (req, res) => {
-  try {
-    const capture = require('../jobs/capture');
-    
-    // Run capture job immediately
-    console.log('🔍 Manual discovery scan triggered');
-    await capture.runDiscoveryCapture();
-    
-    // Fetch fresh results
-    const discoveries = await db.getTodaysDiscoveries();
-    
-    res.json({
-      success: true,
-      message: 'Discovery scan completed',
-      count: discoveries.length,
-      discoveries: discoveries.slice(0, 5) // Return top 5
-    });
-  } catch (error) {
-    console.error('Scan error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
     });
   }
 });
