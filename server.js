@@ -74,55 +74,22 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// one-time admin cleanup route — remove after running once
-app.post('/api/admin/fix-undefined-json', (req, res) => {
-  try {
-    const required = process.env.ADMIN_TOKEN;
-    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i,'').trim();
-    if (required && provided !== required) {
-      return res.status(401).json({ ok: false, error: 'unauthorized' });
-    }
+// mount API routes first
+app.use('/api/discoveries', require('./server/routes/discoveries'));
+app.use('/api/portfolio', require('./server/routes/portfolio'));
 
-    const sqlite = require('./server/db/sqlite');
-    const db = sqlite.db;
-
-    // Use better-sqlite3 synchronous API
-    const stmt1 = db.prepare(`UPDATE discoveries SET features_json = '{}' WHERE features_json = 'undefined' OR features_json IS NULL`);
-    const stmt2 = db.prepare(`UPDATE discoveries SET audit_json = '{}' WHERE audit_json = 'undefined' OR audit_json IS NULL`);
-    
-    const result1 = stmt1.run();
-    const result2 = stmt2.run();
-    
-    console.log('✅ JSON cleanup completed');
-    console.log(`Fixed ${result1.changes} features_json records, ${result2.changes} audit_json records`);
-    
-    res.json({ 
-      ok: true, 
-      message: 'Cleanup complete',
-      fixed: {
-        features_json: result1.changes,
-        audit_json: result2.changes
-      }
-    });
-  } catch (e) {
-    console.error('Cleanup failed:', e);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-// Mount API routes
-const discoveryRoutes = require('./server/routes/discoveries');
-const portfolioRoutes = require('./server/routes/portfolio');
-app.use('/api/discoveries', discoveryRoutes);
-app.use('/api/portfolio', portfolioRoutes);
-
-// Hard API 404 to prevent SPA intercepts
+// hard JSON 404 so /api/* never falls into SPA
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
 });
 
-// Static files AFTER all API routes
-app.use(express.static('public'));
+// identity endpoint so we can verify we're on the API host
+app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
+
+// only serve static when explicitly enabled
+if (process.env.SERVE_STATIC === 'true') {
+  app.use(require('express').static('public'));
+}
 
 // Token-based authentication middleware for secure endpoints
 function requireAuth(req, res, next) {
