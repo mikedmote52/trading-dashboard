@@ -1,14 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-
-const cache = new Map();
-const TTL_MS = 24*60*60*1000;
+const { readJsonSafe } = require('./util');
+const cache = new Map(), TTL_MS = 24*60*60*1000;
 
 function fromFile(symbol) {
-  const p = path.join(process.cwd(), 'data', 'providers', 'shortinterest.json');
-  if (!fs.existsSync(p)) return null;
-  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-  const v = j[symbol];
+  const j = readJsonSafe('shortinterest.json');
+  const v = j && j[symbol];
   if (!v) return null;
   return {
     short_interest_shares: +v.short_interest_shares,

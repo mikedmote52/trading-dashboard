@@ -1,14 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-
-const cache = new Map();
-const TTL_MS = 7*24*60*60*1000;
+const { readJsonSafe } = require('./util');
+const cache = new Map(), TTL_MS = 7*24*60*60*1000;
 
 function fromFile(symbol) {
-  const p = path.join(process.cwd(), 'data', 'providers', 'fundamentals.json');
-  if (!fs.existsSync(p)) return null;
-  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-  const v = j[symbol];
+  const j = readJsonSafe('fundamentals.json');
+  const v = j && j[symbol];
   return v ? { float_shares: +v.float_shares, shares_out: +v.shares_out, asof: v.asof } : null;
 }
 

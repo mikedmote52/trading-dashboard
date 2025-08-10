@@ -1,14 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-
-const cache = new Map();
-const TTL_MS = 24*60*60*1000;
+const { readJsonSafe } = require('./util');
+const cache = new Map(), TTL_MS = 24*60*60*1000;
 
 function fromFile(symbol) {
-  const p = path.join(process.cwd(), 'data', 'providers', 'borrow.json');
-  if (!fs.existsSync(p)) return null;
-  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-  const v = j[symbol];
+  const j = readJsonSafe('borrow.json');
+  const v = j && j[symbol];
   return v ? { borrow_fee_pct: +v.borrow_fee_pct, borrow_fee_trend_pp7d: +v.borrow_fee_trend_pp7d, asof: v.asof } : null;
 }
 

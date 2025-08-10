@@ -44,6 +44,11 @@ trading_logs/
 real_portfolio_data.json
 position_*.json
 
+# keep provider seeds
+!data/
+!data/providers/
+!data/providers/*.json
+
 # IDE files
 .vscode/
 .idea/

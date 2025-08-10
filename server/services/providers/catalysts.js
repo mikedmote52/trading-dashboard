@@ -1,14 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-
-const TTL_MS = 12*60*60*1000;
-const cache = new Map();
+const { readJsonSafe } = require('./util');
+const TTL_MS = 12*60*60*1000, cache = new Map();
 
 function fromFile(symbol) {
-  const p = path.join(process.cwd(), 'data', 'providers', 'catalyst.json');
-  if (!fs.existsSync(p)) return null;
-  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-  const v = j[symbol];
+  const j = readJsonSafe('catalyst.json');
+  const v = j && j[symbol];
   if (!v) return null;
   return {
     verified_in_window: !!v.verified_in_window,

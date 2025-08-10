@@ -5,11 +5,14 @@ const db = require('../db/sqlite');
 
 // simple in-memory job registry
 const jobs = new Map();
+let lastJob = null;
 
 // POST /api/discoveries/run -> 202 with job id, engine runs in background
 router.post('/run', async (req, res) => {
   const id = `run-${Date.now()}`;
-  jobs.set(id, { id, status: 'queued', started: null, finished: null, error: null, candidates: 0 });
+  const job = { id, status: 'queued', started: null, finished: null, error: null, candidates: 0 };
+  jobs.set(id, job);
+  lastJob = job;
   res.status(202).json({ success: true, job: id });
 
   setImmediate(async () => {
@@ -36,7 +39,7 @@ router.post('/run', async (req, res) => {
 router.get('/run/:job', (req, res) => {
   const job = jobs.get(req.params.job);
   if (!job) return res.status(404).json({ success: false, error: 'unknown job' });
-  res.json({ success: true, job: { id: job.id, status: job.status, candidates: job.candidates ?? 0 } });
+  res.json({ success: true, job: { id: job.id, status: job.status, candidates: job.candidates ?? 0, error: job.error || null } });
 });
 
 function safeParseJSON(x, fallback) {
@@ -294,6 +297,18 @@ router.get('/_debug/inspect', async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/discoveries/_debug/last-error - get last job for diagnosis
+router.get('/_debug/last-error', (_req, res) => {
+  try {
+    res.json({ 
+      success: true, 
+      last: lastJob ? { id: lastJob.id, status: lastJob.status, error: lastJob.error || null } : null 
+    });
+  } catch (e) { 
+    res.status(500).json({ success: false, error: e.message }); 
   }
 });
 
