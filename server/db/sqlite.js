@@ -172,19 +172,19 @@ const insertDiscovery = (row) => {
     INSERT OR REPLACE INTO discoveries
       (id, symbol, price, score, preset, action, features_json, audit_json, created_at)
     VALUES
-      ($id, $symbol, $price, $score, $preset, $action, $features_json, $audit_json,
-       COALESCE($created_at, datetime('now')))
+      (@id, @symbol, @price, @score, @preset, @action, @features_json, @audit_json,
+       COALESCE(@created_at, datetime('now')))
   `);
   const params = {
-    $id: row.id, 
-    $symbol: row.symbol, 
-    $price: row.price ?? 0, 
-    $score: row.score ?? 0,
-    $preset: row.preset ?? null, 
-    $action: row.action ?? null,
-    $features_json: row.features_json ?? null, 
-    $audit_json: row.audit_json ?? null,
-    $created_at: row.created_at ?? null
+    id: row.id, 
+    symbol: row.symbol, 
+    price: row.price ?? 0, 
+    score: row.score ?? 0,
+    preset: row.preset ?? null, 
+    action: row.action ?? null,
+    features_json: row.features_json ?? null, 
+    audit_json: row.audit_json ?? null,
+    created_at: row.created_at ?? null
   };
   return stmt.run(params);
 };
