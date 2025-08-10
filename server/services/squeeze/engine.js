@@ -36,19 +36,21 @@ module.exports = class Engine {
   }
 
   async _enrich(tickers, holdings){
-    const [shorts, liq, intraday, options, catalysts, sentiment] = await Promise.all([
+    const [shorts, liq, intraday, options, catalysts, sentiment, borrow] = await Promise.all([
       DS.get_short_data(tickers),
       DS.get_liquidity(tickers),
       DS.get_intraday(tickers),
       DS.get_options(tickers),
       DS.get_catalysts(tickers),
-      DS.get_sentiment(tickers)
+      DS.get_sentiment(tickers),
+      DS.get_borrow(tickers)
     ]);
     return tickers.map(tk => ({
       ticker: tk,
       _held: holdings?.has && holdings.has(tk),
       ...(shorts[tk]||{}),
       ...(liq[tk]||{}),
+      ...(borrow[tk]||{}),              // gives borrow_fee_pct and borrow_fee_trend_pp7d
       technicals: intraday[tk]||{},
       options: options[tk]||{},
       catalyst: catalysts[tk]||{},

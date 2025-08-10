@@ -1,160 +1,66 @@
-/**
- * Borrow/Short Interest Provider
- * Supports Fintel API for real borrow fee and availability data
- */
+const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 
-/**
- * Get borrow/short data for a symbol
- * @param {string} symbol Stock symbol
- * @returns {Promise<Object>} Borrow data with fee/availability
- */
-async function getBorrowData(symbol) {
-  const provider = process.env.BORROW_SHORT_PROVIDER;
-  
-  if (!provider) {
-    throw new Error('BORROW_SHORT_PROVIDER not configured - required in strict mode');
-  }
-  
-  if (provider === 'fintel') {
-    return await getFintelBorrowData(symbol);
-  }
-  
-  throw new Error(`Unsupported borrow provider: ${provider}. Supported: fintel`);
+const FIN_KEY = process.env.FINTEL_API_KEY || null;
+
+async function fintelBorrow(ticker) {
+  // API shape: https://fintel.io/api/{endpoint}  (paid)
+  // Expect fields: fee, utilization, asof
+  const url = `https://fintel.io/api/borrows/${ticker}?key=${FIN_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`fintel ${ticker} ${r.status}`);
+  const j = await r.json();
+  // j.history assumed sorted asc by date
+  const hist = (j.history || []).slice(-10);
+  if (hist.length < 2) return null;
+  const last = hist[hist.length - 1];
+  const sevenAgo = hist[Math.max(0, hist.length - 8)];
+  const trend = (last.fee_pct ?? 0) - (sevenAgo.fee_pct ?? 0);
+  const ageDays = j.short_interest_asof_days ?? null;
+  return {
+    borrow_fee_pct: last.fee_pct ?? null,
+    borrow_fee_trend_pp7d: trend ?? null,
+    utilization_pct: last.utilization_pct ?? null,
+    freshness: { short_interest_age_days: ageDays }
+  };
 }
 
-/**
- * Fetch borrow data from Fintel API
- * @param {string} symbol Stock symbol
- * @returns {Promise<Object>} Fintel borrow data
- */
-async function getFintelBorrowData(symbol) {
-  const apiKey = process.env.BORROW_SHORT_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('BORROW_SHORT_API_KEY not configured - required for Fintel provider');
-  }
-  
-  try {
-    // Fintel API endpoint for borrow data
-    const url = `https://api.fintel.io/api/v1/shortInterest/${symbol}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Fintel API authentication failed - check BORROW_SHORT_API_KEY');
-      }
-      if (response.status === 403) {
-        throw new Error('Fintel API access denied - check API key permissions');
-      }
-      if (response.status === 429) {
-        throw new Error('Fintel API rate limit exceeded');
-      }
-      throw new Error(`Fintel API error: HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data || typeof data !== 'object') {
-      throw new Error(`Invalid Fintel API response for ${symbol}`);
-    }
-    
-    // Parse Fintel response format (adjust based on actual API structure)
-    return {
-      symbol: symbol.toUpperCase(),
-      short_interest_pct: parseFloat(data.shortInterestPercent) || 0,
-      borrow_fee_pct: parseFloat(data.borrowFeePercent) || 0,
-      shares_available: parseInt(data.sharesAvailable) || 0,
-      shares_short: parseInt(data.sharesShort) || 0,
-      fee_change_7d: parseFloat(data.feeChange7d) || 0,
-      utilization_pct: parseFloat(data.utilizationPercent) || 0,
-      asof: data.asOf || new Date().toISOString(),
-      source: 'fintel',
-      updated_at: new Date().toISOString()
-    };
-    
-  } catch (error) {
-    if (error.message.includes('fetch')) {
-      throw new Error(`Fintel API connection failed: ${error.message}`);
-    }
-    throw error;
-  }
+async function iborrowdeskBorrow(ticker) {
+  // HTML daily table for fee; limited fidelity, no utilization
+  // We compute a 7d delta from the last 10 rows
+  const url = `https://iborrowdesk.com/report/${ticker}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`iborrowdesk ${ticker} ${r.status}`);
+  const html = await r.text();
+  const $ = cheerio.load(html);
+  const rows = [];
+  $('table tbody tr').each((_, tr) => {
+    const tds = $(tr).find('td');
+    const date = $(tds[0]).text().trim();
+    const feeStr = $(tds[2]).text().trim().replace('%','');
+    const fee = parseFloat(feeStr);
+    if (!isNaN(fee)) rows.push({ date, fee });
+  });
+  rows.sort((a,b) => new Date(a.date) - new Date(b.date));
+  const hist = rows.slice(-10);
+  if (hist.length < 2) return null;
+  const last = hist[hist.length - 1];
+  const sevenAgo = hist[Math.max(0, hist.length - 8)];
+  const trend = last.fee - sevenAgo.fee;
+  return {
+    borrow_fee_pct: last.fee,
+    borrow_fee_trend_pp7d: trend,
+    utilization_pct: null,
+    freshness: { short_interest_age_days: null }
+  };
 }
 
-/**
- * Test borrow provider connectivity
- * @returns {Promise<Object>} Status object
- */
-async function testConnection() {
-  const provider = process.env.BORROW_SHORT_PROVIDER;
-  
-  if (!provider) {
-    throw new Error('BORROW_SHORT_PROVIDER not configured');
+async function getBorrowFor(ticker) {
+  if (FIN_KEY) {
+    try { const x = await fintelBorrow(ticker); if (x) return x; } catch {}
   }
-  
-  if (provider === 'fintel') {
-    return await testFintelConnection();
-  }
-  
-  throw new Error(`Unsupported borrow provider: ${provider}`);
+  try { return await iborrowdeskBorrow(ticker); } catch {}
+  return null; // engine will drop with explicit gate reason
 }
 
-/**
- * Test Fintel API connectivity
- * @returns {Promise<Object>} Status object
- */
-async function testFintelConnection() {
-  const apiKey = process.env.BORROW_SHORT_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('BORROW_SHORT_API_KEY not configured');
-  }
-  
-  try {
-    // Test with a common symbol
-    await getBorrowData('AAPL');
-    
-    return {
-      status: 'OK',
-      provider: 'fintel',
-      timestamp: new Date().toISOString()
-    };
-    
-  } catch (error) {
-    throw new Error(`Fintel connection test failed: ${error.message}`);
-  }
-}
-
-/**
- * Validate borrow provider configuration at startup
- * @throws {Error} If required configuration is missing
- */
-function validateBorrowConfig() {
-  const provider = process.env.BORROW_SHORT_PROVIDER;
-  
-  if (!provider) {
-    throw new Error('BORROW_SHORT_PROVIDER environment variable is required');
-  }
-  
-  if (provider === 'fintel') {
-    if (!process.env.BORROW_SHORT_API_KEY) {
-      throw new Error('BORROW_SHORT_API_KEY is required when BORROW_SHORT_PROVIDER=fintel');
-    }
-  } else {
-    throw new Error(`Unsupported BORROW_SHORT_PROVIDER: ${provider}. Supported providers: fintel`);
-  }
-  
-  console.log(`✅ Borrow provider configured: ${provider}`);
-}
-
-module.exports = {
-  getBorrowData,
-  testConnection,
-  validateBorrowConfig
-};
+module.exports = { getBorrowFor };
