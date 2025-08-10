@@ -1,14 +1,39 @@
-const pLimit = require('p-limit');
+// Simple semaphore limiter: CJS-safe, no deps
+function makeLimiter(concurrency = 1) {
+  let active = 0;
+  const q = [];
+  const run = () => {
+    if (active >= concurrency) return;
+    const next = q.shift();
+    if (!next) return;
+    active++;
+    Promise.resolve()
+      .then(next.fn)
+      .then(v => { active--; next.resolve(v); run(); })
+      .catch(err => { active--; next.reject(err); run(); });
+  };
+  return fn => new Promise((resolve, reject) => {
+    q.push({ fn, resolve, reject });
+    run();
+  });
+}
+const withLimit = makeLimiter(1); // 1 req in flight per host
+
 const { getBorrowFor } = require('../providers/borrow');
 const { getCatalystFor } = require('../providers/catalysts');
 
-const limit = pLimit(1); // 1 rps per external domain; adjust if you add queues per host
-
 async function batch(tickers, fn) {
   const out = {};
-  await Promise.all(tickers.map(tk => limit(async () => {
-    try { const v = await fn(tk); if (v) out[tk] = v; } catch {}
-  })));
+  await Promise.all(
+    tickers.map(tk =>
+      withLimit(async () => {
+        try {
+          const v = await fn(tk);
+          if (v) out[tk] = v;
+        } catch (_) {}
+      })
+    )
+  );
   return out;
 }
 
