@@ -20,6 +20,20 @@ module.exports = class Engine {
     const enriched = await this._enrich(universe, holdings);
     const { passed, drops } = this.gates.apply(enriched);
 
+    if (!passed.length) {
+      const auditRow = {
+        id: `audit-${Date.now()}`,
+        symbol: 'AUDIT',
+        price: 0,
+        score: 0,
+        preset: this.cfg.preset,
+        action: 'NO ACTION',
+        features_json: JSON.stringify({ run_size: enriched.length }),
+        audit_json: JSON.stringify({ drops })
+      };
+      try { await db.insertDiscovery(auditRow); } catch {}
+    }
+
     const candidates = [];
     for (const t of passed){
       const { composite, subscores, weights } = this.scorer.score(t);

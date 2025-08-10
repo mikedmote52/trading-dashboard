@@ -99,60 +99,40 @@ router.get('/top', async (req, res) => {
   }
 });
 
-// Temporary debug endpoint to show gate drops
-router.get('/debug/gates', async (req, res) => {
+// GET /api/discoveries/diagnostics – summarizes last run state
+router.get('/diagnostics', async (req, res) => {
   try {
-    const Engine = require('../services/squeeze/engine');
-    const engine = new Engine();
-    
-    // Get a small universe for debugging
-    const universe = ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT'].slice(0, 10);
-    const holdings = new Set();
-    
-    // Run enrichment
-    const DS = require('../services/squeeze/data_sources');
-    const [shorts, liq, intraday, options, catalysts, sentiment, borrow] = await Promise.all([
-      DS.get_short_data(universe),
-      DS.get_liquidity(universe),
-      DS.get_intraday(universe),
-      DS.get_options(universe),
-      DS.get_catalysts(universe),
-      DS.get_sentiment(universe),
-      DS.get_borrow(universe)
-    ]);
-    
-    const enriched = universe.map(tk => ({
-      ticker: tk,
-      _held: holdings.has && holdings.has(tk),
-      ...(shorts[tk]||{}),
-      ...(liq[tk]||{}),
-      ...(borrow[tk]||{}),
-      technicals: intraday[tk]||{},
-      options: options[tk]||{},
-      catalyst: catalysts[tk]||{},
-      sentiment: sentiment[tk]||{}
-    }));
-
-    const { passed, drops } = engine.gates.apply(enriched);
-    
-    // Count drop reasons
-    const dropHistogram = {};
-    Object.values(drops).forEach(reasons => {
-      reasons.forEach(reason => {
-        dropHistogram[reason] = (dropHistogram[reason] || 0) + 1;
-      });
-    });
-
+    const db = require('../db/sqlite');
+    const rows = await db.getLatestDiscoveriesForEngine(200);
+    // count persisted actions
+    const persisted = rows.length;
+    // get a recent sample of audit trails from the live table for context
+    const dropsHistogram = {};
+    let sample = null;
+    for (const r of rows) {
+      const audit = JSON.parse(r.audit_json || '{}');
+      const reasons = audit.drops || [];
+      for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
+      if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
+    }
     res.json({
-      universe_size: universe.length,
-      passed_count: passed.length,
-      dropped_count: Object.keys(drops).length,
-      drop_histogram: dropHistogram,
-      sample_enriched: enriched[0],
-      sample_drops: drops
+      success: true,
+      persisted,
+      drop_reasons_histogram: dropsHistogram,
+      sample
     });
   } catch (e) {
-    res.status(500).json({ error: e.message, stack: e.stack });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/discoveries/smoke – provider connectivity and env sanity
+router.get('/smoke', async (_req, res) => {
+  try {
+    const smoke = { polygon_key_present: !!process.env.POLYGON_API_KEY, sqlite_path: process.env.SQLITE_PATH || 'default', time: new Date().toISOString() };
+    res.json({ success: true, smoke });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
