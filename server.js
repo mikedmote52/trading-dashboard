@@ -81,6 +81,42 @@ const portfolioRoutes = require('./server/routes/portfolio');
 app.use('/api/discoveries', discoveryRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 
+// --- vNext diagnostics (read-only) ---
+const db = require('./server/db/sqlite');
+
+app.get('/api/debug/smoke', (req, res) => {
+  res.json({
+    success: true,
+    smoke: {
+      polygon_key_present: !!process.env.POLYGON_API_KEY,
+      sqlite_path: process.env.SQLITE_PATH || 'default',
+      time: new Date().toISOString()
+    }
+  });
+});
+
+app.get('/api/debug/diagnostics', async (req, res) => {
+  try {
+    const rows = await db.getLatestDiscoveriesForEngine
+      ? await db.getLatestDiscoveriesForEngine(200)
+      : await db.getLatestDiscoveries(200);
+    const dropsHistogram = {};
+    let sample = null;
+    for (const r of rows) {
+      const audit = JSON.parse(r.audit_json || '{}');
+      const reasons = audit.drops || [];
+      for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
+      if (!sample) sample = {
+        symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores
+      };
+    }
+    res.json({ success: true, persisted: rows.length, drop_reasons_histogram: dropsHistogram, sample });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+// --- end diagnostics ---
+
 // Token-based authentication middleware for secure endpoints
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
