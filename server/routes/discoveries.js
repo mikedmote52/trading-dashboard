@@ -69,9 +69,32 @@ router.get('/top', async (req, res) => {
 router.get('/latest', async (req, res) => {
   try {
     const discoveries = await db.getLatestDiscoveries(10); // Top 10
+    
+    // Format discoveries with parsed features
+    const formatted = discoveries.map(d => {
+      let features = {};
+      try {
+        features = d.features_json ? JSON.parse(d.features_json) : {};
+      } catch (e) {
+        console.error('Failed to parse features for', d.symbol, e);
+      }
+      
+      return {
+        ...d,
+        currentPrice: features.current_price || features.price || null,
+        volumeSpike: features.volume_spike_factor || 0,
+        momentum: features.momentum_5d || 0,
+        shortInterest: features.short_interest_pct || 0,
+        borrowFee: features.borrow_fee_pct || 0,
+        catalyst: features.catalyst_flag || 0,
+        viglScore: d.score || 0,
+        features
+      };
+    });
+    
     res.json({
       success: true,
-      discoveries
+      discoveries: formatted
     });
   } catch (error) {
     res.status(500).json({
