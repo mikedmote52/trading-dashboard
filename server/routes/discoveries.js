@@ -68,7 +68,7 @@ router.get('/top', async (req, res) => {
   try {
     const rows = await db.getLatestDiscoveriesForEngine(10);
     const items = rows.map(r => {
-      const f = JSON.parse(r.features_json);
+      const f = safeParseJSON(r.features_json, {});
       return {
         symbol: r.symbol,
         name: r.symbol,
@@ -116,7 +116,7 @@ router.get('/diagnostics', async (req, res) => {
     const dropsHistogram = {};
     let sample = null;
     for (const r of rows) {
-      const audit = JSON.parse(r.audit_json || '{}');
+      const audit = safeParseJSON(r.audit_json, {});
       const reasons = audit.drops || [];
       for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
       if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
