@@ -19,8 +19,11 @@ function makeLimiter(concurrency = 1) {
 }
 const withLimit = makeLimiter(1); // 1 req in flight per host
 
-const { getBorrowFor } = require('../providers/borrow');
-const { getCatalystFor } = require('../providers/catalysts');
+const borrowProvider = require('../providers/borrow');
+const catalystProvider = require('../providers/catalysts');
+const shortInterestProvider = require('../providers/shortinterest');
+const fundamentalsProvider = require('../providers/fundamentals');
+const liquidityProvider = require('../providers/liquidity');
 
 async function batch(tickers, fn) {
   const out = {};
@@ -88,16 +91,35 @@ module.exports = {
   async get_universe() {
     try {
       const assets = await makeAlpacaRequest('assets?status=active&tradable=true');
-      if (!assets || !Array.isArray(assets)) return [];
+      let symbols = [];
       
-      // Filter for liquid stocks only
-      return assets
-        .filter(a => a.exchange === 'NASDAQ' || a.exchange === 'NYSE')
-        .filter(a => a.symbol && !a.symbol.includes('.'))
-        .map(a => a.symbol)
-        .slice(0, 100); // Reduced for testing
+      if (assets && Array.isArray(assets)) {
+        // Filter for liquid stocks only
+        symbols = assets
+          .filter(a => a.exchange === 'NASDAQ' || a.exchange === 'NYSE')
+          .filter(a => a.symbol && !a.symbol.includes('.'))
+          .map(a => a.symbol)
+          .slice(0, 100); // Reduced for testing
+      }
+      
+      // Add test symbols if configured via env var
+      const testList = (process.env.ENGINE_TEST_SYMBOLS || '')
+        .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      if (testList.length) {
+        // Replace with test symbols in development/testing
+        return testList;
+      }
+      
+      return symbols;
     } catch (e) {
       console.error('Error fetching universe:', e);
+      
+      // Only fallback to test symbols if explicitly configured
+      const testList = (process.env.ENGINE_TEST_SYMBOLS || '')
+        .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      if (testList.length) return testList;
+      
+      // Otherwise return empty array to let gates handle properly
       return [];
     }
   },
@@ -115,49 +137,59 @@ module.exports = {
   },
 
   async get_short_data(tickers) {
-    // Use existing short data providers if available
     const result = {};
     
-    try {
-      // Check for existing borrow provider
-      if (process.env.BORROW_SHORT_PROVIDER) {
-        const { getBorrowData } = require('../providers/borrow');
-        
-        for (const ticker of tickers.slice(0, 20)) { // Limit to prevent rate limiting
-          try {
-            const data = await getBorrowData(ticker);
-            if (data) {
-              result[ticker] = {
-                float_shares: data.float_shares || null,
-                short_interest_pct: data.short_interest_pct || null,
-                utilization_pct: data.utilization_pct || null,
-                days_to_cover: data.days_to_cover || null,
-                freshness: {
-                  short_interest_age_days: data.asof ? 
-                    Math.floor((Date.now() - new Date(data.asof)) / (1000 * 60 * 60 * 24)) : 99
-                }
-              };
-            }
-          } catch (e) {
-            // Skip this ticker if fetch fails
-            continue;
+    await Promise.all(
+      tickers.map(async (ticker) => {
+        try {
+          // Get short interest data
+          const siData = await shortInterestProvider.get(ticker);
+          if (siData) {
+            result[ticker] = {
+              short_interest_shares: siData.short_interest_shares,
+              short_interest_pct: siData.short_interest_pct,
+              days_to_cover: siData.days_to_cover,
+              freshness: {
+                short_interest_age_days: siData.asof ? 
+                  Math.floor((Date.now() - new Date(siData.asof)) / (1000 * 60 * 60 * 24)) : 99
+              }
+            };
           }
+          
+          // Get fundamentals data for float shares
+          const fundData = await fundamentalsProvider.get(ticker);
+          if (fundData) {
+            if (!result[ticker]) result[ticker] = {};
+            result[ticker].float_shares = fundData.float_shares;
+          }
+        } catch (e) {
+          // Skip this ticker if fetch fails
         }
-      }
-    } catch (e) {
-      console.error('Error in get_short_data:', e);
-    }
+      })
+    );
     
     return result;
   },
 
   async get_liquidity(tickers) {
-    // Stub implementation - would calculate 30-day avg dollar volume
     const result = {};
     
-    if (!process.env.POLYGON_API_KEY) return result;
+    await Promise.all(
+      tickers.map(async (ticker) => {
+        try {
+          const liqData = await liquidityProvider.get(ticker);
+          if (liqData) {
+            result[ticker] = {
+              avg_dollar_liquidity_30d: liqData.liquidity_30d,
+              adv_30d_shares: liqData.adv_30d_shares
+            };
+          }
+        } catch (e) {
+          // Skip this ticker if fetch fails
+        }
+      })
+    );
     
-    // For now, return empty - gates will drop these tickers
     return result;
   },
 
@@ -203,7 +235,22 @@ module.exports = {
   },
 
   async get_catalysts(tickers) {
-    return await batch(tickers, getCatalystFor);
+    const result = {};
+    
+    await Promise.all(
+      tickers.map(async (ticker) => {
+        try {
+          const catalystData = await catalystProvider.get(ticker);
+          if (catalystData) {
+            result[ticker] = catalystData;
+          }
+        } catch (e) {
+          // Skip this ticker if fetch fails
+        }
+      })
+    );
+    
+    return result;
   },
 
   async get_sentiment(tickers) {
@@ -212,6 +259,21 @@ module.exports = {
   },
 
   async get_borrow(tickers) {
-    return await batch(tickers, getBorrowFor);
+    const result = {};
+    
+    await Promise.all(
+      tickers.map(async (ticker) => {
+        try {
+          const borrowData = await borrowProvider.get(ticker);
+          if (borrowData) {
+            result[ticker] = borrowData;
+          }
+        } catch (e) {
+          // Skip this ticker if fetch fails
+        }
+      })
+    );
+    
+    return result;
   }
 };

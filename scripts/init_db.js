@@ -42,9 +42,13 @@ CREATE TABLE IF NOT EXISTS features_snapshot (
 CREATE TABLE IF NOT EXISTS discoveries (
   id TEXT PRIMARY KEY,
   symbol TEXT NOT NULL,
-  score REAL NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  features_json TEXT NOT NULL
+  price REAL,
+  score REAL,
+  preset TEXT,
+  action TEXT,
+  features_json TEXT,
+  audit_json TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Scoring weights KV table (new format)
@@ -167,6 +171,36 @@ CREATE INDEX IF NOT EXISTS idx_data_status_updated_at ON data_status(updated_at)
   // Execute schema synchronously
   console.log('🔧 Creating tables and indexes...');
   db.exec(schema);
+  
+  // Handle existing databases - add missing columns if they don't exist
+  console.log('🔄 Checking for missing columns...');
+  try {
+    const columns = db.prepare("PRAGMA table_info(discoveries)").all();
+    const columnNames = new Set(columns.map(c => c.name));
+    
+    const requiredColumns = [
+      { name: 'price', type: 'REAL' },
+      { name: 'preset', type: 'TEXT' },
+      { name: 'action', type: 'TEXT' },
+      { name: 'audit_json', type: 'TEXT' }
+    ];
+    
+    for (const col of requiredColumns) {
+      if (!columnNames.has(col.name)) {
+        console.log(`📝 Adding missing column: ${col.name}`);
+        db.exec(`ALTER TABLE discoveries ADD COLUMN ${col.name} ${col.type}`);
+      }
+    }
+    
+    // Ensure features_json can be NULL (might have been NOT NULL in old schema)
+    if (columnNames.has('features_json')) {
+      // SQLite doesn't support modifying column constraints directly, 
+      // but existing data should work fine
+    }
+    
+  } catch (e) {
+    console.log('ℹ️  Column migration check failed (probably table doesn\'t exist yet):', e.message);
+  }
   
   // Verify critical tables exist
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();

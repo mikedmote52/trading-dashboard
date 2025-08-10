@@ -169,17 +169,31 @@ const upsertScoringWeights = (weights) => {
 // New helpers for squeeze engine
 const insertDiscovery = (row) => {
   const stmt = db.prepare(`
-    INSERT INTO discoveries 
-    (id, symbol, price, score, preset, action, features_json, audit_json)
-    VALUES (@id, @symbol, @price, @score, @preset, @action, @features_json, @audit_json)
+    INSERT OR REPLACE INTO discoveries
+      (id, symbol, price, score, preset, action, features_json, audit_json, created_at)
+    VALUES
+      ($id, $symbol, $price, $score, $preset, $action, $features_json, $audit_json,
+       COALESCE($created_at, datetime('now')))
   `);
-  return stmt.run(row);
+  const params = {
+    $id: row.id, 
+    $symbol: row.symbol, 
+    $price: row.price ?? 0, 
+    $score: row.score ?? 0,
+    $preset: row.preset ?? null, 
+    $action: row.action ?? null,
+    $features_json: row.features_json ?? null, 
+    $audit_json: row.audit_json ?? null,
+    $created_at: row.created_at ?? null
+  };
+  return stmt.run(params);
 };
 
 const getLatestDiscoveriesForEngine = (limit = 50) => {
   const stmt = db.prepare(`
-    SELECT * FROM discoveries 
-    ORDER BY created_at DESC 
+    SELECT id, symbol, price, score, preset, action, features_json, audit_json, created_at
+    FROM discoveries
+    ORDER BY created_at DESC
     LIMIT ?
   `);
   return stmt.all(limit);

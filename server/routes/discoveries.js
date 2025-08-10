@@ -32,11 +32,11 @@ router.post('/run', async (req, res) => {
   });
 });
 
-// GET /api/discoveries/run/:id -> job status
-router.get('/run/:id', (req, res) => {
-  const j = jobs.get(req.params.id);
-  if (!j) return res.status(404).json({ success: false, error: 'job not found' });
-  res.json({ success: true, job: j });
+// GET /api/discoveries/run/:job -> job status
+router.get('/run/:job', (req, res) => {
+  const job = jobs.get(req.params.job);
+  if (!job) return res.status(404).json({ success: false, error: 'unknown job' });
+  res.json({ success: true, job: { id: job.id, status: job.status, candidates: job.candidates ?? 0 } });
 });
 
 function safeParseJSON(x, fallback) {
@@ -267,6 +267,33 @@ router.get('/_debug/diagnostics', async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message, stack: e.stack });
+  }
+});
+
+// GET /api/discoveries/_debug/inspect - inspect raw persisted data
+router.get('/_debug/inspect', async (req, res) => {
+  try {
+    const rows = db.db.prepare(`
+      SELECT symbol, features_json, audit_json, created_at
+      FROM discoveries 
+      ORDER BY created_at DESC 
+      LIMIT 2
+    `).all();
+    
+    res.json({ 
+      success: true, 
+      count: rows.length,
+      rows: rows.map(r => ({
+        symbol: r.symbol,
+        created_at: r.created_at,
+        features_json: r.features_json ? r.features_json.substring(0, 100) + '...' : null,
+        audit_json: r.audit_json ? r.audit_json.substring(0, 100) + '...' : null,
+        features_has_data: !!r.features_json,
+        audit_has_data: !!r.audit_json
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
