@@ -99,4 +99,61 @@ router.get('/top', async (req, res) => {
   }
 });
 
+// Temporary debug endpoint to show gate drops
+router.get('/debug/gates', async (req, res) => {
+  try {
+    const Engine = require('../services/squeeze/engine');
+    const engine = new Engine();
+    
+    // Get a small universe for debugging
+    const universe = ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT'].slice(0, 10);
+    const holdings = new Set();
+    
+    // Run enrichment
+    const DS = require('../services/squeeze/data_sources');
+    const [shorts, liq, intraday, options, catalysts, sentiment, borrow] = await Promise.all([
+      DS.get_short_data(universe),
+      DS.get_liquidity(universe),
+      DS.get_intraday(universe),
+      DS.get_options(universe),
+      DS.get_catalysts(universe),
+      DS.get_sentiment(universe),
+      DS.get_borrow(universe)
+    ]);
+    
+    const enriched = universe.map(tk => ({
+      ticker: tk,
+      _held: holdings.has && holdings.has(tk),
+      ...(shorts[tk]||{}),
+      ...(liq[tk]||{}),
+      ...(borrow[tk]||{}),
+      technicals: intraday[tk]||{},
+      options: options[tk]||{},
+      catalyst: catalysts[tk]||{},
+      sentiment: sentiment[tk]||{}
+    }));
+
+    const { passed, drops } = engine.gates.apply(enriched);
+    
+    // Count drop reasons
+    const dropHistogram = {};
+    Object.values(drops).forEach(reasons => {
+      reasons.forEach(reason => {
+        dropHistogram[reason] = (dropHistogram[reason] || 0) + 1;
+      });
+    });
+
+    res.json({
+      universe_size: universe.length,
+      passed_count: passed.length,
+      dropped_count: Object.keys(drops).length,
+      drop_histogram: dropHistogram,
+      sample_enriched: enriched[0],
+      sample_drops: drops
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message, stack: e.stack });
+  }
+});
+
 module.exports = router;
