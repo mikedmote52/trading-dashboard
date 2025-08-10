@@ -86,20 +86,26 @@ app.post('/api/admin/fix-undefined-json', (req, res) => {
     const sqlite = require('./server/db/sqlite');
     const db = sqlite.db;
 
-    db.exec(`
-      UPDATE discoveries SET features_json = '{}' 
-      WHERE features_json = 'undefined' OR features_json IS NULL;
-      UPDATE discoveries SET audit_json = '{}' 
-      WHERE audit_json = 'undefined' OR audit_json IS NULL;
-    `, err => {
-      if (err) {
-        console.error('Cleanup failed:', err);
-        return res.status(500).json({ ok: false, error: err.message });
+    // Use better-sqlite3 synchronous API
+    const stmt1 = db.prepare(`UPDATE discoveries SET features_json = '{}' WHERE features_json = 'undefined' OR features_json IS NULL`);
+    const stmt2 = db.prepare(`UPDATE discoveries SET audit_json = '{}' WHERE audit_json = 'undefined' OR audit_json IS NULL`);
+    
+    const result1 = stmt1.run();
+    const result2 = stmt2.run();
+    
+    console.log('✅ JSON cleanup completed');
+    console.log(`Fixed ${result1.changes} features_json records, ${result2.changes} audit_json records`);
+    
+    res.json({ 
+      ok: true, 
+      message: 'Cleanup complete',
+      fixed: {
+        features_json: result1.changes,
+        audit_json: result2.changes
       }
-      console.log('✅ JSON cleanup completed');
-      res.json({ ok: true, message: 'Cleanup complete' });
     });
   } catch (e) {
+    console.error('Cleanup failed:', e);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
