@@ -1,4 +1,16 @@
 const fetch = globalThis.fetch;
+
+async function fetchWithTimeout(url, ms = 8000, init = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { ...init, signal: ctrl.signal });
+    return r;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 const cheerio = require('cheerio');
 
 const FIN_KEY = process.env.FINTEL_API_KEY || null;
@@ -7,7 +19,7 @@ async function fintelBorrow(ticker) {
   // API shape: https://fintel.io/api/{endpoint}  (paid)
   // Expect fields: fee, utilization, asof
   const url = `https://fintel.io/api/borrows/${ticker}?key=${FIN_KEY}`;
-  const r = await fetch(url);
+  const r = await fetchWithTimeout(url);
   if (!r.ok) throw new Error(`fintel ${ticker} ${r.status}`);
   const j = await r.json();
   // j.history assumed sorted asc by date
@@ -29,7 +41,7 @@ async function iborrowdeskBorrow(ticker) {
   // HTML daily table for fee; limited fidelity, no utilization
   // We compute a 7d delta from the last 10 rows
   const url = `https://iborrowdesk.com/report/${ticker}`;
-  const r = await fetch(url);
+  const r = await fetchWithTimeout(url);
   if (!r.ok) throw new Error(`iborrowdesk ${ticker} ${r.status}`);
   const html = await r.text();
   const $ = cheerio.load(html);

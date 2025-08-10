@@ -3,15 +3,40 @@ const router = express.Router();
 const Engine = require('../services/squeeze/engine');
 const db = require('../db/sqlite');
 
-// POST /api/discoveries/run - Run the squeeze engine
+// simple in-memory job registry
+const jobs = new Map();
+
+// POST /api/discoveries/run -> 202 with job id, engine runs in background
 router.post('/run', async (req, res) => {
-  try {
-    const out = await new Engine().run();
-    res.json({ success: true, ...out });
-  } catch (e) {
-    console.error('Engine run error:', e);
-    res.status(500).json({ success: false, error: e.message });
-  }
+  const id = `run-${Date.now()}`;
+  jobs.set(id, { id, status: 'queued', started: null, finished: null, error: null, candidates: 0 });
+  res.status(202).json({ success: true, job: id });
+
+  setImmediate(async () => {
+    const job = jobs.get(id);
+    if (!job) return;
+    job.status = 'running';
+    job.started = new Date().toISOString();
+
+    try {
+      const out = await new Engine().run();
+      job.status = 'done';
+      job.finished = new Date().toISOString();
+      job.candidates = (out.candidates || []).length;
+    } catch (e) {
+      job.status = 'error';
+      job.finished = new Date().toISOString();
+      job.error = e.message;
+      console.error('Engine run error:', e);
+    }
+  });
+});
+
+// GET /api/discoveries/run/:id -> job status
+router.get('/run/:id', (req, res) => {
+  const j = jobs.get(req.params.id);
+  if (!j) return res.status(404).json({ success: false, error: 'job not found' });
+  res.json({ success: true, job: j });
 });
 
 function safeParseJSON(x, fallback) {
@@ -105,28 +130,17 @@ router.get('/top', async (req, res) => {
   }
 });
 
-// GET /api/discoveries/diagnostics – summarizes last run state
-router.get('/diagnostics', async (req, res) => {
+// GET /api/discoveries/diagnostics – drop histogram  
+router.get('/diagnostics', async (_req, res) => {
   try {
-    const db = require('../db/sqlite');
-    const rows = await db.getLatestDiscoveriesForEngine(200);
-    // count persisted actions
-    const persisted = rows.length;
-    // get a recent sample of audit trails from the live table for context
-    const dropsHistogram = {};
-    let sample = null;
+    const rows = await db.getLatestDiscoveriesForEngine(500);
+    const hist = {};
     for (const r of rows) {
-      const audit = safeParseJSON(r.audit_json, {});
-      const reasons = audit.drops || [];
-      for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
-      if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
+      const a = (() => { try { return JSON.parse(r.audit_json || '{}'); } catch { return {}; }})();
+      const rs = Array.isArray(a.drops) ? a.drops : [];
+      for (const k of rs) hist[k] = (hist[k] || 0) + 1;
     }
-    res.json({
-      success: true,
-      persisted,
-      drop_reasons_histogram: dropsHistogram,
-      sample
-    });
+    res.json({ success: true, sample: rows.length, drops: hist });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

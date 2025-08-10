@@ -1,4 +1,16 @@
 const fetch = globalThis.fetch;
+
+async function fetchWithTimeout(url, ms = 8000, init = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { ...init, signal: ctrl.signal });
+    return r;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 const cheerio = require('cheerio');
 
 const POLY_KEY = process.env.POLYGON_API_KEY || null;
@@ -13,7 +25,7 @@ function inWindow(dateStr, min=14, max=30) {
 async function polygonEarnings(ticker) {
   if (!POLY_KEY) return null;
   const url = `https://api.polygon.io/vX/reference/earnings?ticker=${ticker}&limit=5&apiKey=${POLY_KEY}`;
-  const r = await fetch(url);
+  const r = await fetchWithTimeout(url);
   if (!r.ok) return null;
   const j = await r.json();
   const upcoming = (j.results || []).find(x => x.period === 'upcoming' || new Date(x.reportDate) > new Date());
@@ -43,7 +55,7 @@ async function irScrapeEarnings(ticker) {
   ];
   for (const base of bases) {
     try {
-      const r = await fetch(base, { timeout: 5000 });
+      const r = await fetchWithTimeout(base, 5000);
       if (!r.ok) continue;
       const html = await r.text();
       const $ = cheerio.load(html);
