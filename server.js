@@ -74,6 +74,35 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// one-time admin cleanup route — remove after running once
+app.post('/api/admin/fix-undefined-json', (req, res) => {
+  try {
+    const required = process.env.ADMIN_TOKEN;
+    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i,'').trim();
+    if (required && provided !== required) {
+      return res.status(401).json({ ok: false, error: 'unauthorized' });
+    }
+
+    const sqlite = require('./server/db/sqlite');
+    const db = sqlite.db;
+
+    db.exec(`
+      UPDATE discoveries SET features_json = '{}' 
+      WHERE features_json = 'undefined' OR features_json IS NULL;
+      UPDATE discoveries SET audit_json = '{}' 
+      WHERE audit_json = 'undefined' OR audit_json IS NULL;
+    `, err => {
+      if (err) {
+        console.error('Cleanup failed:', err);
+        return res.status(500).json({ ok: false, error: err.message });
+      }
+      console.log('✅ JSON cleanup completed');
+      res.json({ ok: true, message: 'Cleanup complete' });
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // Mount API routes
 const discoveryRoutes = require('./server/routes/discoveries');
