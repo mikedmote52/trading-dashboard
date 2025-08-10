@@ -136,4 +136,38 @@ router.get('/smoke', async (_req, res) => {
   }
 });
 
+// GET /api/discoveries/_debug/smoke - debug smoke test  
+router.get('/_debug/smoke', (_req, res) => {
+  res.json({
+    success: true,
+    smoke: {
+      polygon_key_present: !!process.env.POLYGON_API_KEY,
+      sqlite_path: process.env.SQLITE_PATH || 'default',
+      time: new Date().toISOString()
+    }
+  });
+});
+
+// GET /api/discoveries/_debug/diagnostics - debug diagnostics
+router.get('/_debug/diagnostics', async (req, res) => {
+  try {
+    const rows = await db.getLatestDiscoveriesForEngine(200);
+    const dropsHistogram = {};
+    let sample = null;
+    for (const r of rows) {
+      try {
+        const audit = JSON.parse(r.audit_json || '{}');
+        const reasons = audit.drops || [];
+        for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
+        if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
+      } catch (parseErr) {
+        // Skip malformed JSON
+      }
+    }
+    res.json({ success: true, persisted: rows.length, drop_reasons_histogram: dropsHistogram, sample });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 module.exports = router;

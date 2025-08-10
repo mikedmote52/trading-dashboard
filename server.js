@@ -74,42 +74,6 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ---- diagnostics under forwarded prefix (no platform changes) ----
-app.get('/api/discoveries/_debug/smoke', (req, res) => {
-  res.json({
-    success: true,
-    smoke: {
-      polygon_key_present: !!process.env.POLYGON_API_KEY,
-      sqlite_path: process.env.SQLITE_PATH || 'default',
-      time: new Date().toISOString()
-    }
-  });
-});
-
-app.get('/api/discoveries/_debug/diagnostics', async (req, res) => {
-  try {
-    const db = require('./server/db/sqlite');
-    const rows = db.getLatestDiscoveriesForEngine
-      ? await db.getLatestDiscoveriesForEngine(200)
-      : await db.getLatestDiscoveries(200);
-    const dropsHistogram = {};
-    let sample = null;
-    for (const r of rows) {
-      try {
-        const audit = JSON.parse(r.audit_json || '{}');
-        const reasons = audit.drops || [];
-        for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
-        if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
-      } catch (parseErr) {
-        // Skip malformed JSON
-      }
-    }
-    res.json({ success: true, persisted: rows.length, drop_reasons_histogram: dropsHistogram, sample });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message, stack: e.stack });
-  }
-});
-// ---- end diagnostics ----
 
 // Mount API routes
 const discoveryRoutes = require('./server/routes/discoveries');
