@@ -17,7 +17,54 @@ module.exports = class Engine {
   async run(){
     const universe = await DS.get_universe();
     const holdings = await DS.get_portfolio_holdings();
-    const enriched = await this._enrich(universe, holdings);
+    
+    // Filter out current holdings early
+    let filtered_holdings = 0;
+    const tradeable = universe.filter(tk => {
+      if (holdings?.has && holdings.has(tk)) {
+        filtered_holdings++;
+        return false;
+      }
+      return true;
+    });
+    
+    const enriched = await this._enrich(tradeable, holdings);
+    
+    // Pre-enrichment audit
+    const reqs = [
+      ['short_interest_pct', t => Number.isFinite(t.short_interest_pct)],
+      ['days_to_cover',     t => Number.isFinite(t.days_to_cover)],
+      ['borrow_fee_pct',    t => Number.isFinite(t.borrow_fee_pct)],
+      ['borrow_trend_pp7d', t => Number.isFinite(t.borrow_fee_trend_pp7d)],
+      ['float_shares',      t => Number.isFinite(t.float_shares)],
+      ['liquidity_30d',     t => Number.isFinite(t.avg_dollar_liquidity_30d)],
+      ['catalyst_flag',     t => !!t.catalyst?.verified_in_window],
+    ];
+
+    const miss = { filtered_holdings };
+    let ready = 0;
+    for (const t of enriched) {
+      let ok = true;
+      for (const [k, pred] of reqs) {
+        if (!pred(t)) {
+          miss[k] = (miss[k] || 0) + 1;
+          ok = false;
+        }
+      }
+      if (ok) ready++;
+    }
+
+    await db.insertDiscovery({
+      id: `audit-pre-${Date.now()}`,
+      symbol: 'AUDIT_PRE_ENRICH',
+      price: 0,
+      score: 0,
+      preset: this.cfg.preset,
+      action: 'NO ACTION',
+      features_json: JSON.stringify({ run_size: enriched.length, candidates_ready: ready }),
+      audit_json: JSON.stringify({ missing: miss })
+    });
+    
     const { passed, drops } = this.gates.apply(enriched);
 
     // persist audit summary so diagnostics can see gate pressure

@@ -2,14 +2,14 @@ const fs = require('fs');
 const path = require('path');
 
 const cache = new Map();
-const TTL_MS = 7*24*60*60*1000;
+const TTL_MS = 24*60*60*1000;
 
 function fromFile(symbol) {
-  const p = path.join(process.cwd(), 'data', 'providers', 'fundamentals.json');
+  const p = path.join(process.cwd(), 'data', 'providers', 'liquidity.json');
   if (!fs.existsSync(p)) return null;
   const j = JSON.parse(fs.readFileSync(p, 'utf8'));
   const v = j[symbol];
-  return v ? { float_shares: +v.float_shares, shares_out: +v.shares_out, asof: v.asof } : null;
+  return v ? { liquidity_30d: +v.liquidity_30d, adv_30d_shares: +v.adv_30d_shares, asof: v.asof } : null;
 }
 
 async function get(symbol) {

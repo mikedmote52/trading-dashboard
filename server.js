@@ -77,6 +77,7 @@ app.use(express.json());
 // mount API routes first
 app.use('/api/discoveries', require('./server/routes/discoveries'));
 app.use('/api/portfolio', require('./server/routes/portfolio'));
+app.use('/api/pm', require('./server/routes/pm'));
 
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));

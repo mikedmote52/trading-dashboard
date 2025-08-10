@@ -130,23 +130,58 @@ router.get('/top', async (req, res) => {
   }
 });
 
-// GET /api/discoveries/diagnostics – drop histogram  
+// GET /api/discoveries/diagnostics – drop and missing histograms
 router.get('/diagnostics', async (_req, res) => {
   try {
     const rows = await db.getLatestDiscoveriesForEngine(500);
-    const hist = {};
+    const drops = {};
+    const missing = {};
+    let totalRunSize = 0;
+    let totalCandidatesReady = 0;
+    let preEnrichCount = 0;
+    
     for (const r of rows) {
       let a = {};
+      let f = {};
       try { a = JSON.parse(r.audit_json || '{}'); } catch {}
+      try { f = JSON.parse(r.features_json || '{}'); } catch {}
+      
+      // Handle pre-enrichment audits
+      if (r.symbol === 'AUDIT_PRE_ENRICH') {
+        preEnrichCount++;
+        totalRunSize += (f.run_size || 0);
+        totalCandidatesReady += (f.candidates_ready || 0);
+        
+        // Merge missing histogram
+        if (a.missing && typeof a.missing === 'object') {
+          for (const [k, v] of Object.entries(a.missing)) {
+            missing[k] = (missing[k] || 0) + Number(v || 0);
+          }
+        }
+      }
+      
+      // Handle drops from gates
       const d = a.drops;
-      if (!d) continue;
-      if (Array.isArray(d)) {
-        for (const k of d) hist[k] = (hist[k] || 0) + 1;
-      } else if (typeof d === 'object') {
-        for (const [k, v] of Object.entries(d)) hist[k] = (hist[k] || 0) + Number(v || 0);
+      if (d) {
+        if (Array.isArray(d)) {
+          for (const k of d) drops[k] = (drops[k] || 0) + 1;
+        } else if (typeof d === 'object') {
+          for (const [k, v] of Object.entries(d)) drops[k] = (drops[k] || 0) + Number(v || 0);
+        }
       }
     }
-    res.json({ success: true, sample: rows.length, drops: hist });
+    
+    const avgRunSize = preEnrichCount > 0 ? Math.round(totalRunSize / preEnrichCount) : 0;
+    const avgCandidatesReady = preEnrichCount > 0 ? Math.round(totalCandidatesReady / preEnrichCount) : 0;
+    
+    res.json({ 
+      success: true, 
+      sample: rows.length,
+      avg_run_size: avgRunSize,
+      avg_candidates_ready: avgCandidatesReady,
+      missing,
+      drops
+    });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
