@@ -78,13 +78,13 @@ app.use(express.json());
 app.use('/api/discoveries', require('./server/routes/discoveries'));
 app.use('/api/portfolio', require('./server/routes/portfolio'));
 
+// identity endpoint so we can verify we're on the API host  
+app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
+
 // hard JSON 404 so /api/* never falls into SPA
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
 });
-
-// identity endpoint so we can verify we're on the API host
-app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
 
 // only serve static when explicitly enabled
 if (process.env.SERVE_STATIC === 'true') {
