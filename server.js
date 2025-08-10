@@ -74,10 +74,8 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// --- vNext diagnostics (read-only) - BEFORE static handlers ---
-const db = require('./server/db/sqlite');
-
-app.get('/api/debug/smoke', (req, res) => {
+// ---- diagnostics under forwarded prefix (no platform changes) ----
+app.get('/api/discoveries/_debug/smoke', (req, res) => {
   res.json({
     success: true,
     smoke: {
@@ -88,8 +86,9 @@ app.get('/api/debug/smoke', (req, res) => {
   });
 });
 
-app.get('/api/debug/diagnostics', async (req, res) => {
+app.get('/api/discoveries/_debug/diagnostics', async (req, res) => {
   try {
+    const db = require('./server/db/sqlite');
     const rows = db.getLatestDiscoveriesForEngine
       ? await db.getLatestDiscoveriesForEngine(200)
       : await db.getLatestDiscoveries(200);
@@ -106,7 +105,7 @@ app.get('/api/debug/diagnostics', async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 });
-// --- end diagnostics ---
+// ---- end diagnostics ----
 
 // Mount API routes
 const discoveryRoutes = require('./server/routes/discoveries');
