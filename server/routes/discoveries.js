@@ -136,9 +136,15 @@ router.get('/diagnostics', async (_req, res) => {
     const rows = await db.getLatestDiscoveriesForEngine(500);
     const hist = {};
     for (const r of rows) {
-      const a = (() => { try { return JSON.parse(r.audit_json || '{}'); } catch { return {}; }})();
-      const rs = Array.isArray(a.drops) ? a.drops : [];
-      for (const k of rs) hist[k] = (hist[k] || 0) + 1;
+      let a = {};
+      try { a = JSON.parse(r.audit_json || '{}'); } catch {}
+      const d = a.drops;
+      if (!d) continue;
+      if (Array.isArray(d)) {
+        for (const k of d) hist[k] = (hist[k] || 0) + 1;
+      } else if (typeof d === 'object') {
+        for (const [k, v] of Object.entries(d)) hist[k] = (hist[k] || 0) + Number(v || 0);
+      }
     }
     res.json({ success: true, sample: rows.length, drops: hist });
   } catch (e) {

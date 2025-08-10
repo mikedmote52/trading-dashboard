@@ -20,18 +20,21 @@ module.exports = class Engine {
     const enriched = await this._enrich(universe, holdings);
     const { passed, drops } = this.gates.apply(enriched);
 
-    if (!passed.length) {
-      const auditRow = {
+    // persist audit summary so diagnostics can see gate pressure
+    try {
+      const summary = {
         id: `audit-${Date.now()}`,
-        symbol: 'AUDIT',
+        symbol: 'AUDIT_SUMMARY',
         price: 0,
         score: 0,
         preset: this.cfg.preset,
         action: 'NO ACTION',
-        features_json: JSON.stringify({ run_size: enriched.length }),
+        features_json: JSON.stringify({ run_size: enriched.length, passed: passed.length }),
         audit_json: JSON.stringify({ drops })
       };
-      try { await db.insertDiscovery(auditRow); } catch {}
+      await db.insertDiscovery(summary);
+    } catch (e) {
+      console.warn('audit summary persist failed', e.message);
     }
 
     const candidates = [];
