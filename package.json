@@ -12,9 +12,10 @@
     "scan": "node -e \"require('./server/jobs/capture').runDiscoveryCapture().catch(console.error)\"",
     "db:status": "node -e \"const db = require('./server/db/sqlite'); console.log('Database initialized:', !!db.db)\"",
     "health": "curl -f http://localhost:3001/api/health || echo 'Server not running'",
-    "render:build": "npm install",
+    "render:build": "npm install && node scripts/verify_getcompanyprofile.js",
     "render:start": "NODE_ENV=production node server.js",
-    "watchdog": "node scripts/engine_watchdog.js"
+    "watchdog": "node scripts/engine_watchdog.js",
+    "verify": "node scripts/verify_getcompanyprofile.js"
   },
   "dependencies": {
     "axios": "^1.11.0",

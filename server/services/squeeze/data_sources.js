@@ -139,11 +139,38 @@ module.exports = {
   async get_short_data(tickers) {
     const result = {};
     
+    // First get fundamentals and liquidity for all tickers to build context
+    const [fundResults, liqResults, borrowResults] = await Promise.all([
+      batch(tickers, tk => fundamentalsProvider.get(tk)),
+      batch(tickers, tk => liquidityProvider.get(tk)),
+      batch(tickers, tk => borrowProvider.get(tk))
+    ]);
+    
     await Promise.all(
       tickers.map(async (ticker) => {
         try {
-          // Get short interest data
-          const siData = await shortInterestProvider.get(ticker);
+          // Build context for proxy if needed
+          const ctx = {
+            float_shares: fundResults[ticker]?.float_shares,
+            adv_30d_shares: liqResults[ticker]?.adv_30d_shares,
+            borrow_fee_pct: borrowResults[ticker]?.borrow_fee_pct,
+            borrow_fee_trend_pp7d: borrowResults[ticker]?.borrow_fee_trend_pp7d
+          };
+          
+          // Try getWithContext first (will use proxy if needed), fallback to get()
+          let siData = null;
+          try {
+            siData = await shortInterestProvider.getWithContext(ticker, ctx);
+          } catch (proxyErr) {
+            // If proxy fails, try fallback to cached data
+            console.warn(`Proxy failed for ${ticker}, trying cached data:`, proxyErr.message);
+            try {
+              siData = await shortInterestProvider.get(ticker);
+            } catch (cacheErr) {
+              console.warn(`Both proxy and cache failed for ${ticker}:`, cacheErr.message);
+            }
+          }
+                         
           if (siData) {
             result[ticker] = {
               short_interest_shares: siData.short_interest_shares,
@@ -156,11 +183,10 @@ module.exports = {
             };
           }
           
-          // Get fundamentals data for float shares
-          const fundData = await fundamentalsProvider.get(ticker);
-          if (fundData) {
+          // Include fundamentals data as well
+          if (fundResults[ticker]) {
             if (!result[ticker]) result[ticker] = {};
-            result[ticker].float_shares = fundData.float_shares;
+            result[ticker].float_shares = fundResults[ticker].float_shares;
           }
         } catch (e) {
           // Skip this ticker if fetch fails

@@ -1,16 +1,17 @@
 const fs = require('fs');
 const https = require('https');
-const { providerJsonPath } = require('./util');
+const { providerJsonPath, readJsonSafe, writeJsonSafe } = require('./util');
+
+// Date utilities
+function ymd(d){ return d.toISOString().slice(0,10).replace(/-/g,''); }
+function prevMarketDay(d){
+  const x = new Date(d);
+  do { x.setDate(x.getDate() - 1); } while (x.getDay()===0 || x.getDay()===6);
+  return x;
+}
 
 function getYesterdayDateString() {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  const year = yesterday.getFullYear();
-  const month = String(yesterday.getMonth() + 1).padStart(2, '0');
-  const day = String(yesterday.getDate()).padStart(2, '0');
-  
-  return `${year}${month}${day}`;
+  return ymd(prevMarketDay(new Date()));
 }
 
 function fetchUrl(url) {
@@ -28,32 +29,23 @@ function fetchUrl(url) {
   });
 }
 
-function parseFinraCsv(csvText) {
-  if (!csvText) return {};
-  
-  const lines = csvText.trim().split('\n');
-  if (lines.length < 2) return {};
-  
-  // Skip header line
-  const data = {};
-  for (let i = 1; i < lines.length; i++) {
-    const parts = lines[i].split('|');
-    if (parts.length >= 3) {
-      const symbol = parts[1]?.trim();
-      const shortVol = parseInt(parts[2]) || 0;
-      const totalVol = parseInt(parts[3]) || 0;
-      
-      if (symbol && totalVol > 0) {
-        if (!data[symbol]) {
-          data[symbol] = { shortVol: 0, totalVol: 0 };
-        }
-        data[symbol].shortVol += shortVol;
-        data[symbol].totalVol += totalVol;
-      }
-    }
+function parseFinraText(txt) {
+  if (!txt) return {};
+  const out = {};
+  const lines = txt.trim().split(/\r?\n/);
+  for (let i = 1; i < lines.length; i++) {         // skip header
+    const cols = lines[i].split('|');
+    if (cols.length < 6) continue;
+    const sym = String(cols[1] || '').toUpperCase().trim();
+    const shortVol = Number((cols[2] || '0').replace(/,/g, ''));
+    const totalVol = Number((cols[4] || '0').replace(/,/g, ''));
+    if (!sym || !Number.isFinite(shortVol) || !Number.isFinite(totalVol)) continue;
+    // aggregate per symbol (sum across tapes)
+    const acc = out[sym] || (out[sym] = { shortVol: 0, totalVol: 0 });
+    acc.shortVol += shortVol;
+    acc.totalVol += totalVol;
   }
-  
-  return data;
+  return out;
 }
 
 async function fetchFinraShortVolume() {
@@ -75,8 +67,8 @@ async function fetchFinraShortVolume() {
     return null;
   }
   
-  const cnmsParsed = parseFinraCsv(cnmsData);
-  const nyseParsed = parseFinraCsv(nyseData);
+  const cnmsParsed = parseFinraText(cnmsData);
+  const nyseParsed = parseFinraText(nyseData);
   
   // Aggregate data from both exchanges
   const aggregated = {};
@@ -127,4 +119,80 @@ async function fetchFinraShortVolume() {
   return result;
 }
 
-module.exports = { fetchFinraShortVolume, getYesterdayDateString };
+async function fetchLatestShortvol(maxBack=5){
+  let d = prevMarketDay(new Date());
+  for (let i=0; i<maxBack; i++){
+    const tag = ymd(d);
+    
+    // Try cache first
+    const cached = readJsonSafe(`finra_shortvol_${tag}.json`);
+    if (cached) return { date: tag, data: cached };
+    
+    // Try fetch
+    console.log(`Trying FINRA data for ${tag}`);
+    const cnmsUrl = `https://cdn.finra.org/equity/regsho/daily/CNMSshvol${tag}.txt`;
+    const nyseUrl = `https://cdn.finra.org/equity/regsho/daily/NYSEshvol${tag}.txt`;
+    
+    const [cnmsData, nyseData] = await Promise.all([
+      fetchUrl(cnmsUrl),
+      fetchUrl(nyseUrl)
+    ]);
+    
+    if (cnmsData || nyseData) {
+      const cnmsParsed = parseFinraText(cnmsData);
+      const nyseParsed = parseFinraText(nyseData);
+      
+      // Aggregate data from both exchanges
+      const aggregated = {};
+      
+      // Process CNMS data
+      Object.entries(cnmsParsed).forEach(([symbol, data]) => {
+        const k = symbol.toUpperCase(); // ensure uppercase keys
+        if (!aggregated[k]) {
+          aggregated[k] = { shortVol: 0, totalVol: 0, dates: [] };
+        }
+        aggregated[k].shortVol += data.shortVol;
+        aggregated[k].totalVol += data.totalVol;
+        aggregated[k].dates.push(tag);
+      });
+      
+      // Process NYSE data
+      Object.entries(nyseParsed).forEach(([symbol, data]) => {
+        const k = symbol.toUpperCase(); // ensure uppercase keys
+        if (!aggregated[k]) {
+          aggregated[k] = { shortVol: 0, totalVol: 0, dates: [] };
+        }
+        aggregated[k].shortVol += data.shortVol;
+        aggregated[k].totalVol += data.totalVol;
+        if (!aggregated[k].dates.includes(tag)) {
+          aggregated[k].dates.push(tag);
+        }
+      });
+      
+      // Format result with proper ratio calculation
+      const result = {};
+      Object.entries(aggregated).forEach(([k, d]) => {
+        const ratio = d.totalVol > 0 ? d.shortVol / d.totalVol : 0;
+        // guard against edge cases
+        const svr = Math.max(0, Math.min(1, ratio));
+        result[k] = {
+          sv_5d: d.shortVol,            // still single-day until you roll windows
+          sv_20d: d.shortVol,
+          svr_5d: svr,
+          svr_20d: svr,
+          asof: new Date().toISOString().split('T')[0] // use current date
+        };
+      });
+      
+      // Cache the result
+      writeJsonSafe(`finra_shortvol_${tag}.json`, result);
+      console.log(`Cached FINRA data for ${tag} with ${Object.keys(result).length} symbols`);
+      return { date: tag, data: result };
+    }
+    
+    d = prevMarketDay(d);
+  }
+  return { date: null, data: null };
+}
+
+module.exports = { fetchFinraShortVolume, fetchLatestShortvol, getYesterdayDateString };

@@ -1,72 +1,65 @@
 const { readJsonSafe } = require('./util');
-const { fetchFinraShortVolume } = require('./finra_fetch');
+const { fetchLatestShortvol } = require('./finra_fetch');
 
-async function getFinraShortVol(symbol) {
-  // Try to read from cache first
-  let data = readJsonSafe('finra_shortvol.json');
-  
-  if (!data) {
-    // Fetch fresh data if cache doesn't exist
-    data = await fetchFinraShortVolume();
+// Symbol normalization
+function norm(sym){ return String(sym||'').toUpperCase().replace(/[.\-].*$/, ''); }
+
+function sumTapes(rows){
+  // rows may be an array like [{symbol:'AEVA', short_volume:.., total_volume:.., tape:'A'}, …]
+  if (!Array.isArray(rows)) return rows;
+  const acc = {};
+  for (const r of rows){
+    const k = norm(r.symbol);
+    if (!acc[k]) acc[k] = { short_volume: 0, total_volume: 0 };
+    acc[k].short_volume += Number(r.short_volume||0);
+    acc[k].total_volume += Number(r.total_volume||0);
   }
-  
-  return data && data[symbol] ? data[symbol] : null;
+  return acc;
 }
 
-function estimateShortInterest(symbol, context) {
-  const { sv_20d, sv_5d, float_shares, adv_30d_shares, borrow_fee_pct = 0, borrow_fee_trend_pp7d = 0 } = context;
-  
-  // Use 20-day average, fallback to 5-day
-  const shortVol = sv_20d || sv_5d;
-  if (!shortVol || !float_shares || !adv_30d_shares) {
-    return null;
-  }
-  
-  // Calculate pressure multiplier based on borrow costs and trends
-  const press = Math.max(0.8, Math.min(1.8, 1 + 0.02 * borrow_fee_pct + 0.1 * borrow_fee_trend_pp7d));
-  
-  // Estimate short interest shares (capped at 90% of float)
-  const est_shares = Math.min(Math.round(shortVol * press), 0.9 * float_shares);
-  
-  // Calculate percentage and days to cover
-  const est_pct = float_shares ? 100 * est_shares / float_shares : null;
-  const est_dtc = adv_30d_shares ? est_shares / adv_30d_shares : null;
-  
-  if (est_pct === null || est_dtc === null) {
-    return null;
-  }
-  
-  return {
-    short_interest_shares: est_shares,
-    short_interest_pct: +est_pct.toFixed(2),
-    days_to_cover: +est_dtc.toFixed(2),
-    asof: new Date().toISOString().split('T')[0],
-    provenance: "finra-proxy"
-  };
+// Keep legacy name but delegate to the real proxy (no 0.9 cap)
+async function estimateShortInterest(symbol, context) {
+  return proxyShortInterest(symbol, context);
 }
 
 async function proxyShortInterest(symbol, context) {
   try {
-    // Get FINRA short volume data
-    const finraData = await getFinraShortVol(symbol);
-    if (!finraData) {
-      return null;
-    }
+    if (!context?.adv_30d_shares || !context?.float_shares) return null;
     
-    // Merge FINRA data with context
-    const fullContext = {
-      ...context,
-      sv_5d: finraData.sv_5d,
-      sv_20d: finraData.sv_20d,
-      svr_5d: finraData.svr_5d,
-      svr_20d: finraData.svr_20d
+    // Add timeout protection for production deployment
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('FINRA fetch timeout')), 10000)
+    );
+    
+    const fetchPromise = fetchLatestShortvol(5);
+    const { date, data } = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    if (!data) return null;
+
+    const map = sumTapes(data);                // collapse A/B/C if needed
+    const row = Array.isArray(map) ? null : map[norm(symbol)];
+    if (!row || !row.sv_20d || !row.svr_20d) return null;
+
+    const pctShortOfVol = row.svr_20d;                // 0..1
+    const impliedShortShares = Math.min(pctShortOfVol * context.float_shares,
+                                        context.float_shares);
+    return {
+      short_interest_shares: Math.round(impliedShortShares),
+      short_interest_pct: +(100 * impliedShortShares / context.float_shares).toFixed(2),
+      days_to_cover: +(impliedShortShares / context.adv_30d_shares).toFixed(2),
+      asof: new Date().toISOString().split('T')[0],
+      provenance: 'finra-proxy',
+      basis_date: date
     };
-    
-    return estimateShortInterest(symbol, fullContext);
   } catch (e) {
-    console.warn(`Proxy short interest estimation failed for ${symbol}:`, e.message);
+    // Fail gracefully in production - don't crash the entire deployment
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(`FINRA proxy unavailable for ${symbol} (production deployment issue)`);
+    } else {
+      console.warn(`Proxy short interest estimation failed for ${symbol}:`, e.message);
+    }
     return null;
   }
 }
 
-module.exports = { proxyShortInterest, estimateShortInterest, getFinraShortVol };
+module.exports = { proxyShortInterest, estimateShortInterest };

@@ -8,6 +8,58 @@ const { getCompanyProfile } = require('./providers/fundamentals');
 const { getBorrowData } = require('./providers/borrow');
 const { runQueued, createSymbolTasks } = require('./queue');
 
+// Global tracking for failed symbols
+const failedSymbols = new Set();
+
+/**
+ * Safe wrapper for getCompanyProfile with error handling
+ * @param {string} symbol Stock symbol
+ * @returns {Promise<Object|null>} Company profile data or null
+ */
+async function safeGetCompanyProfile(symbol) {
+  try {
+    // Check if getCompanyProfile is properly defined
+    if (typeof getCompanyProfile !== 'function') {
+      throw new Error('getCompanyProfile is not a function - function may be missing or incorrectly exported');
+    }
+    
+    console.log(`🏢 Fetching company profile for ${symbol}...`);
+    const profile = await getCompanyProfile(symbol);
+    
+    if (!profile) {
+      console.warn(`⚠️  No company profile data available for ${symbol}`);
+      failedSymbols.add(symbol);
+      return null;
+    }
+    
+    console.log(`✅ Company profile fetched for ${symbol}: ${profile.name || 'N/A'}`);
+    return profile;
+    
+  } catch (error) {
+    console.error(`❌ Error fetching company profile for ${symbol}:`, error.message);
+    failedSymbols.add(symbol);
+    
+    // Log different types of errors for debugging
+    if (error.message.includes('not a function')) {
+      console.error('🚨 CRITICAL: getCompanyProfile function is missing or not properly exported');
+      console.error('   Check server/services/providers/fundamentals.js exports');
+    } else if (error.message.includes('API')) {
+      console.error('🌐 API Error: External service may be unavailable');
+    } else {
+      console.error('🔧 Unknown Error: Please check implementation');
+    }
+    
+    // Return fallback data structure
+    return {
+      float_shares: null,
+      market_cap: null,
+      name: symbol,
+      ticker: symbol.toUpperCase(),
+      error: 'company_profile_failed'
+    };
+  }
+}
+
 /**
  * Fetch Polygon historical data for volume and momentum calculations
  * @param {string} symbol Stock symbol
@@ -95,14 +147,20 @@ function getDateDaysAgo(daysAgo) {
  * @returns {Promise<Object>} Complete feature data
  */
 async function fetchFeaturesFor(symbol) {
+  const failedSymbols = []; // Track failed symbols for logging
+  
   try {
     console.log(`📊 Fetching comprehensive features for ${symbol}`);
     
-    // Fetch data from available providers - Polygon only for now  
-    const [polygonData, companyData, catalystFlag] = await Promise.all([
+    // Fetch data from available providers with proper error handling
+    const [polygonData, companyData, catalystFlag] = await Promise.allSettled([
       fetchPolygonData(symbol),
-      getCompanyProfile(symbol),
+      safeGetCompanyProfile(symbol),
       Promise.resolve(detectCatalyst(symbol))
+    ]).then(results => [
+      results[0].status === 'fulfilled' ? results[0].value : null,
+      results[1].status === 'fulfilled' ? results[1].value : null,
+      results[2].status === 'fulfilled' ? results[2].value : null
     ]);
     
     // Try to get borrow data if provider is configured
@@ -115,9 +173,13 @@ async function fetchFeaturesFor(symbol) {
       console.log(`ℹ️ Borrow data unavailable for ${symbol}: ${error.message}`);
     }
 
-    // Core data sources must succeed - borrow data optional
+    // Handle missing company profile gracefully but continue processing
+    if (!companyData || companyData.error) {
+      console.warn(`⚠️  ${symbol}: Proceeding without company profile data`);
+    }
+    
+    // Core data sources must succeed - borrow data and company data optional
     if (!polygonData) throw new Error(`No historical data for ${symbol}`);
-    if (!companyData) throw new Error(`No company data for ${symbol}`);
 
     // Combine all data sources into comprehensive features
     const features = {
@@ -217,8 +279,39 @@ async function batchFetchFeatures(symbols) {
   return results.filter(r => !r?.failed);
 }
 
+/**
+ * Get the list of symbols that failed company profile fetching
+ * @returns {Array<string>} Array of failed symbols
+ */
+function getFailedSymbols() {
+  return Array.from(failedSymbols);
+}
+
+/**
+ * Clear the failed symbols list
+ */
+function clearFailedSymbols() {
+  failedSymbols.clear();
+}
+
+/**
+ * Log failed symbols for review
+ */
+function logFailedSymbols() {
+  if (failedSymbols.size > 0) {
+    console.log('📋 Failed symbols summary:');
+    console.log('   Company profile failures:', Array.from(failedSymbols).join(', '));
+    console.log(`   Total failed: ${failedSymbols.size}`);
+  } else {
+    console.log('✅ No failed symbols - all company profiles fetched successfully');
+  }
+}
+
 module.exports = {
   fetchFeaturesFor,
   fetchFeaturesForSymbols,
-  batchFetchFeatures
+  batchFetchFeatures,
+  getFailedSymbols,
+  clearFailedSymbols,
+  logFailedSymbols
 };

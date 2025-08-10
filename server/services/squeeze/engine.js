@@ -69,6 +69,19 @@ module.exports = class Engine {
       
       const { passed, drops } = this.gates.apply(enriched);
 
+      // Add gate diagnostics for all enriched items (including failed ones)
+      const all_with_diagnostics = enriched.map(t => {
+        // Use actual Gates class to get real failure reasons
+        const singleItemGate = this.gates.apply([t]);
+        const gate_failures = singleItemGate.drops[t.ticker] || [];
+        
+        return {
+          ...t,
+          gate_failures,
+          passed_gates: gate_failures.length === 0
+        };
+      });
+
       // persist audit summary so diagnostics can see gate pressure
       try {
         const summary = {
@@ -90,16 +103,58 @@ module.exports = class Engine {
       for (const t of passed){
         const { composite, subscores, weights } = this.scorer.score(t);
         const action = this.mapper.map(composite, t.technicals);
-        const audit = { subscores, weights, gates: [], freshness: t.freshness||{}, drops: drops[t.ticker]||[] };
+        
+        // Add gate diagnostics
+        const gates = {
+          data_ready: ['short_interest_pct','days_to_cover','borrow_fee_pct','borrow_fee_trend_pp7d','float_shares','adv_30d_shares']
+                       .every(k => Number.isFinite(t[k])),
+          float_max: t.float_shares <= 250_000_000,
+          adv_min:   t.adv_30d_shares / t.float_shares >= 0.01,
+          si_min:    t.short_interest_pct >= 20,
+          dtc_min:   t.days_to_cover >= 1.5,
+          borrow_min:t.borrow_fee_pct >= 5
+        };
+        const gate_failures = Object.entries(gates).filter(([k,v]) => !v).map(([k]) => k);
+        const passed_gates = gate_failures.length === 0;
+        
+        const audit = { 
+          subscores, 
+          weights, 
+          gates, 
+          gate_failures, 
+          freshness: t.freshness||{}, 
+          drops: drops[t.ticker]||[] 
+        };
 
         if (action === 'BUY' || action === 'WATCHLIST'){
           const row = this._formatRow(t, composite, this.cfg.preset, action, audit);
+          // Add score_explain to the emit object
+          row.emit.score_explain = {
+            short_interest_pct: t.short_interest_pct,
+            days_to_cover: t.days_to_cover,
+            borrow_fee_pct: t.borrow_fee_pct,
+            borrow_fee_trend_pp7d: t.borrow_fee_trend_pp7d,
+            float_shares: t.float_shares,
+            adv_30d_shares: t.adv_30d_shares,
+            missing_fields: ['short_interest_pct','days_to_cover','borrow_fee_pct','borrow_fee_trend_pp7d','float_shares','adv_30d_shares']
+                            .filter(k => !Number.isFinite(t[k])),
+            gates,
+            gate_failures
+          };
+          row.emit.passed_gates = passed_gates;
+          
           await db.insertDiscovery(row.db);
           candidates.push(row.emit);
         }
       }
       
-      return { asof: new Date().toISOString(), preset: this.cfg.preset, universe_count: universe.length, candidates };
+      return { 
+        asof: new Date().toISOString(), 
+        preset: this.cfg.preset, 
+        universe_count: universe.length, 
+        candidates,
+        all_diagnostics: all_with_diagnostics // Include diagnostic data for debugging
+      };
     } catch (e) {
       console.error('engine.run error', e.stack || e.message);
       throw e;
@@ -130,27 +185,7 @@ module.exports = class Engine {
       sentiment: sentiment[tk]||{}
     }));
     
-    // Apply proxy short interest estimation for missing data
-    for (const t of enriched) {
-      if (!t.short_interest_pct || !t.days_to_cover) {
-        try {
-          const si = await shortInterestProvider.getWithContext(t.ticker, {
-            adv_30d_shares: t.adv_30d_shares,
-            float_shares: t.float_shares,
-            borrow_fee_trend_pp7d: t.borrow_fee_trend_pp7d,
-            borrow_fee_pct: t.borrow_fee_pct
-          });
-          if (si) {
-            t.short_interest_pct = si.short_interest_pct;
-            t.days_to_cover = si.days_to_cover;
-            t.short_interest_shares = si.short_interest_shares;
-            t._si = si;
-          }
-        } catch (e) {
-          console.warn(`Short interest proxy failed for ${t.ticker}:`, e.message);
-        }
-      }
-    }
+    // Proxy integration now handled in DS.get_short_data(), no manual processing needed
     
     return enriched;
   }
