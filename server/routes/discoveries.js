@@ -151,22 +151,18 @@ router.get('/_debug/smoke', (_req, res) => {
 // GET /api/discoveries/_debug/diagnostics - debug diagnostics
 router.get('/_debug/diagnostics', async (req, res) => {
   try {
-    const rows = await db.getLatestDiscoveriesForEngine(200);
-    const dropsHistogram = {};
-    let sample = null;
-    for (const r of rows) {
-      try {
-        const audit = JSON.parse(r.audit_json || '{}');
-        const reasons = audit.drops || [];
-        for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
-        if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
-      } catch (parseErr) {
-        // Skip malformed JSON
-      }
-    }
-    res.json({ success: true, persisted: rows.length, drop_reasons_histogram: dropsHistogram, sample });
+    const rows = await db.getLatestDiscoveriesForEngine(50);
+    res.json({ 
+      success: true, 
+      persisted: rows.length,
+      sample: rows.length > 0 ? {
+        symbol: rows[0].symbol,
+        action: rows[0].action,
+        audit_available: !!rows[0].audit_json
+      } : null
+    });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false, error: e.message, stack: e.stack });
   }
 });
 
