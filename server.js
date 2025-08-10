@@ -95,14 +95,18 @@ app.get('/api/discoveries/_debug/diagnostics', async (req, res) => {
     const dropsHistogram = {};
     let sample = null;
     for (const r of rows) {
-      const audit = JSON.parse(r.audit_json || '{}');
-      const reasons = audit.drops || [];
-      for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
-      if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
+      try {
+        const audit = JSON.parse(r.audit_json || '{}');
+        const reasons = audit.drops || [];
+        for (const k of reasons) dropsHistogram[k] = (dropsHistogram[k] || 0) + 1;
+        if (!sample) sample = { symbol: r.symbol, action: r.action, drops: reasons, subscores: audit.subscores };
+      } catch (parseErr) {
+        // Skip malformed JSON
+      }
     }
     res.json({ success: true, persisted: rows.length, drop_reasons_histogram: dropsHistogram, sample });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success: false, error: e.message, stack: e.stack });
   }
 });
 // ---- end diagnostics ----
