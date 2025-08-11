@@ -1,8 +1,8 @@
 module.exports = class ActionMapper {
   constructor(cfg) { this.cfg = cfg; }
   map(composite, tech) {
-    // Adjusted thresholds based on actual score ranges (1.5-7.0)
-    if (composite >= 5.0) {
+    // Adjusted thresholds based on scorer's 0-100 scale
+    if (composite >= 80.0) {
       // For high scores, check if we have technical confirmation
       if (this._hasTechnicalConfirmation(tech)) {
         return 'BUY';
@@ -12,8 +12,8 @@ module.exports = class ActionMapper {
       }
     }
     
-    if (composite >= 3.0) return 'WATCHLIST';
-    if (composite >= 2.0) return 'MONITOR';  // Track moderate scores
+    if (composite >= 60.0) return 'WATCHLIST';
+    if (composite >= 40.0) return 'MONITOR';  // Track moderate scores
     
     return 'NO ACTION';
   }
