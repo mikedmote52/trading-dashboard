@@ -19,23 +19,35 @@ class CatalystEstimator {
     
     const catalysts = [];
     
-    // Volume-based catalyst detection
+    // Volume-based catalyst detection (more inclusive)
     const relVolume = volume_today / (avg_volume_30d || volume_today);
-    if (relVolume > 3) {
+    if (relVolume > 2.0) { // Lowered threshold from 3.0
       catalysts.push({
         type: 'volume_breakout',
-        strength: Math.min(relVolume / 5, 1.0),
+        strength: Math.min(relVolume / 4, 1.0), // Adjusted scaling
         description: `${relVolume.toFixed(1)}x volume spike`
+      });
+    } else if (relVolume > 1.5) { // Add moderate volume catalyst
+      catalysts.push({
+        type: 'volume_activity',
+        strength: 0.4,
+        description: `${relVolume.toFixed(1)}x above-average volume`
       });
     }
     
-    // Price movement catalyst detection
-    if (Math.abs(price_change_1d_pct) > 10) {
+    // Price movement catalyst detection (more inclusive)
+    if (Math.abs(price_change_1d_pct) > 7) { // Lowered from 10%
       const direction = price_change_1d_pct > 0 ? 'breakout' : 'breakdown';
       catalysts.push({
         type: `price_${direction}`,
-        strength: Math.min(Math.abs(price_change_1d_pct) / 20, 1.0),
+        strength: Math.min(Math.abs(price_change_1d_pct) / 15, 1.0), // Adjusted scaling
         description: `${Math.abs(price_change_1d_pct).toFixed(1)}% ${direction}`
+      });
+    } else if (Math.abs(price_change_1d_pct) > 4) { // Add moderate price movement
+      catalysts.push({
+        type: 'price_movement',
+        strength: 0.3,
+        description: `${Math.abs(price_change_1d_pct).toFixed(1)}% daily movement`
       });
     }
     

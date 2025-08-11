@@ -1,0 +1,72 @@
+preset: optimized_discovery
+
+# Progressive filtering approach - broad universe, then progressive refinement
+thresholds:
+  # Stage 1: Basic liquidity filters (applied early)
+  price_min: 0.50                    # VIGL criteria: > $0.50
+  avg_dollar_liquidity_min: 1000000  # $1M minimum (very broad)
+  float_shares_max: 500000000        # Very generous float limit
+  
+  # Stage 2: Technical momentum filters (applied before short interest)
+  # These are applied during scoring, not hard filtering
+  rsi_optimal_min: 30                # Allow oversold conditions 
+  rsi_optimal_max: 70                # Allow neutral to bullish
+  rel_volume_min: 1.5                # Minimum volume activity
+  
+  # Stage 3: Short interest filters (now scoring-based, not elimination)
+  short_interest_pct_preferred: 20   # Preferred but not required
+  short_interest_pct_min: 5          # Very low minimum (mostly for scoring)
+  days_to_cover_preferred: 3         # Preferred but not required  
+  days_to_cover_min: 1               # Very low minimum
+  borrow_fee_pct_preferred: 8        # Preferred but not required
+  borrow_fee_pct_min: 2              # Very low minimum
+  borrow_fee_trend_min_pp_7d: -5.0   # Allow declining trends
+  
+  # Catalyst requirements - optional scoring enhancement
+  catalyst_window_days_min: 1
+  catalyst_window_days_max: 90       # Very broad window
+  
+technicals:
+  # Technical filters for scoring, not elimination
+  atr_pct_min: 2                     # Lower volatility requirement
+  rsi_buy_min: 35                    # More inclusive
+  rsi_buy_max: 85                    # More inclusive
+  require_vwap_reclaim: false        # Optional for scoring
+  require_ema_bullish: false         # Optional for scoring
+  
+  # Volume-based scoring (primary technical filter)
+  volume_spike_threshold: 1.5        # 1.5x normal volume minimum
+  volume_spike_preferred: 3.0        # 3x gets higher scores
+
+# Progressive scoring weights - emphasize momentum and volume over short interest
+weights:
+  optimized_discovery:
+    # Technical momentum gets highest weight
+    technicals: 0.35      # Price patterns, volume, RSI
+    liquidity: 0.25       # Volume and liquidity patterns
+    
+    # Short interest gets lower weight (scoring not elimination) 
+    squeeze: 0.25         # Short interest, borrow fees, DTC
+    catalyst: 0.15        # News, earnings, etc.
+
+# Scoring bonuses (additive scoring instead of hard filters)
+bonuses:
+  high_volume_spike: 15    # +15 points for >3x volume
+  strong_short_interest: 20 # +20 points for >30% SI  
+  rising_borrow_fees: 10   # +10 points for rising fees
+  catalyst_in_window: 12   # +12 points for catalysts
+  oversold_bounce: 8       # +8 points for RSI <35 with volume
+  momentum_breakout: 15    # +15 points for price breakouts
+
+exclusions:
+  exclude_current_holdings: true
+  exclude_halts_today: true
+  max_spread_pct: 8        # More lenient spread
+  
+  # Penny stock exclusion
+  exclude_sub_dollar: false  # Allow sub-dollar but score lower
+
+freshness:
+  short_interest_max_age_days: 45    # More lenient
+  options_max_age_minutes: 60
+  intraday_tech_bar_minutes: 5

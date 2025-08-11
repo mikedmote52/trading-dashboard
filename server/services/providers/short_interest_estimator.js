@@ -24,18 +24,20 @@ class ShortInterestEstimator {
       market_cap
     } = marketData;
     
-    let shortInterestEst = 5.0; // Base estimate
+    let shortInterestEst = 8.0; // More inclusive base estimate
     
-    // Factor 1: RSI-based estimation
-    if (rsi < 30) shortInterestEst += 15; // Very oversold
-    else if (rsi < 40) shortInterestEst += 8; // Oversold
-    else if (rsi > 70) shortInterestEst -= 3; // Overbought (shorts covering)
+    // Factor 1: RSI-based estimation (more generous)
+    if (rsi < 25) shortInterestEst += 18; // Extremely oversold
+    else if (rsi < 35) shortInterestEst += 12; // Very oversold  
+    else if (rsi < 45) shortInterestEst += 6; // Moderately oversold
+    else if (rsi > 75) shortInterestEst -= 2; // Overbought (smaller penalty)
     
-    // Factor 2: Volume analysis  
+    // Factor 2: Volume analysis (more inclusive)
     const relVolume = volume_today / (avg_volume_30d || volume_today);
-    if (relVolume > 3) shortInterestEst += 12; // High volume = potential squeeze
-    else if (relVolume > 2) shortInterestEst += 6;
-    else if (relVolume < 0.5) shortInterestEst -= 2; // Low volume = less interest
+    if (relVolume > 2.5) shortInterestEst += 10; // High volume = potential activity
+    else if (relVolume > 1.5) shortInterestEst += 5; // Above average volume
+    else if (relVolume > 1.0) shortInterestEst += 2; // Normal volume gets small bonus
+    // No penalty for lower volume - just no bonus
     
     // Factor 3: Price performance (poor performance = more shorts)
     if (price_change_30d_pct < -20) shortInterestEst += 10;
