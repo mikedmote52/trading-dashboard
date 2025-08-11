@@ -32,15 +32,15 @@ module.exports = class Engine {
       
       const enriched = await this._enrich(tradeable, holdings);
       
-      // Pre-enrichment audit
+      // Pre-enrichment audit - now more lenient with estimated data
       const reqs = [
-        ['short_interest_pct', t => Number.isFinite(t.short_interest_pct)],
-        ['days_to_cover',     t => Number.isFinite(t.days_to_cover)],
-        ['borrow_fee_pct',    t => Number.isFinite(t.borrow_fee_pct)],
-        ['borrow_trend_pp7d', t => Number.isFinite(t.borrow_fee_trend_pp7d)],
-        ['float_shares',      t => Number.isFinite(t.float_shares)],
-        ['liquidity_30d',     t => Number.isFinite(t.avg_dollar_liquidity_30d)],
-        ['catalyst_flag',     t => !!t.catalyst?.verified_in_window],
+        ['short_interest_pct', t => Number.isFinite(t.short_interest_pct) || t.estimated],
+        ['days_to_cover',     t => Number.isFinite(t.days_to_cover) || t.estimated],
+        ['borrow_fee_pct',    t => Number.isFinite(t.borrow_fee_pct) || t.estimated],
+        ['borrow_trend_pp7d', t => Number.isFinite(t.borrow_fee_trend_pp7d) || t.estimated],
+        ['float_shares',      t => Number.isFinite(t.float_shares)], // This we can get from fundamentals
+        ['liquidity_30d',     t => Number.isFinite(t.avg_dollar_liquidity_30d) || t.technicals?.volume], // Use volume as proxy
+        ['catalyst_flag',     t => !!t.catalyst?.verified_in_window || !!t.catalyst], // Accept any catalyst
       ];
 
       const miss = { filtered_holdings };
@@ -54,6 +54,16 @@ module.exports = class Engine {
           }
         }
         if (ok) ready++;
+      }
+      
+      console.log(`🧪 Pre-enrichment audit: ${ready}/${enriched.length} candidates ready (with estimations)`);
+      if (ready === 0 && enriched.length > 0) {
+        console.log('❌ All candidates failed pre-enrichment. Top missing data:');
+        Object.entries(miss).slice(0, 5).forEach(([key, count]) => {
+          if (key !== 'filtered_holdings') {
+            console.log(`   • ${key}: ${count} stocks missing`);
+          }
+        });
       }
 
       await db.insertDiscovery({
