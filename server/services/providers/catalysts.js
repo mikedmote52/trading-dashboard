@@ -22,6 +22,18 @@ async function get(symbol) {
   // TODO live provider call with whitelist of catalyst types
 
   if (!v) v = fromFile(k);
+  
+  // If no catalyst found, return a neutral placeholder
+  // This prevents blocking stocks that don't have catalyst data
+  if (!v) {
+    v = {
+      verified_in_window: false,
+      date_valid: false,
+      days_to_event: 999, // Outside any reasonable window
+      items: [],
+      placeholder: true // Mark as placeholder data
+    };
+  }
 
   cache.set(k, { t: now, v });
   return v;

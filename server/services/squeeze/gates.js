@@ -16,7 +16,9 @@ module.exports = class Gates {
       if ((r.avg_dollar_liquidity_30d||0) <= th.avg_dollar_liquidity_min) reasons.push('liquidity_below_min');
 
       const c = r.catalyst;
-      if (!c || !c.date_valid || c.days_to_event < th.catalyst_window_days_min || c.days_to_event > th.catalyst_window_days_max){
+      // Allow stocks without catalysts to proceed (they'll score lower in the scorer)
+      // Only block if we have an invalid catalyst that's supposed to be in window but isn't
+      if (c && c.date_valid && (c.days_to_event < th.catalyst_window_days_min || c.days_to_event > th.catalyst_window_days_max)){
         reasons.push('catalyst_invalid_or_out_of_window');
       }
 
