@@ -128,7 +128,7 @@ router.get('/top', async (req, res) => {
       return {
         symbol: r.symbol,
         name: r.symbol,
-        currentPrice: r.price,
+        currentPrice: r.price || 0,
         marketCap: 100000000,
         volumeSpike: f.technicals?.rel_volume || 1.0,
         momentum: 0,
@@ -156,6 +156,7 @@ router.get('/top', async (req, res) => {
     res.json({
       success: false,
       error: error.message,
+      count: 0,
       discoveries: []
     });
   }
