@@ -83,7 +83,7 @@ router.get('/latest', async (req, res) => {
           freshness: a.freshness
         }
       };
-    }).filter(x => (x.action === 'BUY' || x.action === 'WATCHLIST'));
+    }).filter(x => (x.action === 'BUY' || x.action === 'WATCHLIST' || x.action === 'MONITOR'));
     res.json({ success: true, discoveries: items });
   } catch (e) {
     console.error('Latest discoveries error:', e);
@@ -116,7 +116,7 @@ router.get('/top', async (req, res) => {
         recommendation: r.action,
         viglScore: Math.min(r.score / 100, 1.0)
       };
-    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST');
+    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR');
     
     res.json({
       success: true,

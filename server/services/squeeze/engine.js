@@ -126,7 +126,7 @@ module.exports = class Engine {
           drops: drops[t.ticker]||[] 
         };
 
-        if (action === 'BUY' || action === 'WATCHLIST'){
+        if (action === 'BUY' || action === 'WATCHLIST' || action === 'MONITOR'){
           const row = this._formatRow(t, composite, this.cfg.preset, action, audit);
           // Add score_explain to the emit object
           row.emit.score_explain = {
