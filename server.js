@@ -80,7 +80,83 @@ app.use('/api/discoveries', discoveriesRouter);
 app.use('/api/portfolio', require('./server/routes/portfolio'));
 app.use('/api/pm', require('./server/routes/pm'));
 
-// Dashboard endpoint removed - using the complete one at line 1272
+// Main dashboard data - moved before 404 handler
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const portfolio = await fetchAlpacaPositions();
+    
+    // Add risk analysis and thesis to each position
+    portfolio.positions = portfolio.positions.map(position => {
+      const riskAnalysis = analyzePositionRisk(position);
+      const thesis = PositionThesis.generateThesis(position);
+      
+      return {
+        ...position,
+        riskAnalysis,
+        thesis
+      };
+    });
+    
+    const discoveries = await scanForViglPatterns();
+    
+    // Fetch real portfolio alerts from API service
+    const portfolioAlerts = await fetchPortfolioAlerts();
+    
+    // Combine with existing alert system
+    const alerts = await generateAlerts(portfolio, discoveries);
+    
+    // Add critical portfolio alerts to the top
+    if (portfolioAlerts.length > 0) {
+      portfolioAlerts.forEach(alert => {
+        alerts.unshift({
+          id: `portfolio-${alert.symbol}`,
+          type: 'PORTFOLIO',
+          severity: alert.alert_level === 'CRITICAL' ? 'HIGH' : alert.alert_level,
+          title: `${alert.symbol}: ${alert.action}`,
+          message: alert.message,
+          symbol: alert.symbol,
+          timestamp: alert.created_at,
+          action: alert.action
+        });
+      });
+    }
+    
+    // Generate comprehensive portfolio health analysis
+    const healthAnalysis = PortfolioHealth.analyzePortfolioHealth(portfolio, discoveries);
+    
+    const dashboardData = {
+      portfolio: {
+        ...portfolio,
+        // Add total P&L tracking
+        totalPnL: portfolio.totalPnL || 0,
+        totalPnLPercent: portfolio.totalPnLPercent || 0
+      },
+      discoveries,
+      alerts,
+      health: healthAnalysis,
+      lastUpdated: new Date().toISOString(),
+      summary: {
+        totalValue: portfolio.totalValue,
+        dailyPnL: portfolio.dailyPnL,
+        totalPnL: portfolio.totalPnL || 0,
+        viglScore: discoveries.length > 0 ? Math.max(...discoveries.map(d => d.confidence)) : 0,
+        avgWolfRisk: portfolio.positions.length > 0 
+          ? portfolio.positions.reduce((sum, p) => sum + p.riskAnalysis.wolfScore, 0) / portfolio.positions.length
+          : 0,
+        highRiskPositions: portfolio.positions.filter(p => p.riskAnalysis.wolfScore >= 0.6).length,
+        viglOpportunities: discoveries.filter(d => d.confidence >= 0.6).length
+      }
+    };
+    
+    // Simple backup (non-critical, won't affect functionality)
+    saveSimpleBackup(dashboardData);
+    
+    res.json(dashboardData);
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+});
 
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
@@ -1225,83 +1301,7 @@ async function fetchPortfolioAlerts() {
   }
 }
 
-// Main dashboard data
-app.get('/api/dashboard', async (req, res) => {
-  try {
-    const portfolio = await fetchAlpacaPositions();
-    
-    // Add risk analysis and thesis to each position
-    portfolio.positions = portfolio.positions.map(position => {
-      const riskAnalysis = analyzePositionRisk(position);
-      const thesis = PositionThesis.generateThesis(position);
-      
-      return {
-        ...position,
-        riskAnalysis,
-        thesis
-      };
-    });
-    
-    const discoveries = await scanForViglPatterns();
-    
-    // Fetch real portfolio alerts from API service
-    const portfolioAlerts = await fetchPortfolioAlerts();
-    
-    // Combine with existing alert system
-    const alerts = await generateAlerts(portfolio, discoveries);
-    
-    // Add critical portfolio alerts to the top
-    if (portfolioAlerts.length > 0) {
-      portfolioAlerts.forEach(alert => {
-        alerts.unshift({
-          id: `portfolio-${alert.symbol}`,
-          type: 'PORTFOLIO',
-          severity: alert.alert_level === 'CRITICAL' ? 'HIGH' : alert.alert_level,
-          title: `${alert.symbol}: ${alert.action}`,
-          message: alert.message,
-          symbol: alert.symbol,
-          timestamp: alert.created_at,
-          action: alert.action
-        });
-      });
-    }
-    
-    // Generate comprehensive portfolio health analysis
-    const healthAnalysis = PortfolioHealth.analyzePortfolioHealth(portfolio, discoveries);
-    
-    dashboardData = {
-      portfolio: {
-        ...portfolio,
-        // Add total P&L tracking
-        totalPnL: portfolio.totalPnL || 0,
-        totalPnLPercent: portfolio.totalPnLPercent || 0
-      },
-      discoveries,
-      alerts,
-      health: healthAnalysis,
-      lastUpdated: new Date().toISOString(),
-      summary: {
-        totalValue: portfolio.totalValue,
-        dailyPnL: portfolio.dailyPnL,
-        totalPnL: portfolio.totalPnL || 0,
-        viglScore: discoveries.length > 0 ? Math.max(...discoveries.map(d => d.confidence)) : 0,
-        avgWolfRisk: portfolio.positions.length > 0 
-          ? portfolio.positions.reduce((sum, p) => sum + p.riskAnalysis.wolfScore, 0) / portfolio.positions.length
-          : 0,
-        highRiskPositions: portfolio.positions.filter(p => p.riskAnalysis.wolfScore >= 0.6).length,
-        viglOpportunities: discoveries.filter(d => d.confidence >= 0.6).length
-      }
-    };
-    
-    // Simple backup (non-critical, won't affect functionality)
-    saveSimpleBackup(dashboardData);
-    
-    res.json(dashboardData);
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard data' });
-  }
-});
+// Duplicate dashboard endpoint removed - using the one before 404 handler
 
 // Check VIGL scan status
 app.get('/api/vigl-status', (req, res) => {
