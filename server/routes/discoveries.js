@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Engine = require('../services/squeeze/engine');
+const EngineOptimized = require('../services/squeeze/engine_optimized');
 const db = require('../db/sqlite');
 
 // simple in-memory job registry
@@ -22,7 +23,10 @@ router.post('/scan', async (req, res) => {
     job.started = new Date().toISOString();
 
     try {
-      const out = await new Engine().run();
+      // Use optimized engine for better discovery results
+      const useOptimized = process.env.USE_OPTIMIZED_ENGINE !== 'false'; // Default to true
+      const EngineClass = useOptimized ? EngineOptimized : Engine;
+      const out = await new EngineClass().run();
       job.status = 'done';
       job.finished = new Date().toISOString();
       job.candidates = (out.candidates || []).length;
@@ -50,7 +54,10 @@ router.post('/run', async (req, res) => {
     job.started = new Date().toISOString();
 
     try {
-      const out = await new Engine().run();
+      // Use optimized engine for better discovery results
+      const useOptimized = process.env.USE_OPTIMIZED_ENGINE !== 'false'; // Default to true
+      const EngineClass = useOptimized ? EngineOptimized : Engine;
+      const out = await new EngineClass().run();
       job.status = 'done';
       job.finished = new Date().toISOString();
       job.candidates = (out.candidates || []).length;
