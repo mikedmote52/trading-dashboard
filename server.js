@@ -75,9 +75,65 @@ app.use(cors());
 app.use(express.json());
 
 // mount API routes first
-app.use('/api/discoveries', require('./server/routes/discoveries'));
+const discoveriesRouter = require('./server/routes/discoveries');
+app.use('/api/discoveries', discoveriesRouter);
 app.use('/api/portfolio', require('./server/routes/portfolio'));
 app.use('/api/pm', require('./server/routes/pm'));
+
+// Dashboard endpoint - use the same dashboard method from discoveries router
+app.get('/api/dashboard', async (req, res) => {
+  const db = require('./server/db/sqlite');
+  
+  function safeParseJSON(x, fallback) {
+    if (x == null) return fallback;
+    if (x === 'undefined') return fallback;
+    try { return JSON.parse(x); } catch { return fallback; }
+  }
+  
+  try {
+    const rows = await db.getLatestDiscoveriesForEngine(10);
+    const discoveries = rows.map(r => {
+      const f = safeParseJSON(r.features_json, {});
+      return {
+        symbol: r.symbol,
+        name: r.symbol,
+        currentPrice: r.price || 0,
+        marketCap: 100000000,
+        volumeSpike: f.technicals?.rel_volume || 1.0,
+        momentum: 0,
+        breakoutStrength: Math.min(r.score / 100, 1.0),
+        sector: 'Technology',
+        catalysts: f.catalyst?.type ? [f.catalyst.type] : ['Pattern match'],
+        similarity: Math.min(r.score / 100, 1.0),
+        confidence: Math.min(r.score / 100, 1.0),
+        isHighConfidence: r.score >= 75,
+        estimatedUpside: r.score >= 75 ? '100-200%' : '50-100%',
+        discoveredAt: r.created_at,
+        riskLevel: r.score >= 70 ? 'MODERATE' : 'HIGH',
+        recommendation: r.action,
+        viglScore: Math.min(r.score / 100, 1.0)
+      };
+    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR');
+    
+    res.json({
+      success: true,
+      discoveries,
+      lastUpdated: new Date().toISOString(),
+      summary: {
+        viglOpportunities: discoveries.length,
+        highConfidence: discoveries.filter(d => d.isHighConfidence).length
+      }
+    });
+  } catch (error) {
+    console.error('Dashboard endpoint error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      discoveries: [],
+      summary: { viglOpportunities: 0, highConfidence: 0 }
+    });
+  }
+});
 
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));

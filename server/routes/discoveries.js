@@ -340,4 +340,51 @@ router.get('/_debug/last-error', (_req, res) => {
   }
 });
 
+// Dashboard endpoint for frontend compatibility - returns discoveries in dashboard format
+router.get('/dashboard', async (req, res) => {
+  try {
+    const rows = await db.getLatestDiscoveriesForEngine(10);
+    const discoveries = rows.map(r => {
+      const f = safeParseJSON(r.features_json, {});
+      return {
+        symbol: r.symbol,
+        name: r.symbol,
+        currentPrice: r.price || 0,
+        marketCap: 100000000,
+        volumeSpike: f.technicals?.rel_volume || 1.0,
+        momentum: 0,
+        breakoutStrength: Math.min(r.score / 100, 1.0),
+        sector: 'Technology',
+        catalysts: f.catalyst?.type ? [f.catalyst.type] : ['Pattern match'],
+        similarity: Math.min(r.score / 100, 1.0),
+        confidence: Math.min(r.score / 100, 1.0),
+        isHighConfidence: r.score >= 75,
+        estimatedUpside: r.score >= 75 ? '100-200%' : '50-100%',
+        discoveredAt: r.created_at,
+        riskLevel: r.score >= 70 ? 'MODERATE' : 'HIGH',
+        recommendation: r.action,
+        viglScore: Math.min(r.score / 100, 1.0)
+      };
+    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR');
+    
+    res.json({
+      success: true,
+      discoveries,
+      lastUpdated: new Date().toISOString(),
+      summary: {
+        viglOpportunities: discoveries.length,
+        highConfidence: discoveries.filter(d => d.isHighConfidence).length
+      }
+    });
+  } catch (error) {
+    console.error('Dashboard endpoint error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      discoveries: [],
+      summary: { viglOpportunities: 0, highConfidence: 0 }
+    });
+  }
+});
+
 module.exports = router;
