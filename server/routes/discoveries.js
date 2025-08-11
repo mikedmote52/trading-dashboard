@@ -7,6 +7,34 @@ const db = require('../db/sqlite');
 const jobs = new Map();
 let lastJob = null;
 
+// POST /api/discoveries/scan -> alias for /run (frontend compatibility)
+router.post('/scan', async (req, res) => {
+  const id = `scan-${Date.now()}`;
+  const job = { id, status: 'queued', started: null, finished: null, error: null, candidates: 0 };
+  jobs.set(id, job);
+  lastJob = job;
+  res.status(202).json({ success: true, job: id, count: 0 });
+
+  setImmediate(async () => {
+    const job = jobs.get(id);
+    if (!job) return;
+    job.status = 'running';
+    job.started = new Date().toISOString();
+
+    try {
+      const out = await new Engine().run();
+      job.status = 'done';
+      job.finished = new Date().toISOString();
+      job.candidates = (out.candidates || []).length;
+    } catch (e) {
+      job.status = 'error';
+      job.finished = new Date().toISOString();
+      job.error = e.message;
+      console.error('Engine scan error:', e);
+    }
+  });
+});
+
 // POST /api/discoveries/run -> 202 with job id, engine runs in background
 router.post('/run', async (req, res) => {
   const id = `run-${Date.now()}`;
