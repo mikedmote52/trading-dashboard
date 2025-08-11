@@ -111,7 +111,7 @@ router.get('/latest', async (req, res) => {
           freshness: a.freshness
         }
       };
-    }).filter(x => (x.action === 'BUY' || x.action === 'WATCHLIST' || x.action === 'MONITOR'));
+    }).filter(x => (x.action === 'BUY' || x.action === 'WATCHLIST' || x.action === 'MONITOR') && x.price > 0);
     res.json({ success: true, discoveries: items });
   } catch (e) {
     console.error('Latest discoveries error:', e);
@@ -144,7 +144,10 @@ router.get('/top', async (req, res) => {
         recommendation: r.action,
         viglScore: Math.min(r.score / 100, 1.0)
       };
-    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR');
+    }).filter(r => 
+      (r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR') &&
+      r.currentPrice > 0
+    );
     
     res.json({
       success: true,
@@ -366,7 +369,10 @@ router.get('/dashboard', async (req, res) => {
         recommendation: r.action,
         viglScore: Math.min(r.score / 100, 1.0)
       };
-    }).filter(r => r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR');
+    }).filter(r => 
+      (r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR') &&
+      r.currentPrice > 0
+    );
     
     res.json({
       success: true,
