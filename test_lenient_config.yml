@@ -1,0 +1,35 @@
+preset: test_lenient
+
+thresholds:
+  short_interest_pct_min: 20
+  days_to_cover_min: 5
+  borrow_fee_pct_min: 5
+  borrow_fee_trend_min_pp_7d: -10.0
+  float_shares_max: 50000000000  # 50B shares - allows large caps
+  avg_dollar_liquidity_min: 1000000
+  catalyst_window_days_min: 0
+  catalyst_window_days_max: 365
+
+technicals:
+  atr_pct_min: 0
+  rsi_buy_min: 30
+  rsi_buy_max: 90
+  require_vwap_reclaim: false
+  require_ema_bullish: false
+
+weights:
+  test_lenient:
+    squeeze: 0.70
+    catalyst: 0.10
+    liquidity: 0.10
+    technicals: 0.10
+
+exclusions:
+  exclude_current_holdings: false
+  exclude_halts_today: false
+  max_spread_pct: 10
+
+freshness:
+  short_interest_max_age_days: 30
+  options_max_age_minutes: 60
+  intraday_tech_bar_minutes: 5

@@ -1,0 +1,264 @@
+{
+  "timestamp": "2025-08-10T22:14:27.457Z",
+  "test_symbols": [
+    "UP",
+    "LIXT",
+    "AEVA",
+    "TSLA",
+    "AAPL"
+  ],
+  "required_fields": {
+    "short_interest_pct": "shortinterest",
+    "days_to_cover": "shortinterest",
+    "borrow_fee_pct": "borrow",
+    "borrow_fee_trend_pp7d": "borrow",
+    "float_shares": "fundamentals",
+    "adv_30d_shares": "liquidity"
+  },
+  "provider_results": {
+    "fundamentals": {
+      "success": 5,
+      "null_response": 0,
+      "errors": 0,
+      "details": {
+        "UP": {
+          "status": "SUCCESS",
+          "keys": [
+            "float_shares",
+            "market_cap",
+            "shares_outstanding",
+            "asof"
+          ],
+          "data_preview": "{\"float_shares\":698874225,\"market_cap\":957457688.2500001,\"asof\":\"2025-08-10\"}…"
+        },
+        "LIXT": {
+          "status": "SUCCESS",
+          "keys": [
+            "float_shares",
+            "market_cap",
+            "shares_outstanding",
+            "asof"
+          ],
+          "data_preview": "{\"float_shares\":2684074,\"market_cap\":13561802.240000002,\"asof\":\"2025-08-10\"}…"
+        },
+        "AEVA": {
+          "status": "SUCCESS",
+          "keys": [
+            "float_shares",
+            "market_cap",
+            "shares_outstanding",
+            "asof"
+          ],
+          "data_preview": "{\"float_shares\":55022644,\"market_cap\":775069124.48,\"asof\":\"2025-08-10\"}…"
+        },
+        "TSLA": {
+          "status": "SUCCESS",
+          "keys": [
+            "float_shares",
+            "market_cap",
+            "shares_outstanding",
+            "asof"
+          ],
+          "data_preview": "{\"float_shares\":3225448889,\"market_cap\":1031853354079.9901,\"asof\":\"2025-08-10\"}…"
+        },
+        "AAPL": {
+          "status": "SUCCESS",
+          "keys": [
+            "float_shares",
+            "market_cap",
+            "shares_outstanding",
+            "asof"
+          ],
+          "data_preview": "{\"float_shares\":14935826000,\"market_cap\":3164713167500,\"asof\":\"2025-08-10\"}…"
+        }
+      }
+    },
+    "liquidity": {
+      "success": 5,
+      "null_response": 0,
+      "errors": 0,
+      "details": {
+        "UP": {
+          "status": "SUCCESS",
+          "keys": [
+            "liquidity_30d",
+            "adv_30d_shares",
+            "asof"
+          ],
+          "data_preview": "{\"liquidity_30d\":1340760,\"adv_30d_shares\":902108,\"asof\":\"2025-08-10\"}…"
+        },
+        "LIXT": {
+          "status": "SUCCESS",
+          "keys": [
+            "liquidity_30d",
+            "adv_30d_shares",
+            "asof"
+          ],
+          "data_preview": "{\"liquidity_30d\":1073156,\"adv_30d_shares\":270370,\"asof\":\"2025-08-10\"}…"
+        },
+        "AEVA": {
+          "status": "SUCCESS",
+          "keys": [
+            "liquidity_30d",
+            "adv_30d_shares",
+            "asof"
+          ],
+          "data_preview": "{\"liquidity_30d\":59941087,\"adv_30d_shares\":2779650,\"asof\":\"2025-08-10\"}…"
+        },
+        "TSLA": {
+          "status": "SUCCESS",
+          "keys": [
+            "liquidity_30d",
+            "adv_30d_shares",
+            "asof"
+          ],
+          "data_preview": "{\"liquidity_30d\":28545809459,\"adv_30d_shares\":89646167,\"asof\":\"2025-08-10\"}…"
+        },
+        "AAPL": {
+          "status": "SUCCESS",
+          "keys": [
+            "liquidity_30d",
+            "adv_30d_shares",
+            "asof"
+          ],
+          "data_preview": "{\"liquidity_30d\":12611397460,\"adv_30d_shares\":59439961,\"asof\":\"2025-08-10\"}…"
+        }
+      }
+    },
+    "borrow": {
+      "success": 5,
+      "null_response": 0,
+      "errors": 0,
+      "details": {
+        "UP": {
+          "status": "SUCCESS",
+          "keys": [
+            "borrow_fee_pct",
+            "borrow_fee_trend_pp7d",
+            "utilization_pct",
+            "asof"
+          ],
+          "data_preview": "{\"borrow_fee_pct\":18.5,\"borrow_fee_trend_pp7d\":5.2,\"utilization_pct\":null,\"asof\":\"2025-08-10\"}…"
+        },
+        "LIXT": {
+          "status": "SUCCESS",
+          "keys": [
+            "borrow_fee_pct",
+            "borrow_fee_trend_pp7d",
+            "utilization_pct",
+            "asof",
+            "provenance"
+          ],
+          "data_preview": "{\"borrow_fee_pct\":0.1,\"borrow_fee_trend_pp7d\":-1,\"utilization_pct\":91,\"asof\":\"2025-08-10\",\"provenance\":\"placeholder\"}…"
+        },
+        "AEVA": {
+          "status": "SUCCESS",
+          "keys": [
+            "borrow_fee_pct",
+            "borrow_fee_trend_pp7d",
+            "utilization_pct",
+            "asof",
+            "provenance"
+          ],
+          "data_preview": "{\"borrow_fee_pct\":7,\"borrow_fee_trend_pp7d\":5,\"utilization_pct\":95,\"asof\":\"2025-08-10\",\"provenance\":\"placeholder\"}…"
+        },
+        "TSLA": {
+          "status": "SUCCESS",
+          "keys": [
+            "borrow_fee_pct",
+            "borrow_fee_trend_pp7d",
+            "utilization_pct",
+            "asof",
+            "provenance"
+          ],
+          "data_preview": "{\"borrow_fee_pct\":13,\"borrow_fee_trend_pp7d\":7,\"utilization_pct\":78,\"asof\":\"2025-08-10\",\"provenance\":\"placeholder\"}…"
+        },
+        "AAPL": {
+          "status": "SUCCESS",
+          "keys": [
+            "borrow_fee_pct",
+            "borrow_fee_trend_pp7d",
+            "utilization_pct",
+            "asof",
+            "provenance"
+          ],
+          "data_preview": "{\"borrow_fee_pct\":9,\"borrow_fee_trend_pp7d\":6,\"utilization_pct\":96,\"asof\":\"2025-08-10\",\"provenance\":\"placeholder\"}…"
+        }
+      }
+    },
+    "shortinterest": {
+      "success": 5,
+      "null_response": 0,
+      "errors": 0,
+      "details": {
+        "UP": {
+          "status": "SUCCESS",
+          "keys": [
+            "short_interest_shares",
+            "short_interest_pct",
+            "days_to_cover",
+            "asof",
+            "provenance",
+            "basis_date"
+          ],
+          "data_preview": "{\"short_interest_shares\":439893911,\"short_interest_pct\":62.94,\"days_to_cover\":487.63,\"asof\":\"2025-08-10\",\"provenance\":\"finra-proxy\",\"basis_date\":\"20250808\"}…"
+        },
+        "LIXT": {
+          "status": "SUCCESS",
+          "keys": [
+            "short_interest_shares",
+            "short_interest_pct",
+            "days_to_cover",
+            "asof",
+            "provenance",
+            "basis_date"
+          ],
+          "data_preview": "{\"short_interest_shares\":720084,\"short_interest_pct\":26.83,\"days_to_cover\":2.66,\"asof\":\"2025-08-10\",\"provenance\":\"finra-proxy\",\"basis_date\":\"20250808\"}…"
+        },
+        "AEVA": {
+          "status": "SUCCESS",
+          "keys": [
+            "short_interest_shares",
+            "short_interest_pct",
+            "days_to_cover",
+            "asof",
+            "provenance",
+            "basis_date"
+          ],
+          "data_preview": "{\"short_interest_shares\":21374067,\"short_interest_pct\":38.85,\"days_to_cover\":7.69,\"asof\":\"2025-08-10\",\"provenance\":\"finra-proxy\",\"basis_date\":\"20250808\"}…"
+        },
+        "TSLA": {
+          "status": "SUCCESS",
+          "keys": [
+            "short_interest_shares",
+            "short_interest_pct",
+            "days_to_cover",
+            "asof",
+            "provenance",
+            "basis_date"
+          ],
+          "data_preview": "{\"short_interest_shares\":1090530272,\"short_interest_pct\":33.81,\"days_to_cover\":12.16,\"asof\":\"2025-08-10\",\"provenance\":\"finra-proxy\",\"basis_date\":\"20250808\"}…"
+        },
+        "AAPL": {
+          "status": "SUCCESS",
+          "keys": [
+            "short_interest_shares",
+            "short_interest_pct",
+            "days_to_cover",
+            "asof",
+            "provenance",
+            "basis_date"
+          ],
+          "data_preview": "{\"short_interest_shares\":9083222647,\"short_interest_pct\":60.82,\"days_to_cover\":152.81,\"asof\":\"2025-08-10\",\"provenance\":\"finra-proxy\",\"basis_date\":\"20250808\"}…"
+        }
+      }
+    }
+  },
+  "missing_dependencies": {
+    "UP": {},
+    "LIXT": {},
+    "AEVA": {},
+    "TSLA": {},
+    "AAPL": {}
+  }
+}

@@ -8,6 +8,10 @@ module.exports = class Gates {
     for (const r of rows){
       const reasons=[];
       if (r._held) reasons.push('portfolio_exclusion');
+      
+      // VIGL criteria: Price must be > $0.50 
+      if ((r.price||0) <= (th.price_min || 0.50)) reasons.push('price_below_minimum');
+      
       if (r.float_shares > th.float_shares_max) reasons.push('float_exceeds_max');
       if ((r.short_interest_pct||0) <= th.short_interest_pct_min) reasons.push('si_below_min');
       if ((r.days_to_cover||0) <= th.days_to_cover_min) reasons.push('dtc_below_min');

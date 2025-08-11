@@ -1,0 +1,42 @@
+preset: lenient_discovery
+
+# More lenient thresholds to allow discovery of stocks with partial data
+thresholds:
+  # Lower short interest threshold to catch more opportunities
+  short_interest_pct_min: 15  # Lowered from 30
+  days_to_cover_min: 3        # Lowered from 7
+  borrow_fee_pct_min: 5       # Lowered from 15
+  borrow_fee_trend_min_pp_7d: 0.0
+  float_shares_max: 200000000  # Increased slightly
+  avg_dollar_liquidity_min: 2000000  # Lowered from 5M
+  
+  # Catalyst requirements - more flexible
+  catalyst_window_days_min: 7   # Lowered from 14
+  catalyst_window_days_max: 60  # Increased from 30
+  
+  # Price minimum to maintain VIGL criteria (>$0.50)
+  price_min: 0.50
+
+technicals:
+  atr_pct_min: 3              # Slightly lower
+  rsi_buy_min: 55             # More lenient
+  rsi_buy_max: 80             # More lenient  
+  require_vwap_reclaim: false # Don't require for testing
+  require_ema_bullish: false  # Don't require for testing
+
+weights:
+  lenient_discovery:
+    squeeze: 0.40        # Lower emphasis on squeeze data
+    catalyst: 0.15       # Lower emphasis on catalysts  
+    liquidity: 0.20      # Higher emphasis on liquidity
+    technicals: 0.25     # Higher emphasis on technicals/volume
+
+exclusions:
+  exclude_current_holdings: true
+  exclude_halts_today: true
+  max_spread_pct: 5      # More lenient spread
+
+freshness:
+  short_interest_max_age_days: 30  # More lenient age requirement
+  options_max_age_minutes: 30
+  intraday_tech_bar_minutes: 5
