@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIGL Discovery System - Rebuilt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+        .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+        .pulse-dot { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-green { color: #10b981; }
+        .status-yellow { color: #f59e0b; }
+        .status-red { color: #ef4444; }
+        
+        /* Discovery Card Styles */
+        .discovery-card {
+            transition: all 0.3s ease;
+        }
+        .discovery-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Action Badge Styles */
+        .action-buy { @apply bg-green-600 text-green-100; }
+        .action-watchlist { @apply bg-yellow-600 text-yellow-100; }
+        .action-monitor { @apply bg-blue-600 text-blue-100; }
+        
+        /* Score Bar */
+        .score-bar {
+            background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+            height: 4px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white">
+    <div class="container mx-auto px-4 py-6">
+        
+        <!-- Header -->
+        <div class="glass-effect rounded-2xl p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2">🎯 VIGL Discovery System</h1>
+                    <p class="text-blue-200">Rebuilt Pattern Recognition Dashboard</p>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="refreshBtn" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition-colors">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Status Indicators -->
+            <div class="flex items-center space-x-6 mt-4 text-sm">
+                <div class="flex items-center">
+                    <div id="connectionDot" class="w-3 h-3 rounded-full mr-2 pulse-dot status-yellow"></div>
+                    <span id="connectionStatus">Connecting...</span>
+                </div>
+                <div id="lastUpdated" class="text-blue-200">Last updated: --</div>
+                <div id="scanStatus" class="text-blue-200">Ready to scan</div>
+            </div>
+        </div>
+
+        <!-- VIGL Pattern Discoveries - Rebuilt Section -->
+        <div class="glass-effect rounded-xl p-6">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold mb-1">🔍 VIGL Pattern Discoveries</h2>
+                    <p class="text-blue-200 text-sm">Live pattern recognition using optimized discovery engine</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="scanMarketBtn" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center">
+                        <span id="scanIcon">🔍</span>
+                        <span id="scanText" class="ml-2">Scan Market</span>
+                    </button>
+                    <button id="clearDiscoveriesBtn" class="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded-lg text-sm transition-colors">
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Discovery Stats Bar -->
+            <div id="discoveryStats" class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold" id="totalDiscoveries">0</div>
+                    <div class="text-xs text-blue-300">Total Found</div>
+                </div>
+                <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold text-green-400" id="buyCount">0</div>
+                    <div class="text-xs text-blue-300">BUY Signals</div>
+                </div>
+                <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold text-yellow-400" id="watchlistCount">0</div>
+                    <div class="text-xs text-blue-300">Watchlist</div>
+                </div>
+                <div class="bg-gray-800 bg-opacity-50 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold text-blue-400" id="monitorCount">0</div>
+                    <div class="text-xs text-blue-300">Monitor</div>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="flex items-center space-x-4 mb-6">
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="filterBuy" checked class="rounded">
+                    <span class="text-sm">Show BUY</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="filterWatchlist" checked class="rounded">
+                    <span class="text-sm">Show WATCHLIST</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="filterMonitor" checked class="rounded">
+                    <span class="text-sm">Show MONITOR</span>
+                </label>
+                <div class="ml-auto flex items-center space-x-2">
+                    <label class="text-sm">Min Score:</label>
+                    <input type="range" id="minScoreSlider" min="0" max="100" value="60" class="w-24">
+                    <span id="minScoreValue" class="text-sm font-bold">60</span>
+                </div>
+            </div>
+
+            <!-- Discoveries Container -->
+            <div id="discoveriesContainer" class="space-y-4">
+                <!-- Default state -->
+                <div id="emptyState" class="text-center py-12">
+                    <div class="text-6xl mb-4">🔍</div>
+                    <h3 class="text-xl font-bold mb-2">Ready to Discover VIGL Patterns</h3>
+                    <p class="text-blue-200 mb-6">Click "Scan Market" to analyze thousands of stocks for volume spikes and momentum patterns</p>
+                    <div class="bg-blue-900 bg-opacity-30 rounded-lg p-4 max-w-md mx-auto">
+                        <div class="text-sm text-blue-200 mb-2">🎯 Looking for patterns similar to VIGL's 324% winner:</div>
+                        <div class="text-xs text-blue-300">
+                            • 20.9x volume spikes<br>
+                            • Price momentum breakouts<br>
+                            • Technical pattern recognition
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading state -->
+                <div id="loadingState" class="hidden text-center py-12">
+                    <div class="animate-spin inline-block w-12 h-12 border-4 border-current border-t-transparent text-purple-400 rounded-full mb-4"></div>
+                    <h3 class="text-xl font-bold mb-2">🔍 Scanning Market for VIGL Patterns</h3>
+                    <p class="text-blue-200 mb-2">Analyzing volume spikes and momentum patterns...</p>
+                    <div class="bg-purple-900 bg-opacity-30 rounded-lg p-3 max-w-md mx-auto">
+                        <div class="text-xs text-purple-200">
+                            ⏱️ This process takes 30-60 seconds<br>
+                            📊 Scanning 500+ stocks with optimized engine
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Discoveries List -->
+                <div id="discoveriesList" class="hidden space-y-4">
+                    <!-- Discovery cards will be inserted here -->
+                </div>
+
+                <!-- No Results State -->
+                <div id="noResultsState" class="hidden text-center py-12">
+                    <div class="text-6xl mb-4">📊</div>
+                    <h3 class="text-xl font-bold mb-2">No VIGL Patterns Found</h3>
+                    <p class="text-blue-200">No patterns matching 65%+ similarity criteria found in current scan</p>
+                    <button onclick="scanMarket()" class="mt-4 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg">
+                        Scan Again
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        class VIGLDiscoverySystem {
+            constructor() {
+                this.discoveries = [];
+                this.filteredDiscoveries = [];
+                this.isScanning = false;
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.updateConnectionStatus();
+                this.loadExistingDiscoveries();
+            }
+
+            setupEventListeners() {
+                document.getElementById('scanMarketBtn').addEventListener('click', () => this.scanMarket());
+                document.getElementById('clearDiscoveriesBtn').addEventListener('click', () => this.clearDiscoveries());
+                document.getElementById('refreshBtn').addEventListener('click', () => this.loadExistingDiscoveries());
+
+                // Filter controls
+                document.getElementById('filterBuy').addEventListener('change', () => this.applyFilters());
+                document.getElementById('filterWatchlist').addEventListener('change', () => this.applyFilters());
+                document.getElementById('filterMonitor').addEventListener('change', () => this.applyFilters());
+                
+                const minScoreSlider = document.getElementById('minScoreSlider');
+                minScoreSlider.addEventListener('input', (e) => {
+                    document.getElementById('minScoreValue').textContent = e.target.value;
+                    this.applyFilters();
+                });
+            }
+
+            async updateConnectionStatus() {
+                try {
+                    const response = await fetch('/api/discoveries/smoke');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        document.getElementById('connectionDot').className = 'w-3 h-3 rounded-full mr-2 pulse-dot status-green';
+                        document.getElementById('connectionStatus').textContent = 'API Connected';
+                    } else {
+                        throw new Error('API not responding');
+                    }
+                } catch (error) {
+                    document.getElementById('connectionDot').className = 'w-3 h-3 rounded-full mr-2 pulse-dot status-red';
+                    document.getElementById('connectionStatus').textContent = 'API Disconnected';
+                }
+            }
+
+            async loadExistingDiscoveries() {
+                try {
+                    this.showLoadingBrief();
+                    
+                    const response = await fetch('/api/discoveries/latest');
+                    const result = await response.json();
+                    
+                    if (result.success && result.discoveries) {
+                        this.discoveries = result.discoveries;
+                        console.log(`📊 Loaded ${this.discoveries.length} existing discoveries`);
+                        
+                        if (this.discoveries.length > 0) {
+                            this.applyFilters();
+                            this.showDiscoveries();
+                        } else {
+                            this.showEmptyState();
+                        }
+                    } else {
+                        this.showEmptyState();
+                    }
+                    
+                    this.updateTimestamp();
+                    
+                } catch (error) {
+                    console.error('Error loading discoveries:', error);
+                    this.showEmptyState();
+                    this.showError('Failed to load existing discoveries');
+                }
+            }
+
+            async scanMarket() {
+                if (this.isScanning) return;
+                
+                try {
+                    this.isScanning = true;
+                    this.showLoadingState();
+                    this.updateScanButton(true);
+                    
+                    // Trigger discovery scan
+                    const scanResponse = await fetch('/api/discoveries/scan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    const scanResult = await scanResponse.json();
+                    
+                    if (!scanResult.success) {
+                        throw new Error(scanResult.error || 'Scan failed');
+                    }
+
+                    // Wait for scan to complete by polling
+                    await this.pollScanCompletion();
+                    
+                    // Load fresh discoveries
+                    await this.loadExistingDiscoveries();
+                    
+                    this.showSuccess(`✅ Market scan completed! Found ${this.discoveries.length} discoveries.`);
+                    
+                } catch (error) {
+                    console.error('Market scan error:', error);
+                    this.showError('Market scan failed: ' + error.message);
+                    this.showEmptyState();
+                } finally {
+                    this.isScanning = false;
+                    this.updateScanButton(false);
+                }
+            }
+
+            async pollScanCompletion() {
+                // Poll for 60 seconds maximum
+                const maxAttempts = 30;
+                let attempts = 0;
+                
+                while (attempts < maxAttempts) {
+                    await this.sleep(2000); // Wait 2 seconds
+                    attempts++;
+                    
+                    try {
+                        const response = await fetch('/api/discoveries/latest');
+                        const result = await response.json();
+                        
+                        if (result.success && result.discoveries && result.discoveries.length > 0) {
+                            // Check if we have recent discoveries (last 5 minutes)
+                            const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+                            const recentDiscoveries = result.discoveries.filter(d => 
+                                new Date(d.discoveredAt || d.created_at).getTime() > fiveMinutesAgo
+                            );
+                            
+                            if (recentDiscoveries.length > 0) {
+                                console.log(`📈 Found ${recentDiscoveries.length} recent discoveries after ${attempts * 2}s`);
+                                return;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Polling error:', error);
+                    }
+                    
+                    // Update loading message
+                    this.updateScanStatus(`Scanning... ${attempts * 2}s elapsed`);
+                }
+                
+                console.log('⏱️ Scan polling timed out after 60 seconds');
+            }
+
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            clearDiscoveries() {
+                this.discoveries = [];
+                this.filteredDiscoveries = [];
+                this.showEmptyState();
+                this.updateStats();
+            }
+
+            applyFilters() {
+                const showBuy = document.getElementById('filterBuy').checked;
+                const showWatchlist = document.getElementById('filterWatchlist').checked;
+                const showMonitor = document.getElementById('filterMonitor').checked;
+                const minScore = parseInt(document.getElementById('minScoreSlider').value);
+
+                this.filteredDiscoveries = this.discoveries.filter(discovery => {
+                    // Action filter
+                    const action = discovery.action || discovery.recommendation;
+                    const actionMatch = (
+                        (showBuy && action === 'BUY') ||
+                        (showWatchlist && action === 'WATCHLIST') ||
+                        (showMonitor && action === 'MONITOR')
+                    );
+                    
+                    // Score filter
+                    const score = discovery.composite_score || discovery.viglScore * 100 || discovery.score || 0;
+                    const scoreMatch = score >= minScore;
+                    
+                    return actionMatch && scoreMatch;
+                });
+
+                this.updateStats();
+                
+                if (this.filteredDiscoveries.length > 0) {
+                    this.renderDiscoveries();
+                } else if (this.discoveries.length > 0) {
+                    this.showNoResultsState();
+                } else {
+                    this.showEmptyState();
+                }
+            }
+
+            updateStats() {
+                const total = this.filteredDiscoveries.length;
+                const buyCount = this.filteredDiscoveries.filter(d => (d.action || d.recommendation) === 'BUY').length;
+                const watchlistCount = this.filteredDiscoveries.filter(d => (d.action || d.recommendation) === 'WATCHLIST').length;
+                const monitorCount = this.filteredDiscoveries.filter(d => (d.action || d.recommendation) === 'MONITOR').length;
+
+                document.getElementById('totalDiscoveries').textContent = total;
+                document.getElementById('buyCount').textContent = buyCount;
+                document.getElementById('watchlistCount').textContent = watchlistCount;
+                document.getElementById('monitorCount').textContent = monitorCount;
+            }
+
+            renderDiscoveries() {
+                const container = document.getElementById('discoveriesList');
+                const sortedDiscoveries = [...this.filteredDiscoveries].sort((a, b) => {
+                    const scoreA = a.composite_score || a.viglScore * 100 || a.score || 0;
+                    const scoreB = b.composite_score || b.viglScore * 100 || b.score || 0;
+                    return scoreB - scoreA;
+                });
+
+                container.innerHTML = sortedDiscoveries.map(discovery => this.createDiscoveryCard(discovery)).join('');
+                this.showDiscoveries();
+            }
+
+            createDiscoveryCard(discovery) {
+                const symbol = discovery.ticker || discovery.symbol;
+                const action = discovery.action || discovery.recommendation || 'MONITOR';
+                const score = discovery.score || discovery.composite_score || discovery.viglScore * 100 || 0;
+                const price = discovery.price || discovery.currentPrice || 0;
+                const volume = discovery.volumeX || discovery.intraday_rel_volume || discovery.volumeSpike || 1;
+                const change = discovery.changePct || discovery.technicals?.price_change_1d_pct || discovery.momentum || 0;
+                
+                // Estimation flags for display
+                const isEstimatedSI = discovery.shortInterestMethod && discovery.shortInterestMethod !== 'actual' && discovery.shortInterestMethod !== 'unknown';
+                const isEstimatedData = discovery.estimatedData || false;
+                const scoreConfidence = discovery.scoreConfidence || discovery.confidence || 1.0;
+                
+                // Action styling
+                const actionClass = {
+                    'BUY': 'action-buy',
+                    'WATCHLIST': 'action-watchlist', 
+                    'MONITOR': 'action-monitor'
+                }[action] || 'action-monitor';
+                
+                // Score color
+                const scoreColor = score >= 80 ? 'text-green-400' : score >= 65 ? 'text-yellow-400' : 'text-blue-400';
+                
+                // Helper functions for safe display
+                const formatValue = (val, decimals = 1, suffix = '') => {
+                    return val !== null && val !== undefined ? `${val.toFixed(decimals)}${suffix}` : '—';
+                };
+                
+                const formatPercent = (val, decimals = 1) => {
+                    if (val === null || val === undefined) return '—';
+                    return `${val >= 0 ? '+' : ''}${val.toFixed(decimals)}%`;
+                };
+                
+                // Volume spike indicator
+                const volumeIndicator = volume >= 3 ? '🚀' : volume >= 2 ? '📈' : '📊';
+                
+                // Short interest data with estimation badge
+                const shortInterest = discovery.shortInterest || discovery.short_interest_pct;
+                const siDisplay = shortInterest !== null ? 
+                    `${shortInterest.toFixed(1)}%${isEstimatedSI ? ' <span class="text-[10px] px-1 py-0.5 rounded bg-yellow-600/60 ml-1">EST</span>' : ''}` : 
+                    '—';
+                
+                // Confidence indicator for score
+                const confidenceIndicator = scoreConfidence < 0.7 ? 
+                    '<span class="text-[10px] px-1 py-0.5 rounded bg-orange-600/60 ml-1">LOW</span>' : '';
+                
+                return `
+                    <div class="discovery-card bg-gray-800 bg-opacity-50 rounded-lg p-5 border-l-4 ${
+                        action === 'BUY' ? 'border-green-400' : 
+                        action === 'WATCHLIST' ? 'border-yellow-400' : 'border-blue-400'
+                    }">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="text-xl font-bold">${symbol}</div>
+                                <span class="px-3 py-1 rounded-full text-xs font-medium ${actionClass}">
+                                    ${action}
+                                </span>
+                                ${isEstimatedData ? '<span class="text-[10px] px-1 py-0.5 rounded bg-blue-600/60">EST</span>' : ''}
+                            </div>
+                            <div class="text-right">
+                                <div class="${scoreColor} text-lg font-bold">${score.toFixed(1)}${confidenceIndicator}</div>
+                                <div class="text-xs text-gray-400">Score</div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-4 text-sm mb-3">
+                            <div>
+                                <div class="text-gray-400 text-xs">Price</div>
+                                <div class="font-bold">$${formatValue(price, 2)}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 text-xs">Volume</div>
+                                <div class="font-bold">${volumeIndicator} ${formatValue(volume, 1, 'x')}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 text-xs">Change</div>
+                                <div class="font-bold ${change >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                    ${formatPercent(change)}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 text-xs mb-4">
+                            <div>
+                                <div class="text-gray-400">Short Interest</div>
+                                <div class="font-semibold">${siDisplay}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Borrow Fee</div>
+                                <div class="font-semibold">${formatValue(discovery.borrowFee || discovery.borrow_fee_pct, 1, '%')}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Score Progress Bar -->
+                        <div class="mb-4">
+                            <div class="flex justify-between text-xs text-gray-400 mb-1">
+                                <span>Pattern Strength</span>
+                                <span>${score.toFixed(0)}/100</span>
+                            </div>
+                            <div class="w-full bg-gray-700 rounded-full h-1">
+                                <div class="score-bar h-1 rounded-full" style="width: ${score}%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Additional Data -->
+                        ${discovery.catalyst && discovery.catalyst.type ? `
+                            <div class="text-xs text-blue-300 mb-2">
+                                🔥 ${discovery.catalyst.type.charAt(0).toUpperCase() + discovery.catalyst.type.slice(1)}
+                                ${discovery.catalyst.description ? ` - ${discovery.catalyst.description}` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        ${discovery.entryHint || discovery.entry_hint ? `
+                            <div class="text-xs text-gray-400 mb-2">
+                                💡 Entry: ${(discovery.entryHint || discovery.entry_hint).type} @ $${formatValue((discovery.entryHint || discovery.entry_hint).triggerPrice || (discovery.entryHint || discovery.entry_hint).trigger_price || price, 2)}
+                            </div>
+                        ` : ''}
+                        
+                        ${discovery.shortInterestMethod && discovery.shortInterestMethod !== 'actual' && discovery.shortInterestMethod !== 'unknown' ? `
+                            <div class="text-xs text-yellow-300 mb-2">
+                                📊 SI estimated via ${discovery.shortInterestMethod.replace('_', ' ')} 
+                                ${discovery.shortInterestConfidence ? `(${(discovery.shortInterestConfidence * 100).toFixed(0)}% confidence)` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="text-xs text-gray-500">
+                                ${discovery.discoveredAt ? new Date(discovery.discoveredAt).toLocaleTimeString() : 'Recently discovered'}
+                                ${discovery.discoveryMethod && discovery.discoveryMethod !== 'legacy' ? ` • ${discovery.discoveryMethod}` : ''}
+                            </div>
+                            ${action === 'BUY' ? `
+                                <button onclick="handleTrade('${symbol}', 'buy')" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs transition-colors">
+                                    Buy Stock
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            showEmptyState() {
+                this.hideAllStates();
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+
+            showLoadingState() {
+                this.hideAllStates();
+                document.getElementById('loadingState').classList.remove('hidden');
+                this.updateScanStatus('Initializing scan...');
+            }
+
+            showLoadingBrief() {
+                document.getElementById('scanStatus').textContent = 'Loading...';
+            }
+
+            showDiscoveries() {
+                this.hideAllStates();
+                document.getElementById('discoveriesList').classList.remove('hidden');
+            }
+
+            showNoResultsState() {
+                this.hideAllStates();
+                document.getElementById('noResultsState').classList.remove('hidden');
+            }
+
+            hideAllStates() {
+                document.getElementById('emptyState').classList.add('hidden');
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('discoveriesList').classList.add('hidden');
+                document.getElementById('noResultsState').classList.add('hidden');
+            }
+
+            updateScanButton(scanning) {
+                const btn = document.getElementById('scanMarketBtn');
+                const icon = document.getElementById('scanIcon');
+                const text = document.getElementById('scanText');
+                
+                if (scanning) {
+                    btn.disabled = true;
+                    btn.className = 'bg-gray-600 px-4 py-2 rounded-lg font-medium cursor-not-allowed flex items-center';
+                    icon.textContent = '⏳';
+                    text.textContent = 'Scanning...';
+                } else {
+                    btn.disabled = false;
+                    btn.className = 'bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center';
+                    icon.textContent = '🔍';
+                    text.textContent = 'Scan Market';
+                }
+            }
+
+            updateScanStatus(message) {
+                document.getElementById('scanStatus').textContent = message;
+            }
+
+            updateTimestamp() {
+                document.getElementById('lastUpdated').textContent = 
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+            }
+
+            showSuccess(message) {
+                console.log('✅', message);
+                this.updateScanStatus(message);
+            }
+
+            showError(message) {
+                console.error('❌', message);
+                this.updateScanStatus(`Error: ${message}`);
+            }
+        }
+
+        // Trade handler function
+        function handleTrade(symbol, action) {
+            alert(`Trade functionality: ${action.toUpperCase()} ${symbol}\n\nThis would integrate with your existing trade modal.`);
+        }
+
+        // Initialize the VIGL Discovery System
+        let viglSystem;
+        document.addEventListener('DOMContentLoaded', () => {
+            viglSystem = new VIGLDiscoverySystem();
+        });
+
+        // Expose global function for manual scanning
+        function scanMarket() {
+            if (viglSystem) {
+                viglSystem.scanMarket();
+            }
+        }
+    </script>
+</body>
+</html>

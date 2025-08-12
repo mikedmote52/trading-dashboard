@@ -5,6 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:v1": "cross-env SELECT_ENGINE=v1 node server.js",
+    "start:optimized": "cross-env SELECT_ENGINE=optimized node server.js",
+    "test:e2e": "node scripts/e2e_verify.js",
     "migrate": "node scripts/init_db.js",
     "dev": "nodemon server.js || node server.js",
     "build": "echo 'No build step required for Node.js app'",
@@ -33,6 +36,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "cross-env": "^10.0.0",
     "jest": "^30.0.5"
   }
 }

@@ -16,6 +16,27 @@
         .status-green { color: #10b981; }
         .status-yellow { color: #f59e0b; }
         .status-red { color: #ef4444; }
+        
+        /* VIGL Discovery Card Styles */
+        .vigl-discovery-card {
+            transition: all 0.3s ease;
+        }
+        .vigl-discovery-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Action Badge Styles */
+        .action-buy { @apply bg-green-600 text-green-100; }
+        .action-watchlist { @apply bg-yellow-600 text-yellow-100; }
+        .action-monitor { @apply bg-blue-600 text-blue-100; }
+        
+        /* Score Bar */
+        .vigl-score-bar {
+            background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+            height: 4px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body class="gradient-bg min-h-screen text-white">
@@ -97,19 +118,96 @@
         <!-- Main Content Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <!-- VIGL Discoveries -->
+            <!-- VIGL Discoveries - Rebuilt -->
             <div class="lg:col-span-2">
                 <div class="glass-effect rounded-xl p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-bold">🔍 VIGL Pattern Discoveries</h2>
-                        <button id="scanViglBtn" class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm transition-colors">
-                            Scan Market
-                        </button>
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold mb-1">🔍 VIGL Pattern Discoveries</h2>
+                            <p class="text-blue-200 text-xs">Optimized pattern recognition system</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="scanViglBtn" class="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-lg font-medium transition-colors flex items-center">
+                                <span id="viglScanIcon">🔍</span>
+                                <span id="viglScanText" class="ml-1 text-sm">Scan Market</span>
+                            </button>
+                            <button id="clearViglBtn" class="bg-gray-600 hover:bg-gray-700 px-2 py-2 rounded-lg text-xs transition-colors">
+                                Clear
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div id="viglDiscoveries" class="space-y-4">
-                        <div class="text-center text-blue-200 py-8">
-                            Click "Scan Market" to discover VIGL patterns...
+
+                    <!-- Discovery Stats -->
+                    <div id="viglStats" class="grid grid-cols-4 gap-2 mb-4">
+                        <div class="bg-gray-800 bg-opacity-50 rounded-md p-2 text-center">
+                            <div class="text-lg font-bold" id="viglTotalDiscoveries">0</div>
+                            <div class="text-xs text-blue-300">Found</div>
+                        </div>
+                        <div class="bg-gray-800 bg-opacity-50 rounded-md p-2 text-center">
+                            <div class="text-lg font-bold text-green-400" id="viglBuyCount">0</div>
+                            <div class="text-xs text-blue-300">BUY</div>
+                        </div>
+                        <div class="bg-gray-800 bg-opacity-50 rounded-md p-2 text-center">
+                            <div class="text-lg font-bold text-yellow-400" id="viglWatchlistCount">0</div>
+                            <div class="text-xs text-blue-300">Watch</div>
+                        </div>
+                        <div class="bg-gray-800 bg-opacity-50 rounded-md p-2 text-center">
+                            <div class="text-lg font-bold text-blue-400" id="viglMonitorCount">0</div>
+                            <div class="text-xs text-blue-300">Monitor</div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="flex items-center space-x-3 mb-4 text-xs">
+                        <label class="flex items-center space-x-1">
+                            <input type="checkbox" id="viglFilterBuy" checked class="rounded">
+                            <span>BUY</span>
+                        </label>
+                        <label class="flex items-center space-x-1">
+                            <input type="checkbox" id="viglFilterWatchlist" checked class="rounded">
+                            <span>WATCH</span>
+                        </label>
+                        <label class="flex items-center space-x-1">
+                            <input type="checkbox" id="viglFilterMonitor" checked class="rounded">
+                            <span>MON</span>
+                        </label>
+                        <div class="ml-auto flex items-center space-x-1">
+                            <span>Score:</span>
+                            <input type="range" id="viglMinScoreSlider" min="0" max="100" value="60" class="w-16">
+                            <span id="viglMinScoreValue" class="font-bold">60</span>
+                        </div>
+                    </div>
+
+                    <!-- Discoveries Container -->
+                    <div id="viglDiscoveries" class="space-y-3">
+                        <!-- Default state -->
+                        <div id="viglEmptyState" class="text-center py-8">
+                            <div class="text-4xl mb-3">🔍</div>
+                            <h3 class="text-lg font-bold mb-2">Ready to Discover VIGL Patterns</h3>
+                            <p class="text-blue-200 text-sm mb-4">Click "Scan Market" to analyze for volume spikes and momentum</p>
+                            <div class="bg-blue-900 bg-opacity-30 rounded-lg p-3 text-xs text-blue-300">
+                                🎯 Scanning for 20.9x volume spikes like VIGL's 324% winner
+                            </div>
+                        </div>
+
+                        <!-- Loading state -->
+                        <div id="viglLoadingState" class="hidden text-center py-8">
+                            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-purple-400 rounded-full mb-3"></div>
+                            <h3 class="text-lg font-bold mb-2">🔍 Scanning Market</h3>
+                            <p class="text-blue-200 text-sm">Analyzing patterns...</p>
+                            <div id="viglScanStatus" class="text-xs text-purple-200 mt-2">Initializing...</div>
+                        </div>
+
+                        <!-- Discoveries List -->
+                        <div id="viglDiscoveriesList" class="hidden space-y-3">
+                            <!-- Discovery cards will be inserted here -->
+                        </div>
+
+                        <!-- No Results State -->
+                        <div id="viglNoResultsState" class="hidden text-center py-8">
+                            <div class="text-4xl mb-3">📊</div>
+                            <h3 class="text-lg font-bold mb-2">No VIGL Patterns Found</h3>
+                            <p class="text-blue-200 text-sm">No patterns matching criteria in current scan</p>
                         </div>
                     </div>
                 </div>
@@ -278,8 +376,10 @@
             initializeEventListeners() {
                 document.getElementById('refreshBtn').addEventListener('click', () => this.loadDashboard());
                 document.getElementById('analyzeBtn').addEventListener('click', () => this.runAnalysis());
-                document.getElementById('scanViglBtn').addEventListener('click', () => this.scanViglPatterns());
                 document.getElementById('analyzePortfolioBtn').addEventListener('click', () => this.analyzePortfolio());
+                
+                // Initialize VIGL Discovery System
+                this.initVIGLDiscoverySystem();
             }
 
             async loadDashboard() {

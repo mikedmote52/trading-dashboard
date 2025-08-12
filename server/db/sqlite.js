@@ -178,7 +178,7 @@ const insertDiscovery = (row) => {
   const params = {
     id: row.id, 
     symbol: row.symbol, 
-    price: row.price ?? 0, 
+    price: Number.isFinite(Number(row.price)) ? Number(row.price) : 0, 
     score: row.score ?? 0,
     preset: row.preset ?? null, 
     action: row.action ?? null,

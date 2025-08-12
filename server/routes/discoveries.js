@@ -3,46 +3,103 @@ const router = express.Router();
 const Engine = require('../services/squeeze/engine');
 const EngineOptimized = require('../services/squeeze/engine_optimized');
 const db = require('../db/sqlite');
+const { safeNum, formatPrice, formatPercent, formatMultiplier } = require('../services/squeeze/metrics_safety');
+
+// New unified service and mapper
+const { scanOnce, topDiscoveries, getEngineInfo } = require('../services/discovery_service');
+const { toUiDiscovery, mapDiscoveries } = require('./mappers/to_ui_discovery');
 
 // simple in-memory job registry
 const jobs = new Map();
 let lastJob = null;
 
-// POST /api/discoveries/scan -> alias for /run (frontend compatibility)
-router.post('/scan', async (req, res) => {
-  const id = `scan-${Date.now()}`;
-  const job = { id, status: 'queued', started: null, finished: null, error: null, candidates: 0 };
-  jobs.set(id, job);
-  lastJob = job;
-  res.status(202).json({ success: true, job: id, count: 0 });
-
-  setImmediate(async () => {
-    const job = jobs.get(id);
-    if (!job) return;
-    job.status = 'running';
-    job.started = new Date().toISOString();
-
-    try {
-      // Use optimized engine for better discovery results
-      const useOptimized = process.env.USE_OPTIMIZED_ENGINE !== 'false'; // Default to true
-      const EngineClass = useOptimized ? EngineOptimized : Engine;
-      const out = await new EngineClass().run();
-      job.status = 'done';
-      job.finished = new Date().toISOString();
-      job.candidates = (out.candidates || []).length;
-    } catch (e) {
-      job.status = 'error';
-      job.finished = new Date().toISOString();
-      job.error = e.message;
-      console.error('Engine scan error:', e);
-    }
-  });
+// Debug endpoint to prove which engine is actually active
+router.get('/_debug/engine', (req, res) => {
+  try {
+    const engineInfo = getEngineInfo();
+    res.json({ 
+      success: true,
+      ...engineInfo,
+      process_env: {
+        SELECT_ENGINE: process.env.SELECT_ENGINE,
+        USE_OPTIMIZED_ENGINE: process.env.USE_OPTIMIZED_ENGINE,
+        NODE_ENV: process.env.NODE_ENV
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      fallback_info: {
+        env_setting: process.env.SELECT_ENGINE || 'v1',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
 });
 
-// POST /api/discoveries/run -> 202 with job id, engine runs in background
+// POST /api/discoveries/scan -> unified scan using DiscoveryService
+router.post('/scan', async (req, res) => {
+  try {
+    if (process.env.SELECT_ENGINE) {
+      const { engine, results } = await scanOnce();
+      const discoveries = mapDiscoveries(results || [])
+        .filter(d => d.price > 0)
+        .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action));
+      
+      return res.json({
+        success: true,
+        engine,
+        count: discoveries.length,
+        discoveries
+      });
+    }
+    
+    // Fallback to job system when SELECT_ENGINE is unset
+    const id = `scan-${Date.now()}`;
+    const job = { id, status: 'queued', started: null, finished: null, error: null, candidates: 0, engine: null };
+    jobs.set(id, job);
+    lastJob = job;
+    res.status(202).json({ success: true, job: id, count: 0 });
+
+    setImmediate(async () => {
+      const job = jobs.get(id);
+      if (!job) return;
+      job.status = 'running';
+      job.started = new Date().toISOString();
+
+      try {
+        // Use unified DiscoveryService - single source of truth
+        const { engine, results, metadata } = await scanOnce();
+        job.status = 'done';
+        job.finished = new Date().toISOString();
+        job.candidates = results.length;
+        job.engine = engine;
+        job.metadata = metadata;
+        
+        console.log(`✅ Scan ${id} completed with engine '${engine}': ${results.length} discoveries`);
+      } catch (e) {
+        job.status = 'error';
+        job.finished = new Date().toISOString();
+        job.error = e.message;
+        console.error(`❌ Scan ${id} failed:`, e);
+      }
+    });
+  } catch (e) {
+    const { key } = pickEngine();
+    res.status(200).json({ 
+      success: false, 
+      engine: key, 
+      discoveries: [], 
+      error: e?.message 
+    });
+  }
+});
+
+// POST /api/discoveries/run -> unified run using DiscoveryService
 router.post('/run', async (req, res) => {
   const id = `run-${Date.now()}`;
-  const job = { id, status: 'queued', started: null, finished: null, error: null, candidates: 0 };
+  const job = { id, status: 'queued', started: null, finished: null, error: null, candidates: 0, engine: null };
   jobs.set(id, job);
   lastJob = job;
   res.status(202).json({ success: true, job: id });
@@ -54,27 +111,39 @@ router.post('/run', async (req, res) => {
     job.started = new Date().toISOString();
 
     try {
-      // Use optimized engine for better discovery results
-      const useOptimized = process.env.USE_OPTIMIZED_ENGINE !== 'false'; // Default to true
-      const EngineClass = useOptimized ? EngineOptimized : Engine;
-      const out = await new EngineClass().run();
+      // Use unified DiscoveryService - single source of truth
+      const { engine, results, metadata } = await scanOnce();
       job.status = 'done';
       job.finished = new Date().toISOString();
-      job.candidates = (out.candidates || []).length;
+      job.candidates = results.length;
+      job.engine = engine;
+      job.metadata = metadata;
+      
+      console.log(`✅ Run ${id} completed with engine '${engine}': ${results.length} discoveries`);
     } catch (e) {
       job.status = 'error';
       job.finished = new Date().toISOString();
       job.error = e.message;
-      console.error('Engine run error:', e);
+      console.error(`❌ Run ${id} failed:`, e);
     }
   });
 });
 
-// GET /api/discoveries/run/:job -> job status
+// GET /api/discoveries/run/:job -> job status with engine info
 router.get('/run/:job', (req, res) => {
   const job = jobs.get(req.params.job);
   if (!job) return res.status(404).json({ success: false, error: 'unknown job' });
-  res.json({ success: true, job: { id: job.id, status: job.status, candidates: job.candidates ?? 0, error: job.error || null } });
+  res.json({ 
+    success: true, 
+    job: { 
+      id: job.id, 
+      status: job.status, 
+      candidates: job.candidates ?? 0, 
+      error: job.error || null,
+      engine: job.engine || null,
+      metadata: job.metadata || null
+    } 
+  });
 });
 
 function safeParseJSON(x, fallback) {
@@ -83,83 +152,174 @@ function safeParseJSON(x, fallback) {
   try { return JSON.parse(x); } catch { return fallback; }
 }
 
-// GET /api/discoveries/latest - Get latest discoveries from squeeze engine
+// Uniform discovery data mapping for consistent frontend contract
+function toUniformDiscovery(rawData) {
+  // Handle both database rows and direct discovery objects
+  const data = rawData.features_json ? safeParseJSON(rawData.features_json, {}) : rawData;
+  const audit = rawData.audit_json ? safeParseJSON(rawData.audit_json, {}) : {};
+  
+  // Core identification
+  const ticker = data.ticker || data.symbol || rawData.symbol;
+  const price = safeNum(data.price || rawData.price, 0);
+  
+  // Skip invalid discoveries
+  if (!ticker || price <= 0) return null;
+  
+  return {
+    ticker,
+    name: data.name || data.company || ticker,
+    price,
+    changePct: safeNum(data.changePct || data.price_change_1d_pct, null),
+    
+    // Volume metrics
+    volumeX: safeNum(data.volumeX || data.intraday_rel_volume || data.technicals?.rel_volume, 1),
+    volumeToday: safeNum(data.volumeToday || data.technicals?.volume, null),
+    avgVolume: safeNum(data.avgVolume || data.technicals?.avg_volume_30d, null),
+    
+    // Short squeeze metrics with estimation tracking
+    shortInterest: safeNum(data.short_interest_pct, null),
+    shortInterestMethod: data.short_interest_method || 'unknown',
+    shortInterestConfidence: safeNum(data.short_interest_confidence, 1.0),
+    daysToCover: safeNum(data.days_to_cover, null),
+    borrowFee: safeNum(data.borrow_fee_pct, null),
+    utilization: safeNum(data.utilization_pct, null),
+    
+    // Float and liquidity
+    floatShares: safeNum(data.float_shares, null),
+    liquidity: safeNum(data.avg_dollar_liquidity_30d, null),
+    
+    // Scoring
+    score: safeNum(data.composite_score || rawData.score, 0),
+    scoreConfidence: safeNum(data.score_confidence || audit.composite_confidence, 1.0),
+    action: data.action || rawData.action || 'MONITOR',
+    
+    // Options flow
+    options: {
+      callPutRatio: safeNum(data.options?.callPut || data.options?.call_put_ratio, null),
+      ivPercentile: safeNum(data.options?.ivPercentile || data.options?.iv_percentile, null),
+      gammaExposure: safeNum(data.options?.gamma || data.options?.gammaExposure, null)
+    },
+    
+    // Technical indicators
+    technicals: {
+      vwap: safeNum(data.technicals?.vwap, null),
+      ema9: safeNum(data.technicals?.ema9, null),
+      ema20: safeNum(data.technicals?.ema20, null),
+      rsi: safeNum(data.technicals?.rsi, null),
+      atrPct: safeNum(data.technicals?.atr_pct || data.technicals?.atrPct, null)
+    },
+    
+    // Catalyst information
+    catalyst: data.catalyst ? {
+      type: data.catalyst.type || 'unknown',
+      description: data.catalyst.description || data.catalyst.title || '',
+      confidence: safeNum(data.catalyst.confidence, 0.5)
+    } : null,
+    
+    // Sentiment
+    sentiment: {
+      score: safeNum(data.sentiment?.score, null),
+      sources: Array.isArray(data.sentiment?.sources) ? data.sentiment.sources : []
+    },
+    
+    // Entry and risk management
+    entryHint: data.entry_hint ? {
+      type: data.entry_hint.type || 'breakout',
+      triggerPrice: safeNum(data.entry_hint.trigger_price, price)
+    } : null,
+    
+    risk: data.risk ? {
+      stopLoss: safeNum(data.risk.stop_loss, price * 0.9),
+      takeProfit1: safeNum(data.risk.tp1, price * 1.2),
+      takeProfit2: safeNum(data.risk.tp2, price * 1.5)
+    } : null,
+    
+    // Metadata
+    discoveredAt: rawData.created_at || data.ts || new Date().toISOString(),
+    discoveryMethod: data.discovery_method || 'legacy',
+    estimatedData: !!data.estimated_data,
+    dataQuality: data.data_quality || {},
+    
+    // Backwards compatibility fields
+    currentPrice: price,
+    similarity: Math.min(safeNum(data.composite_score || rawData.score, 0) / 100, 1.0),
+    confidence: Math.min(safeNum(data.score_confidence, 1.0), 1.0),
+    viglScore: Math.min(safeNum(data.composite_score || rawData.score, 0) / 100, 1.0),
+    recommendation: data.action || rawData.action || 'MONITOR',
+    isHighConfidence: safeNum(data.composite_score || rawData.score, 0) >= 75
+  };
+}
+
+// GET /api/discoveries/latest - Get latest discoveries using unified service
 router.get('/latest', async (req, res) => {
   try {
-    const rows = await db.getLatestDiscoveriesForEngine(50);
-    const items = rows.map(r => {
-      const f = safeParseJSON(r.features_json, {});
-      const a = safeParseJSON(r.audit_json, {});
-
-      return {
-        ticker: r.symbol,
-        price: r.price,
-        composite_score: r.score,
-        action: r.action,
-        catalyst: f.catalyst,
-        technicals: f.technicals,
-        short_interest_pct: f.short_interest_pct,
-        days_to_cover: f.days_to_cover,
-        borrow_fee_pct: f.borrow_fee_pct,
-        avg_dollar_liquidity_30d: f.avg_dollar_liquidity_30d,
-        entry_hint: {
-          type: f?.technicals?.vwap_held_or_reclaimed ? 'vwap_reclaim' : 'base_breakout',
-          trigger_price: f?.technicals?.vwap ?? f?.technicals?.price
-        },
-        risk: f?.technicals?.price ? {
-          stop_loss: +(f.technicals.price * 0.9).toFixed(2),
-          tp1: +(f.technicals.price * 1.2).toFixed(2),
-          tp2: +(f.technicals.price * 1.5).toFixed(2)
-        } : null,
-        audit: {
-          subscores: a.subscores,
-          weights: a.weights,
-          gates: a.gates,
-          freshness: a.freshness
-        }
-      };
-    }).filter(x => (x.action === 'BUY' || x.action === 'WATCHLIST' || x.action === 'MONITOR') && x.price > 0);
-    res.json({ success: true, discoveries: items });
+    const limit = parseInt(req.query.limit) || 50;
+    const rows = await topDiscoveries(Math.min(limit, 200)); // Use unified service
+    
+    const discoveries = mapDiscoveries(rows) // Use safe mapper
+      .filter(d => d.price > 0) // Remove invalid entries
+      .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action)) // Only actionable items
+      .sort((a, b) => b.score - a.score); // Sort by score descending
+    
+    const engineInfo = getEngineInfo();
+    
+    res.json({ 
+      success: true, 
+      discoveries,
+      count: discoveries.length,
+      lastUpdated: new Date().toISOString(),
+      engine: engineInfo.active_engine
+    });
   } catch (e) {
     console.error('Latest discoveries error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    // Never return 500 - always provide empty result for UI stability
+    res.json({ 
+      success: false, 
+      discoveries: [],
+      count: 0,
+      error: e.message,
+      lastUpdated: new Date().toISOString(),
+      engine: 'error'
+    });
   }
 });
 
 // GET /api/discoveries/top - Legacy endpoint for backward compatibility
 router.get('/top', async (req, res) => {
   try {
-    const rows = await db.getLatestDiscoveriesForEngine(10);
-    const items = rows.map(r => {
-      const f = safeParseJSON(r.features_json, {});
-      return {
-        symbol: r.symbol,
-        name: r.symbol,
-        currentPrice: r.price || 0,
-        marketCap: 100000000,
-        volumeSpike: f.technicals?.rel_volume || 1.0,
-        momentum: 0,
-        breakoutStrength: Math.min(r.score / 100, 1.0),
-        sector: 'Technology',
-        catalysts: f.catalyst?.type ? [f.catalyst.type] : ['Pattern match'],
-        similarity: Math.min(r.score / 100, 1.0),
-        confidence: Math.min(r.score / 100, 1.0),
-        isHighConfidence: r.score >= 75,
-        estimatedUpside: r.score >= 75 ? '100-200%' : '50-100%',
-        discoveredAt: r.created_at,
-        riskLevel: r.score >= 70 ? 'MODERATE' : 'HIGH',
-        recommendation: r.action,
-        viglScore: Math.min(r.score / 100, 1.0)
-      };
-    }).filter(r => 
-      (r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR') &&
-      r.currentPrice > 0
-    );
+    const limit = parseInt(req.query.limit) || 10;
+    const rows = await db.getLatestDiscoveriesForEngine(Math.min(limit, 50));
+    
+    const discoveries = rows
+      .map(r => toUniformDiscovery(r))
+      .filter(d => d !== null && d.price > 0)
+      .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action))
+      .sort((a, b) => b.score - a.score)
+      .map(d => ({
+        // Legacy format mapping
+        symbol: d.ticker,
+        name: d.name,
+        currentPrice: d.price,
+        marketCap: d.floatShares ? d.floatShares * d.price : 100000000,
+        volumeSpike: d.volumeX,
+        momentum: d.changePct || 0,
+        breakoutStrength: d.viglScore,
+        sector: 'Technology', // Default sector
+        catalysts: d.catalyst ? [d.catalyst.type] : ['Pattern match'],
+        similarity: d.similarity,
+        confidence: d.confidence,
+        isHighConfidence: d.isHighConfidence,
+        estimatedUpside: d.score >= 75 ? '100-200%' : d.score >= 60 ? '50-100%' : '25-50%',
+        discoveredAt: d.discoveredAt,
+        riskLevel: d.score >= 70 ? 'MODERATE' : 'HIGH',
+        recommendation: d.action,
+        viglScore: d.viglScore
+      }));
     
     res.json({
       success: true,
-      count: items.length,
-      discoveries: items
+      count: discoveries.length,
+      discoveries
     });
   } catch (error) {
     console.error('Error fetching top discoveries:', error);
@@ -354,49 +514,47 @@ router.get('/_debug/last-error', (_req, res) => {
 // Dashboard endpoint for frontend compatibility - returns discoveries in dashboard format
 router.get('/dashboard', async (req, res) => {
   try {
-    const rows = await db.getLatestDiscoveriesForEngine(10);
-    const discoveries = rows.map(r => {
-      const f = safeParseJSON(r.features_json, {});
-      return {
-        symbol: r.symbol,
-        name: r.symbol,
-        currentPrice: r.price || 0,
-        marketCap: 100000000,
-        volumeSpike: f.technicals?.rel_volume || 1.0,
-        momentum: 0,
-        breakoutStrength: Math.min(r.score / 100, 1.0),
-        sector: 'Technology',
-        catalysts: f.catalyst?.type ? [f.catalyst.type] : ['Pattern match'],
-        similarity: Math.min(r.score / 100, 1.0),
-        confidence: Math.min(r.score / 100, 1.0),
-        isHighConfidence: r.score >= 75,
-        estimatedUpside: r.score >= 75 ? '100-200%' : '50-100%',
-        discoveredAt: r.created_at,
-        riskLevel: r.score >= 70 ? 'MODERATE' : 'HIGH',
-        recommendation: r.action,
-        viglScore: Math.min(r.score / 100, 1.0)
-      };
-    }).filter(r => 
-      (r.recommendation === 'BUY' || r.recommendation === 'WATCHLIST' || r.recommendation === 'MONITOR') &&
-      r.currentPrice > 0
-    );
+    const limit = parseInt(req.query.limit) || 20;
+    const rows = await db.getLatestDiscoveriesForEngine(Math.min(limit, 100));
+    
+    const discoveries = rows
+      .map(r => toUniformDiscovery(r))
+      .filter(d => d !== null && d.price > 0)
+      .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action))
+      .sort((a, b) => b.score - a.score);
     
     res.json({
       success: true,
       discoveries,
+      count: discoveries.length,
       lastUpdated: new Date().toISOString(),
       summary: {
         viglOpportunities: discoveries.length,
-        highConfidence: discoveries.filter(d => d.isHighConfidence).length
+        highConfidence: discoveries.filter(d => d.isHighConfidence).length,
+        buySignals: discoveries.filter(d => d.action === 'BUY').length,
+        watchlistItems: discoveries.filter(d => d.action === 'WATCHLIST').length,
+        avgScore: discoveries.length > 0 ? 
+          Math.round(discoveries.reduce((sum, d) => sum + d.score, 0) / discoveries.length) : 0,
+        estimatedDataCount: discoveries.filter(d => d.estimatedData).length
       }
     });
   } catch (error) {
     console.error('Dashboard endpoint error:', error);
-    res.status(500).json({ 
+    // Never return 500 to maintain UI stability
+    res.json({ 
       success: false, 
       error: error.message,
       discoveries: [],
-      summary: { viglOpportunities: 0, highConfidence: 0 }
+      count: 0,
+      lastUpdated: new Date().toISOString(),
+      summary: { 
+        viglOpportunities: 0, 
+        highConfidence: 0,
+        buySignals: 0,
+        watchlistItems: 0,
+        avgScore: 0,
+        estimatedDataCount: 0
+      }
     });
   }
 });

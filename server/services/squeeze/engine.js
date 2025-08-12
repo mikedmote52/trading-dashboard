@@ -201,7 +201,11 @@ module.exports = class Engine {
   }
 
   _formatRow(t, composite, preset, action, audit){
-    const price = t.technicals?.price;
+    let price = t.technicals?.price;
+    // Fix NOT NULL price crash
+    if (!Number.isFinite(Number(price))) {
+      price = 0;
+    }
     const entry_hint = { type: t.technicals?.vwap_held_or_reclaimed ? 'vwap_reclaim' : 'base_breakout', trigger_price: t.technicals?.vwap || price };
     const risk = { stop_loss: +(price*0.9).toFixed(2), tp1: +(price*1.2).toFixed(2), tp2: +(price*1.5).toFixed(2) };
     const emit = {

@@ -1491,6 +1491,17 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔗 API: http://localhost:${PORT}/api/dashboard`);
   console.log(`🔑 Alpaca Connected: ${!!ALPACA_CONFIG.apiKey}`);
   
+  // Show active discovery engine (PROOF of which engine is running)
+  try {
+    const { getEngineInfo } = require('./server/services/discovery_service');
+    const engineInfo = getEngineInfo();
+    console.log(`🎯 VIGL Discovery Engine: ${engineInfo.active_engine.toUpperCase()} (SELECT_ENGINE=${engineInfo.env_setting})`);
+    console.log(`🔍 Available engines: ${engineInfo.available_engines.join(', ')}`);
+    console.log(`🔧 Debug endpoint: http://localhost:${PORT}/api/discoveries/_debug/engine`);
+  } catch (error) {
+    console.error('⚠️ Failed to load engine info:', error.message);
+  }
+  
   // Start capture job for continuous data collection
   try {
     const capture = require('./server/jobs/capture');

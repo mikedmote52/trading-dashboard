@@ -4,6 +4,13 @@ const ActionMapper = require('./action_mapper');
 const DS = require('./data_sources');
 const { loadConfig } = require('./util/config');
 const db = require('../../db/sqlite');
+const { 
+  safeNum, 
+  estimateShortInterest, 
+  compositeScore, 
+  volumeMomentumScore, 
+  squeezePotentialScore 
+} = require('./metrics_safety');
 
 /**
  * Optimized Engine - Progressive Filtering Approach
@@ -59,32 +66,86 @@ module.exports = class EngineOptimized {
       let highScoreCount = 0;
       
       for (const stock of passed) {
-        // Combine traditional scoring with gate scoring
-        const { composite, subscores, weights } = this.scorer.score(stock);
+        // Extract key metrics with safety
+        const price = safeNum(stock.price || stock.technicals?.price, 0);
+        const relVolume = safeNum(stock.technicals?.rel_volume, 1);
+        const shortInterestPct = safeNum(stock.short_interest_pct, null);
+        const daysToCover = safeNum(stock.days_to_cover, null);
+        const borrowFee = safeNum(stock.borrow_fee_pct, null);
+        const utilization = safeNum(stock.utilization_pct, null);
+        
+        // Skip if no valid price (can't trade)
+        if (price <= 0) continue;
+        
+        // Estimate short interest if missing
+        let siData = { value: shortInterestPct, method: 'actual', confidence: 1.0 };
+        if (shortInterestPct == null) {
+          siData = estimateShortInterest({
+            daysToCover,
+            borrowFee,
+            utilization,
+            optionsCPRatio: safeNum(stock.options?.call_put_ratio, null),
+            relVolume,
+            floatShares: safeNum(stock.float_shares, null),
+            price,
+            volatility: safeNum(stock.technicals?.volatility_30d, null)
+          });
+        }
+        
+        // Calculate component scores
+        const volumeMomentum = volumeMomentumScore(relVolume);
+        const squeezePotential = squeezePotentialScore(
+          siData.value, 
+          daysToCover, 
+          borrowFee, 
+          utilization
+        );
+        
+        // Additional scoring components
+        const catalystScore = stock.catalyst?.type ? 
+          (stock.catalyst.type === 'earnings' ? 80 : 
+           stock.catalyst.type === 'news' ? 60 : 40) : null;
+        
+        const sentimentScore = safeNum(stock.sentiment?.score, null);
+        const optionsScore = safeNum(stock.options?.gamma_exposure, null) != null ? 
+          Math.min(100, Math.abs(safeNum(stock.options.gamma_exposure, 0)) * 10) : null;
+        
+        const technicalScore = stock.technicals?.rsi ? 
+          (safeNum(stock.technicals.rsi) < 30 ? 70 : // oversold
+           safeNum(stock.technicals.rsi) > 70 ? 30 : // overbought  
+           50) : null; // neutral
+        
+        // Dynamic composite scoring
+        const scoreComponents = {
+          volumeMomentum,
+          squeezePotential,
+          catalyst: catalystScore,
+          sentiment: sentimentScore,
+          options: optionsScore,
+          technical: technicalScore
+        };
+        
+        const { score: enhancedScore, confidence } = compositeScore(scoreComponents);
         
         // Add progressive gate score bonus
         const gateBonus = stock._gateScore || 0;
-        const enhancedScore = composite + (gateBonus * 0.3); // 30% weight to gate scoring
+        const finalScore = Math.min(100, enhancedScore + (gateBonus * 0.2));
         
-        // Action mapping based on enhanced score
-        const action = this._mapActionOptimized(enhancedScore, stock);
+        // Action mapping based on enhanced score and confidence
+        const action = this._mapActionOptimized(finalScore, stock, confidence);
         
         // Track quality metrics
-        if (enhancedScore >= 70) highScoreCount++;
+        if (finalScore >= 70) highScoreCount++;
         
         if (action === 'BUY' || action === 'WATCHLIST' || action === 'MONITOR') {
-          const audit = this._createAuditData(stock, subscores, weights, gateBonus);
-          const row = this._formatRow(stock, enhancedScore, this.cfg.preset, action, audit);
+          const audit = this._createAuditData(stock, scoreComponents, {}, gateBonus, siData);
+          const row = this._formatRowResilient(stock, finalScore, this.cfg.preset, action, audit, siData);
           
-          // Enhanced discovery data with progressive flags
-          row.emit.progressive_flags = stock._progressiveFlags || {};
-          row.emit.gate_score = gateBonus;
-          row.emit.gate_bonuses = stock._gateBonus || [];
-          row.emit.enhanced_score = enhancedScore;
-          row.emit.traditional_score = composite;
-          
-          await db.insertDiscovery(row.db);
-          candidates.push(row.emit);
+          // Only process valid rows (price > 0)
+          if (row && row.db && row.emit) {
+            await db.insertDiscovery(row.db);
+            candidates.push(row.emit);
+          }
         }
       }
       
@@ -175,41 +236,60 @@ module.exports = class EngineOptimized {
     return enriched;
   }
   
-  _mapActionOptimized(enhancedScore, stock) {
-    // More nuanced action mapping based on enhanced scoring
+  _mapActionOptimized(enhancedScore, stock, confidence = 1.0) {
+    // More nuanced action mapping based on enhanced scoring and confidence
     const flags = stock._progressiveFlags || {};
+    const relVolume = safeNum(stock.technicals?.rel_volume, 1);
+    const siEstimated = stock.short_interest_pct == null;
     
-    // BUY criteria - high score with strong signals
-    if (enhancedScore >= 75 && (flags.hasVolumeSpike || flags.highShortInterest)) {
+    // Adjust thresholds based on confidence level
+    const confidenceMultiplier = Math.max(0.7, confidence);
+    const adjustedScore = enhancedScore * confidenceMultiplier;
+    
+    // BUY criteria - high score with strong signals and good confidence
+    if (adjustedScore >= 70 && confidence >= 0.6 && 
+        (relVolume >= 2.5 || flags.hasVolumeSpike || flags.highShortInterest)) {
       return 'BUY';
     }
     
     // WATCHLIST criteria - good score or strong technical setup
-    if (enhancedScore >= 60 || flags.oversoldWithVolume || flags.hasBreakout) {
+    if (adjustedScore >= 55 || flags.oversoldWithVolume || flags.hasBreakout || 
+        (relVolume >= 2.0 && adjustedScore >= 45)) {
       return 'WATCHLIST';
     }
     
-    // MONITOR criteria - moderate potential
-    if (enhancedScore >= 45 || flags.hasModerateVolume) {
+    // MONITOR criteria - moderate potential or estimated data
+    if (adjustedScore >= 35 || flags.hasModerateVolume || 
+        (siEstimated && adjustedScore >= 30)) {
       return 'MONITOR';
     }
     
     return 'IGNORE';
   }
   
-  _createAuditData(stock, subscores, weights, gateBonus) {
+  _createAuditData(stock, scoreComponents, weights, gateBonus, siData) {
     return {
-      subscores,
+      score_components: scoreComponents,
+      composite_confidence: siData.confidence || 1.0,
+      short_interest_method: siData.method || 'actual',
       weights,
       gate_bonus: gateBonus,
       progressive_flags: stock._progressiveFlags || {},
       gate_bonuses: stock._gateBonus || [],
       gate_penalties: stock._gatePenalties || [],
       estimation_flags: {
-        has_estimated_short: stock.estimated || false,
-        has_estimated_catalyst: stock.catalyst?.type === 'volume_activity' || stock.catalyst?.type === 'price_movement'
+        has_estimated_short: siData.method !== 'actual',
+        has_estimated_catalyst: stock.catalyst?.type === 'volume_activity' || stock.catalyst?.type === 'price_movement',
+        estimation_confidence: siData.confidence || 1.0
       },
-      freshness: stock.freshness || {}
+      freshness: stock.freshness || {},
+      data_quality: {
+        has_technicals: !!stock.technicals?.price,
+        has_volume: !!stock.technicals?.rel_volume,
+        has_short_data: !!stock.short_interest_pct,
+        has_options: !!stock.options,
+        has_catalyst: !!stock.catalyst?.type
+      }
     };
   }
   
@@ -249,12 +329,21 @@ module.exports = class EngineOptimized {
     }
   }
 
-  _formatRow(stock, enhancedScore, preset, action, audit) {
-    const price = stock.price || stock.technicals?.price;
+  _formatRowResilient(stock, enhancedScore, preset, action, audit, siData) {
+    const price = safeNum(stock.price || stock.technicals?.price, 0);
+    const relVolume = safeNum(stock.technicals?.rel_volume, 1);
+    
+    // Ensure price is valid for trading
+    if (price <= 0) {
+      console.warn(`Invalid price for ${stock.ticker}: ${price}, skipping...`);
+      return null;
+    }
+    
     const entry_hint = { 
       type: stock.technicals?.vwap_held_or_reclaimed ? 'vwap_reclaim' : 'base_breakout', 
-      trigger_price: stock.technicals?.vwap || price 
+      trigger_price: safeNum(stock.technicals?.vwap, price)
     };
+    
     const risk = { 
       stop_loss: +(price * 0.9).toFixed(2), 
       tp1: +(price * 1.2).toFixed(2), 
@@ -264,40 +353,60 @@ module.exports = class EngineOptimized {
     const emit = {
       ticker: stock.ticker,
       price,
-      float_shares: stock.float_shares,
-      short_interest_pct: stock.short_interest_pct,
-      days_to_cover: stock.days_to_cover,
-      borrow_fee_pct: stock.borrow_fee_pct,
-      borrow_fee_trend: stock.borrow_fee_trend_pp7d,
-      utilization_pct: stock.utilization_pct,
-      avg_dollar_liquidity_30d: stock.avg_dollar_liquidity_30d,
-      catalyst: stock.catalyst,
-      options: stock.options,
-      sentiment: stock.sentiment,
-      technicals: stock.technicals,
-      intraday_rel_volume: stock.technicals?.rel_volume,
+      changePct: safeNum(stock.technicals?.price_change_1d_pct, null),
+      volumeX: relVolume,
+      float_shares: safeNum(stock.float_shares, null),
+      
+      // Short interest with estimation metadata
+      short_interest_pct: siData.value,
+      short_interest_method: siData.method,
+      short_interest_confidence: siData.confidence,
+      days_to_cover: safeNum(stock.days_to_cover, null),
+      
+      // Borrow/utilization data
+      borrow_fee_pct: safeNum(stock.borrow_fee_pct, null),
+      borrow_fee_trend: safeNum(stock.borrow_fee_trend_pp7d, null),
+      utilization_pct: safeNum(stock.utilization_pct, null),
+      
+      avg_dollar_liquidity_30d: safeNum(stock.avg_dollar_liquidity_30d, null),
+      catalyst: stock.catalyst || null,
+      options: stock.options || {},
+      sentiment: stock.sentiment || { score: null, sources: [] },
+      technicals: stock.technicals || {},
+      
+      // Core scoring
       composite_score: +enhancedScore.toFixed(1),
+      score_confidence: audit.composite_confidence || 1.0,
       action,
       entry_hint,
       risk,
       
-      // Enhanced fields
-      estimated_data: stock.estimated || false,
-      discovery_method: 'optimized_progressive'
+      // Enhanced metadata
+      estimated_data: audit.estimation_flags?.has_estimated_short || false,
+      discovery_method: 'optimized_resilient',
+      data_quality: audit.data_quality || {},
+      
+      // Backwards compatibility
+      intraday_rel_volume: relVolume
     };
 
     return {
       db: {
         id: `${stock.ticker}-${Date.now()}`,
         symbol: stock.ticker,
-        price,
+        price: price, // Guaranteed to be a valid number
         score: +enhancedScore.toFixed(2),
         preset,
         action,
-        features_json: JSON.stringify(stock || {}),
+        features_json: JSON.stringify(emit), // Use emit data for consistency
         audit_json: JSON.stringify(audit || {})
       },
       emit
     };
+  }
+  
+  // Keep original method for backwards compatibility  
+  _formatRow(stock, enhancedScore, preset, action, audit) {
+    return this._formatRowResilient(stock, enhancedScore, preset, action, audit, { value: stock.short_interest_pct, method: 'actual', confidence: 1.0 });
   }
 };
