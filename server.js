@@ -1368,12 +1368,122 @@ app.get('/api/vigl-discoveries', async (req, res) => {
   }
 });
 
-// Run VIGL discovery scan
+// Accept VIGL discoveries FROM Python engine
 app.post('/api/run-vigl-discovery', async (req, res) => {
+  try {
+    const discoveries = req.body;
+    console.log(`📊 Received VIGL discoveries from Python: ${Array.isArray(discoveries) ? discoveries.length : 'invalid format'} records`);
+    
+    // Validate payload is array
+    if (!Array.isArray(discoveries)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid payload: expected array of discoveries',
+        count: 0
+      });
+    }
+
+    const db = require('./server/db/sqlite');
+    let insertedCount = 0;
+    let errors = [];
+
+    // Process each discovery
+    for (const discovery of discoveries) {
+      try {
+        // Validate required fields
+        if (!discovery.symbol || typeof discovery.symbol !== 'string') {
+          errors.push(`Invalid symbol: ${discovery.symbol}`);
+          continue;
+        }
+        
+        if (typeof discovery.score !== 'number') {
+          errors.push(`Invalid score for ${discovery.symbol}: ${discovery.score}`);
+          continue;
+        }
+
+        // ActionMapper based on score ranges
+        let action;
+        if (discovery.score > 7.0) {
+          action = 'BUY';
+        } else if (discovery.score >= 2.0) {
+          action = 'MONITOR';
+        } else if (discovery.score >= 1.0) {
+          action = 'WATCHLIST';
+        } else {
+          action = 'IGNORE';
+        }
+
+        // Validate price field (required for discoveries table)
+        const price = discovery.price || discovery.current_price || 0;
+        if (!price || price <= 0) {
+          console.warn(`⚠️ ${discovery.symbol}: No valid price, using 0`);
+        }
+
+        // Prepare discovery record for database
+        const discoveryRecord = {
+          symbol: discovery.symbol.toUpperCase(),
+          score: Math.round(discovery.score * 100) / 100, // Round to 2 decimal places
+          action: action,
+          price: price,
+          features_json: JSON.stringify({
+            score: discovery.score,
+            confidence: discovery.confidence || discovery.score / 10,
+            volume_spike: discovery.volume_spike || 1.0,
+            technicals: {
+              rel_volume: discovery.rel_volume || discovery.volume_spike || 1.0,
+              momentum: discovery.momentum || 0
+            },
+            catalyst: {
+              type: discovery.catalyst || 'VIGL Pattern Match'
+            },
+            source: 'python_vigl_engine',
+            validated: true
+          }),
+          created_at: discovery.timestamp || discovery.created_at || new Date().toISOString()
+        };
+
+        // Insert into database
+        await db.insertDiscovery(discoveryRecord);
+        insertedCount++;
+        console.log(`✅ Inserted ${discovery.symbol}: ${discovery.score} → ${action}`);
+
+      } catch (insertError) {
+        console.error(`❌ Failed to insert ${discovery.symbol}:`, insertError.message);
+        errors.push(`${discovery.symbol}: ${insertError.message}`);
+      }
+    }
+
+    // Log results
+    console.log(`📊 VIGL Discovery Insert Summary: ${insertedCount} inserted, ${errors.length} errors`);
+    if (errors.length > 0) {
+      console.log('❌ Errors:', errors);
+    }
+
+    res.json({
+      success: true,
+      count: insertedCount,
+      errors: errors,
+      message: `Successfully inserted ${insertedCount} VIGL discoveries`,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ VIGL discovery endpoint failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      count: 0,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Trigger VIGL discovery scan (separate endpoint for manual triggers)
+app.post('/api/trigger-vigl-scan', async (req, res) => {
   try {
     const { symbols, options = {} } = req.body;
     
-    console.log('🔍 Starting VIGL discovery scan...');
+    console.log('🔍 Starting manual VIGL discovery scan...');
     const vigl = getVIGLFix();
     
     const result = await vigl.runViglDiscovery({

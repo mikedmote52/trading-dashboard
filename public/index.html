@@ -544,7 +544,7 @@
                     this.showViglScanning(true);
                     this.showSuccess('Running VIGL discovery scan...');
                     
-                    const response = await fetch('/api/run-vigl-discovery', {
+                    const response = await fetch('/api/trigger-vigl-scan', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
