@@ -382,6 +382,72 @@
                 this.initVIGLDiscoverySystem();
             }
 
+            initVIGLDiscoverySystem() {
+                // Bind VIGL scan button
+                const scanBtn = document.getElementById('scanViglBtn');
+                const clearBtn = document.getElementById('clearViglBtn');
+                
+                if (scanBtn) {
+                    scanBtn.addEventListener('click', () => this.scanViglPatterns());
+                }
+                
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => this.clearViglDiscoveries());
+                }
+
+                // Bind filter controls
+                const filterControls = [
+                    'viglFilterBuy',
+                    'viglFilterWatchlist', 
+                    'viglFilterMonitor',
+                    'viglMinScoreSlider'
+                ];
+
+                filterControls.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('change', () => this.updateViglFilters());
+                    }
+                });
+
+                // Load initial VIGL discoveries
+                this.loadViglDiscoveries();
+            }
+
+            clearViglDiscoveries() {
+                const container = document.getElementById('viglDiscoveries');
+                container.innerHTML = `
+                    <div id="viglEmptyState" class="text-center py-8">
+                        <div class="text-4xl mb-3">🔍</div>
+                        <h3 class="text-lg font-bold mb-2">Ready to Discover VIGL Patterns</h3>
+                        <p class="text-blue-200 text-sm mb-4">Click "Scan Market" to analyze for volume spikes and momentum</p>
+                        <div class="bg-blue-900 bg-opacity-30 rounded-lg p-3 text-xs text-blue-300">
+                            🎯 Scanning for 20.9x volume spikes like VIGL's 324% winner
+                        </div>
+                    </div>
+                `;
+                this.updateViglStats(0, 0, 0, 0);
+            }
+
+            updateViglFilters() {
+                // Re-render discoveries with current filters
+                this.renderViglDiscoveries();
+            }
+
+            updateViglStats(total, buyCount, watchlistCount, monitorCount) {
+                document.getElementById('viglTotalDiscoveries').textContent = total;
+                document.getElementById('viglBuyCount').textContent = buyCount;
+                document.getElementById('viglWatchlistCount').textContent = watchlistCount;
+                document.getElementById('viglMonitorCount').textContent = monitorCount;
+                
+                // Update slider value display
+                const slider = document.getElementById('viglMinScoreSlider');
+                const valueDisplay = document.getElementById('viglMinScoreValue');
+                if (slider && valueDisplay) {
+                    valueDisplay.textContent = slider.value;
+                }
+            }
+
             async loadDashboard() {
                 try {
                     this.showLoading(true);
@@ -421,6 +487,32 @@
                 }
             }
 
+            async loadViglDiscoveries() {
+                try {
+                    const response = await fetch('/api/vigl-discoveries');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.data.viglDiscoveries = result.discoveries;
+                        this.updateViglStats(
+                            result.count,
+                            result.buyCount || 0,
+                            result.watchlistCount || 0, 
+                            result.monitorCount || 0
+                        );
+                        this.renderViglDiscoveries();
+                        console.log(`✅ Loaded ${result.count} VIGL discoveries`);
+                    } else {
+                        this.data.viglDiscoveries = [];
+                        this.updateViglStats(0, 0, 0, 0);
+                    }
+                } catch (error) {
+                    console.error('Failed to load VIGL discoveries:', error);
+                    this.data.viglDiscoveries = [];
+                    this.updateViglStats(0, 0, 0, 0);
+                }
+            }
+
             async runAnalysis() {
                 try {
                     this.showLoading(true);
@@ -450,32 +542,37 @@
                 try {
                     // Update UI to show scanning state
                     this.showViglScanning(true);
-                    this.showSuccess('Running discovery scan...');
+                    this.showSuccess('Running VIGL discovery scan...');
                     
-                    const response = await fetch('/api/discoveries/scan', {
+                    const response = await fetch('/api/run-vigl-discovery', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            symbols: null, // Scan entire market
+                            options: {
+                                verbose: false
+                            }
+                        })
                     });
                     
                     const result = await response.json();
                     
                     if (result.success) {
-                        // Reload discoveries from database
-                        await this.loadTodaysDiscoveries();
-                        this.renderViglDiscoveries();
+                        // Reload VIGL discoveries from new endpoint
+                        await this.loadViglDiscoveries();
                         
                         if (result.count > 0) {
-                            this.showSuccess(`✅ Scan complete! Found ${result.count} discoveries.`);
+                            this.showSuccess(`✅ VIGL scan complete! Found ${result.count} moonshot patterns.`);
                         } else {
-                            this.showSuccess('Scan complete. No high-score discoveries found.');
+                            this.showSuccess('Scan complete. No VIGL patterns found matching criteria.');
                         }
                     } else {
-                        throw new Error(result.error || 'Scan failed');
+                        throw new Error(result.error || 'VIGL scan failed');
                     }
                     
                 } catch (error) {
-                    console.error('Discovery scan error:', error);
-                    this.showError(error.message || 'Scan failed');
+                    console.error('VIGL discovery scan error:', error);
+                    this.showError(error.message || 'VIGL scan failed');
                 } finally {
                     this.showViglScanning(false);
                 }
@@ -583,71 +680,118 @@
 
             renderViglDiscoveries() {
                 const container = document.getElementById('viglDiscoveries');
-                const discoveries = this.data.discoveries || [];
+                const discoveries = this.data.viglDiscoveries || [];
                 
-                if (discoveries.length === 0) {
-                    container.innerHTML = '<div class="text-center text-blue-200 py-8">📊 No VIGL patterns found matching 65%+ similarity criteria<br><br>🔍 Click "Scan Market" to scan recent trading days for VIGL patterns</div>';
+                // Apply filters
+                const filters = this.getViglFilters();
+                const filteredDiscoveries = discoveries.filter(stock => {
+                    if (!filters.actions.includes(stock.action)) return false;
+                    if (stock.score < filters.minScore) return false;
+                    return true;
+                });
+                
+                if (filteredDiscoveries.length === 0) {
+                    if (discoveries.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center text-blue-200 py-8">
+                                <div class="text-4xl mb-3">🔍</div>
+                                <h3 class="text-lg font-bold mb-2">No VIGL Patterns Found</h3>
+                                <p class="text-sm mb-4">Click "Scan Market" to find moonshot opportunities</p>
+                                <div class="bg-blue-900 bg-opacity-30 rounded-lg p-3 text-xs text-blue-300">
+                                    🎯 Looking for 20.9x volume spikes like VIGL's 324% winner
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = `
+                            <div class="text-center text-blue-200 py-8">
+                                <div class="text-4xl mb-3">🔍</div>
+                                <h3 class="text-lg font-bold mb-2">No Results Match Current Filters</h3>
+                                <p class="text-sm">Adjust filters to see more discoveries</p>
+                            </div>
+                        `;
+                    }
                     return;
                 }
                 
-                container.innerHTML = discoveries.map(stock => `
-                    <div class="bg-white bg-opacity-10 rounded-lg p-4 border-l-4 ${
-                        stock.confidence >= 0.8 ? 'border-green-400' : 
-                        stock.confidence >= 0.6 ? 'border-yellow-400' : 'border-red-400'
+                container.innerHTML = filteredDiscoveries.map(stock => `
+                    <div class="vigl-discovery-card bg-white bg-opacity-10 rounded-lg p-4 border-l-4 ${
+                        stock.action === 'BUY' ? 'border-green-400' : 
+                        stock.action === 'WATCHLIST' ? 'border-yellow-400' : 'border-blue-400'
                     }">
                         <div class="flex justify-between items-start">
                             <div class="flex-1">
                                 <div class="flex items-center space-x-2 mb-2">
                                     <span class="font-bold text-lg">${stock.symbol}</span>
-                                    <span class="text-sm bg-blue-600 px-2 py-1 rounded">${stock.sector}</span>
+                                    <span class="text-xs px-2 py-1 rounded ${
+                                        stock.action === 'BUY' ? 'action-buy' : 
+                                        stock.action === 'WATCHLIST' ? 'action-watchlist' : 'action-monitor'
+                                    }">${stock.action}</span>
                                     <span class="text-sm font-bold ${
-                                        stock.confidence >= 0.8 ? 'status-green' : 
-                                        stock.confidence >= 0.6 ? 'status-yellow' : 'status-red'
-                                    }">${Math.round(stock.confidence * 100)}% Match</span>
-                                    ${stock.viglScore ? `
-                                        <span class="text-xs bg-purple-600 px-2 py-1 rounded" title="VIGL Score (0-5 scale)">
-                                            Score: ${(stock.viglScore * 5).toFixed(1)}
-                                        </span>
-                                    ` : ''}
-                                    ${stock.discovered ? `
-                                        <span class="text-xs text-blue-300">
-                                            Discovered: ${new Date(stock.discovered).toLocaleDateString()}
+                                        stock.score >= 80 ? 'text-green-400' : 
+                                        stock.score >= 70 ? 'text-yellow-400' : 'text-orange-400'
+                                    }">${stock.score}%</span>
+                                    ${stock.isHighConfidence ? `
+                                        <span class="text-xs bg-purple-600 px-2 py-1 rounded" title="High Confidence VIGL Pattern">
+                                            ⭐ VIGL
                                         </span>
                                     ` : ''}
                                 </div>
                                 <div class="text-sm text-blue-200 mb-2">${stock.name}</div>
-                                <div class="grid grid-cols-2 gap-4 text-sm">
-                                    <div>Price: $${stock.currentPrice}</div>
-                                    <div>Volume: ${stock.volumeSpike}x spike</div>
-                                    <div>Momentum: +${stock.momentum.toFixed(1)}%</div>
-                                    <div>Upside: ${stock.estimatedUpside}</div>
+                                <div class="grid grid-cols-2 gap-3 text-sm mb-2">
+                                    <div>Price: <span class="text-white">$${stock.currentPrice.toFixed(2)}</span></div>
+                                    <div>Volume: <span class="text-yellow-400">${stock.volumeSpike.toFixed(1)}x</span></div>
+                                    <div>Upside: <span class="text-green-400">${stock.estimatedUpside}</span></div>
+                                    <div>Timeline: <span class="text-blue-400">${stock.timeline}</span></div>
                                     ${stock.targetPrices ? `
-                                        <div>Target: $${stock.targetPrices.moderate.toFixed(2)}</div>
-                                        <div>Range: $${stock.targetPrices.conservative.toFixed(2)}-$${stock.targetPrices.aggressive.toFixed(2)}</div>
+                                        <div>Target: <span class="text-yellow-300">$${stock.targetPrices.moderate.toFixed(2)}</span></div>
+                                        <div>Risk: <span class="text-orange-400">${stock.riskLevel}</span></div>
                                     ` : ''}
                                 </div>
-                                ${stock.catalysts ? `
-                                    <div class="text-xs text-blue-300 mt-2">
-                                        Catalysts: ${stock.catalysts.join(', ')}
+                                ${stock.catalysts && stock.catalysts.length > 0 ? `
+                                    <div class="text-xs text-blue-300 bg-black bg-opacity-20 rounded px-2 py-1">
+                                        📋 ${stock.catalysts.join(', ')}
                                     </div>
                                 ` : ''}
                             </div>
-                            <div class="text-right">
-                                <div class="text-lg font-bold ${
-                                    stock.recommendation === 'STRONG BUY' ? 'status-green' : 
-                                    stock.recommendation === 'BUY' ? 'status-yellow' : 'text-white'
-                                }">${stock.recommendation}</div>
-                                <div class="text-xs text-blue-200 mb-2">Risk: ${stock.riskLevel}</div>
-                                ${stock.recommendation === 'STRONG BUY' || stock.recommendation === 'BUY' ? `
-                                    <button onclick="showTradeModal('buy', '${stock.symbol}', 10)" 
-                                            class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs transition-colors">
-                                        Buy 10
+                            <div class="text-right ml-4">
+                                <div class="text-sm font-bold mb-2 ${
+                                    stock.positionSize === 'LARGE' ? 'text-green-400' : 
+                                    stock.positionSize === 'MEDIUM' ? 'text-yellow-400' : 'text-blue-400'
+                                }">${stock.positionSize}</div>
+                                ${stock.action === 'BUY' ? `
+                                    <button onclick="window.dashboard.executeViglBuy('${stock.symbol}', ${stock.recommendedQuantity || 10})" 
+                                            class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs font-medium transition-colors mb-2 block">
+                                        📈 Buy ${stock.recommendedQuantity || 10}
                                     </button>
-                                ` : ''}
+                                    <div class="text-xs text-green-300">~$${((stock.recommendedQuantity || 10) * stock.currentPrice).toFixed(0)}</div>
+                                ` : stock.action === 'WATCHLIST' ? `
+                                    <button onclick="window.dashboard.addToWatchlist('${stock.symbol}')" 
+                                            class="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-xs transition-colors mb-2 block">
+                                        👁️ Watch
+                                    </button>
+                                ` : `
+                                    <button onclick="window.dashboard.addToMonitor('${stock.symbol}')" 
+                                            class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-xs transition-colors mb-2 block">
+                                        📊 Monitor
+                                    </button>
+                                `}
                             </div>
                         </div>
+                        <div class="vigl-score-bar mt-2" style="width: ${stock.score}%"></div>
                     </div>
                 `).join('');
+            }
+
+            getViglFilters() {
+                const actions = [];
+                if (document.getElementById('viglFilterBuy')?.checked) actions.push('BUY');
+                if (document.getElementById('viglFilterWatchlist')?.checked) actions.push('WATCHLIST');
+                if (document.getElementById('viglFilterMonitor')?.checked) actions.push('MONITOR');
+                
+                const minScore = parseInt(document.getElementById('viglMinScoreSlider')?.value || 0);
+                
+                return { actions, minScore };
             }
 
             renderPortfolioPositions() {
@@ -1253,7 +1397,78 @@
             
             // Load market intelligence status on startup
             window.dashboard.loadMarketIntelligence();
+            // Check VIGL health on startup
+            window.dashboard.checkViglHealth().then(health => {
+                if (!health.healthy) {
+                    console.warn('⚠️ VIGL system not fully operational');
+                }
+            });
         });
+
+        // Add VIGL-specific methods to TradingDashboard
+        TradingDashboard.prototype.executeViglBuy = async function(symbol, quantity) {
+            try {
+                this.showLoading(true);
+                
+                console.log(`📈 Executing VIGL buy order: ${quantity} shares of ${symbol}`);
+                
+                const response = await fetch('/api/vigl-buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol,
+                        quantity,
+                        orderType: 'market'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.showSuccess(`✅ VIGL order placed: ${quantity} shares of ${symbol} (Order ID: ${result.orderId})`);
+                    // Refresh portfolio after successful trade
+                    setTimeout(() => this.loadDashboard(), 2000);
+                } else {
+                    this.showError(result.error || `Failed to buy ${symbol}`);
+                }
+                
+            } catch (error) {
+                console.error('VIGL buy error:', error);
+                this.showError(`VIGL buy failed: ${error.message}`);
+            } finally {
+                this.showLoading(false);
+            }
+        };
+
+        TradingDashboard.prototype.addToWatchlist = async function(symbol) {
+            // Simple UI feedback for now - could be enhanced with backend storage
+            this.showSuccess(`📋 ${symbol} added to watchlist`);
+            console.log(`Watchlist: ${symbol}`);
+        };
+
+        TradingDashboard.prototype.addToMonitor = async function(symbol) {
+            // Simple UI feedback for now - could be enhanced with backend storage
+            this.showSuccess(`📊 ${symbol} added to monitoring`);
+            console.log(`Monitor: ${symbol}`);
+        };
+
+        TradingDashboard.prototype.checkViglHealth = async function() {
+            try {
+                const response = await fetch('/api/vigl-health');
+                const result = await response.json();
+                
+                if (result.healthy) {
+                    console.log('✅ VIGL system healthy');
+                } else {
+                    console.warn('⚠️ VIGL system issues detected');
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('VIGL health check failed:', error);
+                return { healthy: false, error: error.message };
+            }
+        };
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {

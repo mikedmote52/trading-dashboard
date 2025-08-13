@@ -1315,6 +1315,236 @@ app.get('/api/vigl-status', (req, res) => {
   });
 });
 
+// =============================================================================
+// VIGL DISCOVERY API ENDPOINTS - New Secure Integration
+// =============================================================================
+
+// Initialize VIGL Fix system
+const { CompleteVIGLFix } = require('./complete_vigl_fix');
+const { VIGLConnectionDiagnostic } = require('./vigl_connection_diagnostic');
+let viglFix = null;
+
+// Lazy initialization of VIGL system
+function getVIGLFix() {
+  if (!viglFix) {
+    viglFix = new CompleteVIGLFix();
+  }
+  return viglFix;
+}
+
+// Get VIGL discoveries for UI
+app.get('/api/vigl-discoveries', async (req, res) => {
+  try {
+    const vigl = getVIGLFix();
+    const status = await vigl.getDiscoveryStatus();
+    
+    // Get enhanced discoveries from database
+    let discoveries = [];
+    if (vigl.db) {
+      const rawDiscoveries = await vigl.db.getLatestDiscoveriesForEngine(20);
+      discoveries = await Promise.all(
+        rawDiscoveries.map(d => vigl._enhanceDiscovery(d))
+      );
+    }
+
+    res.json({
+      success: true,
+      count: discoveries.length,
+      discoveries: discoveries.filter(d => d.action !== 'IGNORE'),
+      buyCount: discoveries.filter(d => d.action === 'BUY').length,
+      watchlistCount: discoveries.filter(d => d.action === 'WATCHLIST').length,
+      monitorCount: discoveries.filter(d => d.action === 'MONITOR').length,
+      lastUpdated: new Date().toISOString(),
+      status
+    });
+  } catch (error) {
+    console.error('❌ Failed to get VIGL discoveries:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      discoveries: [],
+      count: 0
+    });
+  }
+});
+
+// Run VIGL discovery scan
+app.post('/api/run-vigl-discovery', async (req, res) => {
+  try {
+    const { symbols, options = {} } = req.body;
+    
+    console.log('🔍 Starting VIGL discovery scan...');
+    const vigl = getVIGLFix();
+    
+    const result = await vigl.runViglDiscovery({
+      symbols: symbols,
+      ...options
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('❌ VIGL discovery scan failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      count: 0,
+      discoveries: []
+    });
+  }
+});
+
+// VIGL system health check
+app.get('/api/vigl-health', async (req, res) => {
+  try {
+    const vigl = getVIGLFix();
+    const status = await vigl.getDiscoveryStatus();
+    
+    res.json({
+      healthy: status.environment?.hasPolygonKey && !!vigl.db,
+      status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      healthy: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Execute VIGL buy order
+app.post('/api/vigl-buy', async (req, res) => {
+  try {
+    const { symbol, quantity = 10, orderType = 'market' } = req.body;
+    
+    if (!symbol || !/^[A-Z]{1,5}$/.test(symbol)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid symbol format'
+      });
+    }
+    
+    console.log(`📈 VIGL Buy Order: ${quantity} shares of ${symbol}`);
+    
+    // Use existing trade endpoint functionality
+    const orderData = {
+      symbol: symbol.toString(),
+      qty: quantity.toString(),
+      side: 'buy',
+      type: orderType,
+      time_in_force: 'day'
+    };
+    
+    const result = await makeAlpacaTradeRequest('orders', 'POST', orderData);
+    
+    if (result) {
+      // Log as VIGL-triggered trade
+      console.log(`✅ VIGL order placed: ${result.id} for ${symbol}`);
+      
+      res.json({
+        success: true,
+        orderId: result.id,
+        symbol,
+        quantity,
+        message: `VIGL BUY order placed: ${quantity} shares of ${symbol}`,
+        source: 'vigl_discovery'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to place VIGL order',
+        symbol,
+        quantity
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ VIGL buy order failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      symbol: req.body.symbol,
+      quantity: req.body.quantity
+    });
+  }
+});
+
+// VIGL diagnostic endpoint
+app.get('/api/vigl-diagnostic', async (req, res) => {
+  try {
+    const diagnostic = new VIGLConnectionDiagnostic();
+    const quick = req.query.quick === 'true';
+    
+    let results;
+    if (quick) {
+      results = await diagnostic.quickHealthCheck();
+    } else {
+      results = await diagnostic.runFullDiagnostic();
+    }
+    
+    res.json({
+      success: true,
+      diagnostic: results,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Enhanced VIGL discoveries with portfolio integration
+app.get('/api/vigl-opportunities', async (req, res) => {
+  try {
+    const vigl = getVIGLFix();
+    const discoveries = await vigl._getEnhancedDiscoveries();
+    
+    // Filter for high-quality opportunities
+    const opportunities = discoveries.filter(d => 
+      d.score >= 65 && ['BUY', 'WATCHLIST'].includes(d.action)
+    ).map(d => ({
+      symbol: d.symbol,
+      score: d.score,
+      confidence: d.confidence,
+      action: d.action,
+      currentPrice: d.currentPrice,
+      targetPrices: d.targetPrices,
+      estimatedUpside: d.estimatedUpside,
+      riskLevel: d.riskLevel,
+      positionSize: d.positionSize,
+      timeline: d.timeline,
+      catalysts: d.catalysts,
+      recommendedQuantity: d.recommendedQuantity,
+      isHighConfidence: d.isHighConfidence
+    }));
+    
+    res.json({
+      success: true,
+      count: opportunities.length,
+      opportunities,
+      summary: {
+        highConfidence: opportunities.filter(o => o.isHighConfidence).length,
+        buyRecommendations: opportunities.filter(o => o.action === 'BUY').length,
+        avgScore: opportunities.length > 0 ? 
+          opportunities.reduce((sum, o) => sum + o.score, 0) / opportunities.length : 0
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Failed to get VIGL opportunities:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      opportunities: [],
+      count: 0
+    });
+  }
+});
+
 // Run analysis
 app.post('/api/analyze', async (req, res) => {
   try {
