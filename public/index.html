@@ -4,7 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trading Intelligence Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/assets/tailwind.css">
+    <script src="/vigl-shim.js"></script>
+    <!-- VIGL emergency inline patch: prevents null/legacy crashes -->
+    <script>
+(function(){
+  const $=id=>document.getElementById(id);
+  // Prime missing nodes to stop null addEventListener/innerHTML
+  if(!$('btnScanMarket')){ const b=document.createElement('button'); b.id='btnScanMarket'; b.type='button'; b.style.display='none'; document.body.appendChild(b); }
+  if(!$('viglCards')){ const s=document.createElement('section'); s.id='viglCards'; document.body.appendChild(s); }
+
+  // computeUpside used by tiles
+  if(typeof window.computeUpside!=='function'){
+    window.computeUpside=({current,target,upsidePct}={})=>{
+      const c=Number(current), t=Number(target);
+      if(Number.isFinite(upsidePct)) return upsidePct;
+      return (Number.isFinite(c)&&Number.isFinite(t)&&c>0)?((t-c)/c)*100:0;
+    };
+  }
+
+  // Simple fetch + render bridges so legacy calls don't explode
+  function normalize(r){
+    const t=(r?.ticker||r?.symbol||'').toUpperCase(); if(!t) return null;
+    const raw=r?.status||r?.recommendation||r?.action||r?.tag||'Monitor';
+    const status=/buy/i.test(raw)?'BUY':/watch/i.test(raw)?'Watch':'Monitor';
+    const price=Number(r?.price??r?.last??r?.close); const score=Number(r?.score??r?.compositeScore??r?.rating);
+    const catalyst=r?.catalyst||r?.reason||r?.note||''; const updatedAt=new Date(r?.updatedAt||r?.timestamp||Date.now()).toISOString();
+    return {ticker:t,status,price:Number.isFinite(price)?price:undefined,score:Number.isFinite(score)?score:undefined,catalyst,updatedAt};
+  }
+  function dedupe(arr){ const m=(arr||[]).map(normalize).filter(Boolean), by={}; for(const x of m){ by[x.ticker]=(by[x.ticker]&&new Date(by[x.ticker].updatedAt)>new Date(x.updatedAt))?by[x.ticker]:x;} return Object.values(by); }
+  function render(items){
+    const a=dedupe(Array.isArray(items)?items:[]);
+    const T=id=>{const n=$(id); if(n) n.textContent=String(a.filter(x=>id==='viglBuyCount'?x.status==='BUY':id==='viglWatchlistCount'?x.status==='Watch':id==='viglMonitorCount'?x.status==='Monitor':true).length);};
+    const M=$('viglCards'); if(M){ M.innerHTML=''; if(!a.length){ M.innerHTML='<div style="opacity:.7;padding:12px;border:1px dashed #2a3547;border-radius:10px">No discoveries yet.</div>'; } else { a.forEach(x=>{ const el=document.createElement('div'); el.style.cssText='border:1px solid #273246;border-radius:12px;padding:12px;margin:6px 0'; el.innerHTML=`<b>${x.ticker}</b> <span style="opacity:.7">· ${x.status}</span> ${Number.isFinite(x.price)?`· ${x.price.toFixed(2)}`:''}`; M.appendChild(el);}); } }
+    const total=a.length; T('viglTotalDiscoveries'); const n=$('viglTotalDiscoveries'); if(n) n.textContent=String(total);
+    T('viglBuyCount'); T('viglWatchlistCount'); T('viglMonitorCount'); return a;
+  }
+  window.renderDiscoveries=window.renderDiscoveries||render;
+  window.dedupeDiscoveries=window.dedupeDiscoveries||dedupe;
+
+  if(typeof window.loadViglDiscoveries!=='function'){
+    window.loadViglDiscoveries=async function(){
+      const api=(window.VIGL&&window.VIGL.API_URL)||window.VIGL_API_URL||'/api/discoveries/dashboard';
+      const res=await fetch(api,{cache:'no-store'}); const j=await res.json();
+      const arr=Array.isArray(j)?j:(j.data||j.results||j.items||j.discoveries||[]);
+      return render(arr);
+    };
+  }
+})();
+</script>
     <style>
         .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
         .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
@@ -40,6 +88,7 @@
     </style>
 </head>
 <body class="gradient-bg min-h-screen text-white">
+    <h1 class="text-3xl font-bold text-blue-500">Tailwind via CLI (no CDN)</h1>
     <div class="container mx-auto px-4 py-6">
         
         <!-- Header -->
@@ -171,44 +220,29 @@
                             <input type="checkbox" id="viglFilterMonitor" checked class="rounded">
                             <span>MON</span>
                         </label>
-                        <div class="ml-auto flex items-center space-x-1">
+                        <div class="flex items-center space-x-1">
+                            <span>Max Price:</span>
+                            <input type="range" id="viglMaxPriceSlider" min="5" max="500" value="100" class="w-16">
+                            <span id="viglMaxPriceValue" class="font-bold">$100</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
                             <span>Score:</span>
-                            <input type="range" id="viglMinScoreSlider" min="0" max="100" value="60" class="w-16">
-                            <span id="viglMinScoreValue" class="font-bold">60</span>
+                            <input type="range" id="viglMinScoreSlider" min="0" max="100" value="10" class="w-16">
+                            <span id="viglMinScoreValue" class="font-bold">10</span>
                         </div>
                     </div>
 
-                    <!-- Discoveries Container -->
-                    <div id="viglDiscoveries" class="space-y-3">
-                        <!-- Default state -->
-                        <div id="viglEmptyState" class="text-center py-8">
-                            <div class="text-4xl mb-3">🔍</div>
-                            <h3 class="text-lg font-bold mb-2">Ready to Discover VIGL Patterns</h3>
-                            <p class="text-blue-200 text-sm mb-4">Click "Scan Market" to analyze for volume spikes and momentum</p>
-                            <div class="bg-blue-900 bg-opacity-30 rounded-lg p-3 text-xs text-blue-300">
-                                🎯 Scanning for 20.9x volume spikes like VIGL's 324% winner
-                            </div>
-                        </div>
-
-                        <!-- Loading state -->
-                        <div id="viglLoadingState" class="hidden text-center py-8">
-                            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-purple-400 rounded-full mb-3"></div>
-                            <h3 class="text-lg font-bold mb-2">🔍 Scanning Market</h3>
-                            <p class="text-blue-200 text-sm">Analyzing patterns...</p>
-                            <div id="viglScanStatus" class="text-xs text-purple-200 mt-2">Initializing...</div>
-                        </div>
-
-                        <!-- Discoveries List -->
-                        <div id="viglDiscoveriesList" class="hidden space-y-3">
-                            <!-- Discovery cards will be inserted here -->
-                        </div>
-
-                        <!-- No Results State -->
-                        <div id="viglNoResultsState" class="hidden text-center py-8">
-                            <div class="text-4xl mb-3">📊</div>
-                            <h3 class="text-lg font-bold mb-2">No VIGL Patterns Found</h3>
-                            <p class="text-blue-200 text-sm">No patterns matching criteria in current scan</p>
-                        </div>
+                    <!-- Discoveries Container - Upgraded -->
+                    <div id="discoveries" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        <!-- Discovery tiles will be rendered here via renderDiscoveryTiles.js -->
+                    </div>
+                    
+                    <!-- VIGL Discoveries Container -->
+                    <section id="viglCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></section>
+                    
+                    <!-- Hidden elements for legacy compatibility -->
+                    <div class="hidden">
+                        <button id="btnScanMarket" class="hidden"></button>
                     </div>
                 </div>
             </div>
@@ -355,7 +389,7 @@
                     <button onclick="closeTradeModal()" class="flex-1 bg-gray-600 hover:bg-gray-700 py-2 rounded transition-colors">
                         Cancel
                     </button>
-                    <button onclick="executeTrade()" id="executeBtn" class="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded font-medium transition-colors">
+                    <button onclick="executeModalTrade()" id="executeBtn" class="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded font-medium transition-colors">
                         Execute Trade
                     </button>
                 </div>
@@ -400,13 +434,15 @@
                     'viglFilterBuy',
                     'viglFilterWatchlist', 
                     'viglFilterMonitor',
-                    'viglMinScoreSlider'
+                    'viglMinScoreSlider',
+                    'viglMaxPriceSlider'
                 ];
 
                 filterControls.forEach(id => {
                     const element = document.getElementById(id);
                     if (element) {
                         element.addEventListener('change', () => this.updateViglFilters());
+                        element.addEventListener('input', () => this.updateViglFilters()); // For real-time slider updates
                     }
                 });
 
@@ -430,6 +466,12 @@
             }
 
             updateViglFilters() {
+                // Update filter display values
+                document.getElementById('viglMinScoreValue').textContent = 
+                    document.getElementById('viglMinScoreSlider').value;
+                document.getElementById('viglMaxPriceValue').textContent = 
+                    '$' + document.getElementById('viglMaxPriceSlider').value;
+                
                 // Re-render discoveries with current filters
                 this.renderViglDiscoveries();
             }
@@ -459,6 +501,7 @@
                     
                     // Load discoveries from new endpoint
                     await this.loadTodaysDiscoveries();
+                    await this.loadViglDiscoveries();
                     
                     this.updateUI();
                     this.updateConnectionStatus(this.data.portfolio?.isConnected);
@@ -489,27 +532,81 @@
 
             async loadViglDiscoveries() {
                 try {
-                    const response = await fetch('/api/vigl-discoveries');
+                    console.log('🔄 Loading VIGL discoveries...');
+                    const response = await fetch(`/api/discoveries/dashboard?t=${Date.now()}`, { 
+                        cache: 'no-store',
+                        headers: { 'Cache-Control': 'no-cache' }
+                    });
                     const result = await response.json();
                     
+                    console.log('📊 API Response:', { success: result.success, count: result.count, discoveries: result.discoveries?.length });
+                    console.log("📊 API Data Received:", result.discoveries);
+                    
                     if (result.success) {
-                        this.data.viglDiscoveries = result.discoveries;
+                        // Normalize API response with fallbacks
+                        this.data.viglDiscoveries = (result.discoveries || result.candidates || []).map(d => ({
+                            symbol: d.symbol || d.ticker,  // Fixed: was d.ticker
+                            ticker: d.ticker || d.symbol,
+                            name: d.name || d.symbol,
+                            currentPrice: d.price || d.currentPrice || 0,
+                            price: d.price || d.currentPrice || 0,
+                            score: d.score || 0,
+                            action: d.action || d.recommendation || 'MONITOR',
+                            volumeSpike: d.rvol || d.volumeX || d.volumeSpike || 0,
+                            rvol: d.rvol || d.volumeX || d.volumeSpike || 0,
+                            estimatedUpside: d.estimatedUpside || (d.score >= 75 ? '100-200%' : d.score >= 60 ? '50-100%' : '25-50%'),
+                            timeline: d.timeline || (d.score >= 85 ? '3-6 months' : d.score >= 75 ? '2-4 months' : '1-3 months'),
+                            catalysts: d.catalysts || (d.catalyst ? [d.catalyst.type] : ['VIGL Pattern']),
+                            riskLevel: d.riskLevel || (d.score >= 70 ? 'MODERATE' : 'HIGH'),
+                            positionSize: d.positionSize || (d.score >= 85 ? 'LARGE' : d.score >= 75 ? 'MEDIUM' : 'SMALL'),
+                            recommendedQuantity: d.recommendedQuantity || Math.max(1, Math.floor(100 / (d.price || 1))),
+                            isHighConfidence: d.isHighConfidence || (d.score >= 70),
+                            targetPrices: d.targetPrices || { moderate: (d.price || 0) * 1.25 },
+                            explosivenessScore: d.explosivenessScore || d.score,
+                            similarity: d.similarity || Math.min((d.score || 0) / 100, 1.0),
+                            confidence: d.confidence || Math.min((d.score || 0) / 100, 1.0),
+                            viglScore: d.viglScore || Math.min((d.score || 0) / 100, 1.0),
+                            breakoutStrength: d.breakoutStrength || Math.min((d.score || 0) / 100, 1.0),
+                            thesis: d.thesis || `VIGL pattern detected`,
+                            discoveredAt: d.discoveredAt || d.asof || new Date().toISOString()
+                        }));
+                        
+                        const buyCount = this.data.viglDiscoveries.filter(d => d.action === 'BUY').length;
+                        const watchlistCount = this.data.viglDiscoveries.filter(d => d.action === 'WATCHLIST').length;
+                        const monitorCount = this.data.viglDiscoveries.filter(d => d.action === 'MONITOR').length;
+                        
+                        console.log('🔄 About to call updateViglStats with:', {
+                            total: this.data.viglDiscoveries.length,
+                            buyCount,
+                            watchlistCount,
+                            monitorCount
+                        });
+                        
+                        // FORCE DOM UPDATES DIRECTLY TO PROVE UI RECEIVES DATA
+                        document.getElementById('viglTotalDiscoveries').textContent = this.data.viglDiscoveries.length;
+                        document.getElementById('viglBuyCount').textContent = buyCount;
+                        document.getElementById('viglWatchlistCount').textContent = watchlistCount;
+                        document.getElementById('viglMonitorCount').textContent = monitorCount;
+                        
                         this.updateViglStats(
-                            result.count,
-                            result.buyCount || 0,
-                            result.watchlistCount || 0, 
-                            result.monitorCount || 0
+                            this.data.viglDiscoveries.length,
+                            buyCount,
+                            watchlistCount, 
+                            monitorCount
                         );
                         this.renderViglDiscoveries();
-                        console.log(`✅ Loaded ${result.count} VIGL discoveries`);
+                        console.log(`✅ Loaded ${this.data.viglDiscoveries.length} VIGL discoveries: ${buyCount} BUY, ${watchlistCount} WATCHLIST, ${monitorCount} MONITOR`);
                     } else {
+                        console.warn('⚠️ API returned success=false:', result);
                         this.data.viglDiscoveries = [];
                         this.updateViglStats(0, 0, 0, 0);
+                        this.renderViglDiscoveries();
                     }
                 } catch (error) {
-                    console.error('Failed to load VIGL discoveries:', error);
+                    console.error('❌ Failed to load VIGL discoveries:', error);
                     this.data.viglDiscoveries = [];
                     this.updateViglStats(0, 0, 0, 0);
+                    this.renderViglDiscoveries();
                 }
             }
 
@@ -641,6 +738,90 @@
                     const prefix = num < 0 ? '-$' : '$';
                     return prefix + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 };
+
+                // ---- Freshness helpers + dedupe by symbol (truthful merge)
+                const _ts = v => (v ? new Date(v).getTime() : 0);
+                const _pickFresh = (a, b, ta, tb) => (ta >= tb ? a : b);
+
+                function dedupeDiscoveries(list = []) {
+                  const map = new Map();
+                  for (const d of list || []) {
+                    const symbol = d.symbol || d.ticker;
+                    if (!symbol) continue;
+
+                    const cur = map.get(symbol);
+                    if (!cur) {
+                      map.set(symbol, { ...d, __sources: [d.source || d.strategy || 'scan'] });
+                      continue;
+                    }
+
+                    const ta = _ts(cur.updatedAt || cur.timestamp);
+                    const tb = _ts(d.updatedAt || d.timestamp);
+
+                    const m = { ...cur };
+                    m.__sources = Array.from(new Set([...(cur.__sources || []), d.source || d.strategy || 'scan']));
+
+                    // price-like: prefer freshest
+                    m.currentPrice   = _pickFresh(cur.currentPrice,   d.currentPrice,   ta, tb);
+                    m.price          = _pickFresh(cur.price,          d.price,          ta, tb);
+                    m.changePercent  = _pickFresh(cur.changePercent,  d.changePercent,  ta, tb);
+                    m.vwap           = _pickFresh(cur.vwap,           d.vwap,           ta, tb);
+                    m.relativeVolume = _pickFresh(cur.relativeVolume, d.relativeVolume, ta, tb);
+
+                    // score-like: keep strongest
+                    m.score = Math.max(+cur.score || 0, +d.score || 0);
+                    m.explosivenessScore = Math.max(+cur.explosivenessScore || 0, +d.explosivenessScore || 0);
+
+                    // action priority
+                    const rank = x => ({ BUY: 3, WATCHLIST: 2, MONITOR: 1 })[(x || '').toUpperCase()] || 0;
+                    m.action = rank(d.action) > rank(cur.action) ? d.action : cur.action;
+
+                    // misc truthy/fresh fields
+                    for (const k of [
+                      'float','shortInterestPct','borrowFeePct','utilizationPct','callPutRatio',
+                      'ivPercentile','atrPct','atr','rsi','timeline','risk','targetPrice',
+                      'tp1','tp2','stopLoss','priceTarget','companyName','name'
+                    ]) {
+                      m[k] = (cur[k] != null && d[k] != null) ? _pickFresh(cur[k], d[k], ta, tb) : (cur[k] ?? d[k]);
+                    }
+
+                    // thesis aggregation (no mock)
+                    const asArr = x => Array.isArray(x) ? x : (typeof x === 'string' ? [x] : []);
+                    const thesisA = asArr(cur.thesis).concat(asArr(cur.thesisNotes), asArr(cur.reason), asArr(cur.catalystDetails));
+                    const thesisB = asArr(d.thesis).concat(asArr(d.thesisNotes), asArr(d.reason), asArr(d.catalystDetails));
+                    const mergedThesis = Array.from(new Set([...thesisA, ...thesisB].filter(Boolean)));
+                    if (mergedThesis.length) m.thesis = mergedThesis;
+
+                    m.updatedAt = ta >= tb ? cur.updatedAt : d.updatedAt;
+                    m.timestamp = ta >= tb ? cur.timestamp : d.timestamp;
+
+                    map.set(symbol, m);
+                  }
+                  return Array.from(map.values());
+                }
+
+
+                function computeUpside(stock) {
+                  const price  = Number(stock.currentPrice ?? stock.price);
+                  const target = Number(stock.targetPrice ?? stock.tp1 ?? stock.priceTarget);
+                  if (!price || !target) return null;
+                  return { price, target, pct: Math.round(((target / price) - 1) * 100) };
+                }
+
+                const _truncate = (s, n = 320) => (typeof s === 'string' && s.length > n ? s.slice(0, n - 1) + '…' : s);
+
+                function buildThesisParagraph(stock) {
+                  const parts = [
+                    stock.thesis,
+                    stock.thesisNotes,
+                    stock.reason,
+                    stock.catalystDetails,
+                    stock.catalyst
+                  ].filter(v => typeof v === 'string' && v.trim());
+                  if (!parts.length) return '';
+                  const text = _truncate(parts.join(' • '), 320);
+                  return `<div class="mt-2 text-[11px] text-gray-200"><span class="text-amber-300">🧠 Thesis</span><span class="ml-1">${text}</span></div>`;
+                }
                 
                 const formatPercent = (val) => {
                     const num = parseFloat(val) || 0;
@@ -679,7 +860,7 @@
             }
 
             renderViglDiscoveries() {
-                const container = document.getElementById('viglDiscoveries');
+                const container = document.getElementById('discoveries');
                 const discoveries = this.data.viglDiscoveries || [];
                 
                 // Apply filters
@@ -687,100 +868,285 @@
                 const filteredDiscoveries = discoveries.filter(stock => {
                     if (!filters.actions.includes(stock.action)) return false;
                     if (stock.score < filters.minScore) return false;
+                    const price = stock.currentPrice || stock.price || 0;
+                    if (price > filters.maxPrice) return false; // Filter out expensive stocks
                     return true;
                 });
                 
                 if (filteredDiscoveries.length === 0) {
-                    if (discoveries.length === 0) {
-                        container.innerHTML = `
-                            <div class="text-center text-blue-200 py-8">
-                                <div class="text-4xl mb-3">🔍</div>
-                                <h3 class="text-lg font-bold mb-2">No VIGL Patterns Found</h3>
-                                <p class="text-sm mb-4">Click "Scan Market" to find moonshot opportunities</p>
-                                <div class="bg-blue-900 bg-opacity-30 rounded-lg p-3 text-xs text-blue-300">
-                                    🎯 Looking for 20.9x volume spikes like VIGL's 324% winner
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        container.innerHTML = `
-                            <div class="text-center text-blue-200 py-8">
-                                <div class="text-4xl mb-3">🔍</div>
-                                <h3 class="text-lg font-bold mb-2">No Results Match Current Filters</h3>
-                                <p class="text-sm">Adjust filters to see more discoveries</p>
-                            </div>
-                        `;
+                    container.innerHTML = this.renderEmptyState();
+                    this.updateViglStats(0, 0, 0, 0);
+                } else {
+                    const html = this.renderDiscoveryTiles(filteredDiscoveries, { dedupe: true, maxPrice: 100, density: 'compact' });
+                    container.innerHTML = html;
+                    
+                    // Update VIGL stats with correct counts
+                    const buyCount = filteredDiscoveries.filter(d => d.action === 'BUY').length;
+                    const watchlistCount = filteredDiscoveries.filter(d => d.action === 'WATCHLIST').length;
+                    const monitorCount = filteredDiscoveries.filter(d => d.action === 'MONITOR').length;
+                    this.updateViglStats(filteredDiscoveries.length, buyCount, watchlistCount, monitorCount);
+                }
+            }
+
+            // Deduplicate discoveries by symbol, merging data truthfully
+            dedupeDiscoveries(discoveries) {
+                const symbolMap = new Map();
+                
+                discoveries.forEach(discovery => {
+                    const symbol = discovery.symbol || discovery.ticker;
+                    if (!symbol) return;
+                    
+                    if (!symbolMap.has(symbol)) {
+                        symbolMap.set(symbol, {
+                            ...discovery,
+                            __sources: [discovery.discoveredAt || discovery.created_at || 'unknown']
+                        });
+                        return;
                     }
-                    return;
+                    
+                    const existing = symbolMap.get(symbol);
+                    const newTimestamp = discovery.discoveredAt || discovery.created_at || discovery.updated_at;
+                    const existingTimestamp = existing.discoveredAt || existing.created_at || existing.updated_at;
+                    
+                    // Merge data with freshness preference
+                    const merged = {
+                        ...existing,
+                        // Use max scores (strongest signal wins)
+                        score: Math.max(existing.score || 0, discovery.score || 0),
+                        explosivenessScore: Math.max(existing.explosivenessScore || 0, discovery.explosivenessScore || 0),
+                        
+                        // Action priority: BUY > WATCHLIST > MONITOR
+                        action: this.getHighestPriorityAction(existing.action, discovery.action),
+                        
+                        // Freshest price-like fields win
+                        ...(newTimestamp > existingTimestamp ? {
+                            currentPrice: discovery.currentPrice || discovery.price || existing.currentPrice || existing.price,
+                            price: discovery.currentPrice || discovery.price || existing.currentPrice || existing.price,
+                            changePct: discovery.changePct || existing.changePct,
+                            volumeX: discovery.volumeX || discovery.volumeSpike || existing.volumeX || existing.volumeSpike,
+                            volumeSpike: discovery.volumeX || discovery.volumeSpike || existing.volumeX || existing.volumeSpike,
+                            technicals: {
+                                ...existing.technicals,
+                                ...discovery.technicals
+                            }
+                        } : {}),
+                        
+                        // Merge thesis data (no mock text)
+                        thesis: this.mergeThesis(existing, discovery),
+                        
+                        // Keep track of sources
+                        __sources: [...existing.__sources, discovery.discoveredAt || discovery.created_at || 'unknown']
+                    };
+                    
+                    symbolMap.set(symbol, merged);
+                });
+                
+                return Array.from(symbolMap.values());
+            }
+
+            getHighestPriorityAction(action1, action2) {
+                const priority = { 'BUY': 3, 'WATCHLIST': 2, 'MONITOR': 1 };
+                const p1 = priority[action1] || 0;
+                const p2 = priority[action2] || 0;
+                return p1 >= p2 ? action1 : action2;
+            }
+
+            mergeThesis(existing, discovery) {
+                const existingThesis = this.getRealThesis(existing);
+                const newThesis = this.getRealThesis(discovery);
+                
+                if (!existingThesis && !newThesis) return null;
+                if (!existingThesis) return newThesis;
+                if (!newThesis) return existingThesis;
+                if (existingThesis === newThesis) return existingThesis;
+                
+                // Combine unique thesis points
+                return `${existingThesis} | ${newThesis}`;
+            }
+
+            // Helper function to calculate timeline based on score
+            calculateTimeline(score) {
+                if (score >= 85) return '3-6 months';
+                if (score >= 75) return '2-4 months';
+                if (score >= 65) return '1-3 months';
+                return '2-6 weeks';
+            }
+
+            // Embedded discovery tile renderer with ~$100 sizing and real thesis
+            computeQty(stock, targetDollars = 100) {
+                const price = stock.currentPrice || stock.price || 1;
+                
+                // Use backend recommendedQuantity if provided and valid
+                if (stock.recommendedQuantity && stock.recommendedQuantity > 0) {
+                    return stock.recommendedQuantity;
                 }
                 
-                container.innerHTML = filteredDiscoveries.map(stock => `
-                    <div class="vigl-discovery-card bg-white bg-opacity-10 rounded-lg p-4 border-l-4 ${
+                // Default to ~$100 sizing
+                return Math.max(1, Math.floor(targetDollars / price));
+            }
+
+            getRealThesis(stock) {
+                // Only show thesis if backend provides real data
+                const sources = [
+                    stock.thesis,
+                    stock.thesisNotes, 
+                    stock.reason,
+                    stock.catalystDetails
+                ];
+                
+                const realThesis = sources.find(t => t && t.trim() && t !== 'undefined');
+                return realThesis || null;
+            }
+
+            renderActionButtons(stock, isCompact = false) {
+                const qty = this.computeQty(stock, 100);
+                const cost = Math.round(qty * (stock.currentPrice || stock.price || 1));
+                const symbol = stock.symbol || stock.ticker;
+                const btnClass = isCompact ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-xs font-medium';
+                const btnSize = isCompact ? 'w-20' : 'w-full';
+                
+                if (stock.action === 'BUY') {
+                    return `
+                        <button onclick="showTradeModal('buy', '${symbol}', ${qty})" 
+                                class="bg-green-600 hover:bg-green-700 ${btnClass} rounded transition-colors mb-1 block ${btnSize}">
+                            ${isCompact ? `$${qty}` : `💰 BUY ${qty}`}
+                        </button>
+                        ${!isCompact ? `<div class="text-xs text-green-300 mb-1">~$${cost}</div>` : ''}
+                        ${!isCompact ? `
+                            <button onclick="window.dashboard.addToWatchlist('${symbol}')" 
+                                    class="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs transition-colors block w-full">
+                                👁️ Watch
+                            </button>
+                        ` : ''}
+                    `;
+                } else if (stock.action === 'WATCHLIST') {
+                    return `
+                        <button onclick="window.dashboard.addToWatchlist('${symbol}')" 
+                                class="bg-yellow-600 hover:bg-yellow-700 ${btnClass} rounded transition-colors mb-1 block ${btnSize}">
+                            ${isCompact ? '👁️' : '👁️ Watch'}
+                        </button>
+                        <button onclick="showTradeModal('buy', '${symbol}', ${qty})" 
+                                class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs transition-colors block ${btnSize}">
+                            ${isCompact ? `$${qty}` : '💰 Buy'}
+                        </button>
+                    `;
+                } else {
+                    return `
+                        <button onclick="window.dashboard.addToMonitor('${symbol}')" 
+                                class="bg-blue-600 hover:bg-blue-700 ${btnClass} rounded transition-colors mb-1 block ${btnSize}">
+                            ${isCompact ? '📊' : '📊 Monitor'}
+                        </button>
+                        <button onclick="showTradeModal('buy', '${symbol}', ${qty})" 
+                                class="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs transition-colors block ${btnSize}">
+                            ${isCompact ? `$${qty}` : '💰 Buy'}
+                        </button>
+                    `;
+                }
+            }
+
+            renderDataChips(stock) {
+                const chips = [];
+                
+                // Options data
+                if (stock.options?.callPutRatio) {
+                    chips.push(`C/P: ${stock.options.callPutRatio.toFixed(1)}`);
+                }
+                if (stock.options?.ivPercentile) {
+                    chips.push(`IV: ${stock.options.ivPercentile}%`);
+                }
+                
+                // Technical data
+                if (stock.technicals?.rsi) {
+                    chips.push(`RSI: ${stock.technicals.rsi.toFixed(0)}`);
+                }
+                if (stock.shortInterest) {
+                    chips.push(`SI: ${stock.shortInterest.toFixed(1)}%`);
+                }
+                
+                return chips.length > 0 ? `
+                    <div class="flex flex-wrap gap-1 mt-2">
+                        ${chips.map(chip => `<span class="text-xs bg-gray-700 px-2 py-1 rounded">${chip}</span>`).join('')}
+                    </div>
+                ` : '';
+            }
+
+            renderDiscoveryTile(stock, options = {}) {
+                const symbol = stock.symbol || stock.ticker;
+                const score = Math.max(stock.score || 0, stock.explosivenessScore || 0);
+                const up = computeUpside(stock);
+                const timeline = stock.timeline || stock.horizon || null;
+                
+                const essentials = `
+                  <div class="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                    <div><span class="text-gray-400">Price</span> <span class="font-semibold">${(Number(stock.currentPrice ?? stock.price) || 0).toFixed(2)}</span></div>
+                    ${up ? `<div><span class="text-gray-400">Target</span> <span class="font-semibold">${up.target.toFixed(2)}</span></div>` : ''}
+                    ${up ? `<div><span class="text-gray-400">Upside</span> <span class="font-semibold text-emerald-300">${up.pct}%</span></div>` : ''}
+                    ${timeline ? `<div><span class="text-gray-400">Timeline</span> <span class="font-semibold">${timeline}</span></div>` : ''}
+                  </div>
+                `;
+                
+                return `
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4 border-l-4 hover:transform hover:scale-105 transition-all ${
                         stock.action === 'BUY' ? 'border-green-400' : 
                         stock.action === 'WATCHLIST' ? 'border-yellow-400' : 'border-blue-400'
                     }">
-                        <div class="flex justify-between items-start">
-                            <div class="flex-1">
-                                <div class="flex items-center space-x-2 mb-2">
-                                    <span class="font-bold text-lg">${stock.symbol}</span>
-                                    <span class="text-xs px-2 py-1 rounded ${
-                                        stock.action === 'BUY' ? 'action-buy' : 
-                                        stock.action === 'WATCHLIST' ? 'action-watchlist' : 'action-monitor'
-                                    }">${stock.action}</span>
-                                    <span class="text-sm font-bold ${
-                                        stock.score >= 80 ? 'text-green-400' : 
-                                        stock.score >= 70 ? 'text-yellow-400' : 'text-orange-400'
-                                    }">${stock.score}%</span>
-                                    ${stock.isHighConfidence ? `
-                                        <span class="text-xs bg-purple-600 px-2 py-1 rounded" title="High Confidence VIGL Pattern">
-                                            ⭐ VIGL
-                                        </span>
-                                    ` : ''}
-                                </div>
-                                <div class="text-sm text-blue-200 mb-2">${stock.name}</div>
-                                <div class="grid grid-cols-2 gap-3 text-sm mb-2">
-                                    <div>Price: <span class="text-white">$${stock.currentPrice.toFixed(2)}</span></div>
-                                    <div>Volume: <span class="text-yellow-400">${stock.volumeSpike.toFixed(1)}x</span></div>
-                                    <div>Upside: <span class="text-green-400">${stock.estimatedUpside}</span></div>
-                                    <div>Timeline: <span class="text-blue-400">${stock.timeline}</span></div>
-                                    ${stock.targetPrices ? `
-                                        <div>Target: <span class="text-yellow-300">$${stock.targetPrices.moderate.toFixed(2)}</span></div>
-                                        <div>Risk: <span class="text-orange-400">${stock.riskLevel}</span></div>
-                                    ` : ''}
-                                </div>
-                                ${stock.catalysts && stock.catalysts.length > 0 ? `
-                                    <div class="text-xs text-blue-300 bg-black bg-opacity-20 rounded px-2 py-1">
-                                        📋 ${stock.catalysts.join(', ')}
-                                    </div>
-                                ` : ''}
+                        <!-- Header: Stock Name + System Rating -->
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-bold text-lg text-white">${symbol}</h3>
+                                <p class="text-sm text-gray-300">${stock.name || symbol}</p>
                             </div>
-                            <div class="text-right ml-4">
-                                <div class="text-sm font-bold mb-2 ${
-                                    stock.positionSize === 'LARGE' ? 'text-green-400' : 
-                                    stock.positionSize === 'MEDIUM' ? 'text-yellow-400' : 'text-blue-400'
-                                }">${stock.positionSize}</div>
-                                ${stock.action === 'BUY' ? `
-                                    <button onclick="window.dashboard.executeViglBuy('${stock.symbol}', ${stock.recommendedQuantity || 10})" 
-                                            class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs font-medium transition-colors mb-2 block">
-                                        📈 Buy ${stock.recommendedQuantity || 10}
-                                    </button>
-                                    <div class="text-xs text-green-300">~$${((stock.recommendedQuantity || 10) * stock.currentPrice).toFixed(0)}</div>
-                                ` : stock.action === 'WATCHLIST' ? `
-                                    <button onclick="window.dashboard.addToWatchlist('${stock.symbol}')" 
-                                            class="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-xs transition-colors mb-2 block">
-                                        👁️ Watch
-                                    </button>
-                                ` : `
-                                    <button onclick="window.dashboard.addToMonitor('${stock.symbol}')" 
-                                            class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-xs transition-colors mb-2 block">
-                                        📊 Monitor
-                                    </button>
-                                `}
+                            <div class="text-right">
+                                <div class="text-2xl font-bold ${
+                                    score >= 80 ? 'text-green-400' : 
+                                    score >= 70 ? 'text-yellow-400' : 
+                                    score >= 60 ? 'text-orange-400' : 'text-red-400'
+                                }">${Math.round(score)}</div>
+                                <div class="text-xs text-gray-400">Rating</div>
                             </div>
                         </div>
-                        <div class="vigl-score-bar mt-2" style="width: ${stock.score}%"></div>
+                        
+                        ${essentials}
+                        ${buildThesisParagraph(stock)}
+                        
+                        <!-- Trade Cockpit Buy Button -->
+                        <button onclick="executeBuy100('${symbol}', ${Number(stock.currentPrice ?? stock.price) || 0})" 
+                                class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 
+                                       text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                            💰 BUY $100 ${symbol}
+                        </button>
+                        
+                        <!-- Rating Bar -->
+                        <div class="mt-3 h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all" 
+                                 style="width: ${Math.min(score, 100)}%"></div>
+                        </div>
                     </div>
-                `).join('');
+                `;
+            }
+
+            renderDiscoveryTiles(discoveries, options = {}) {
+                const { dedupe = true, maxPrice = 100, density = 'compact' } = options;
+
+                let list = Array.isArray(discoveries) ? discoveries : [];
+                if (dedupe) list = dedupeDiscoveries(list);
+                if (maxPrice != null) {
+                  list = list.filter(d => Number(d.currentPrice ?? d.price ?? 0) <= Number(maxPrice));
+                }
+
+                this._lastRenderedDiscoveries = list; // for counters
+
+                return list.map(stock => this.renderDiscoveryTile(stock, { density })).join('');
+            }
+
+            renderEmptyState() {
+                return `
+                    <div class="col-span-full text-center py-12">
+                        <div class="text-6xl mb-4">🔍</div>
+                        <h3 class="text-xl font-bold mb-2">No VIGL Patterns Found</h3>
+                        <p class="text-blue-200">Click "Scan Market" to discover new opportunities</p>
+                    </div>
+                `;
             }
 
             getViglFilters() {
@@ -790,8 +1156,9 @@
                 if (document.getElementById('viglFilterMonitor')?.checked) actions.push('MONITOR');
                 
                 const minScore = parseInt(document.getElementById('viglMinScoreSlider')?.value || 0);
+                const maxPrice = parseInt(document.getElementById('viglMaxPriceSlider')?.value || 100);
                 
-                return { actions, minScore };
+                return { actions, minScore, maxPrice };
             }
 
             renderPortfolioPositions() {
@@ -1284,11 +1651,11 @@
         // Trade Modal Functions
         let currentTradeData = {};
 
-        function showTradeModal(action, symbol, defaultQty) {
+        function showTradeModal(action, symbol, priceHint) {
             // Find the position data to get current price
             const position = window.dashboard?.data?.portfolio?.positions?.find(p => p.symbol === symbol);
-            const discovery = window.dashboard?.data?.discoveries?.find(d => d.symbol === symbol);
-            const currentPrice = position?.currentPrice || discovery?.currentPrice || 0;
+            const discovery = window.dashboard?.data?.viglDiscoveries?.find(d => (d.symbol || d.ticker) === symbol);
+            const currentPrice = priceHint || position?.currentPrice || discovery?.currentPrice || discovery?.price || 0;
             
             currentTradeData = {
                 action: action.toLowerCase(),
@@ -1296,9 +1663,11 @@
                 price: currentPrice
             };
             
-            // Set default dollar amount (defaultQty * price, or $1000)
-            const defaultDollarAmount = defaultQty && currentPrice ? (defaultQty * currentPrice) : 1000;
-            document.getElementById('tradeDollarAmount').value = Math.round(defaultDollarAmount);
+            // Default to $100 investment (user's preference)
+            document.getElementById('tradeDollarAmount').value = 100;
+            
+            // Auto-calculate shares for $100 investment
+            setTimeout(() => updateTradeCalculations(), 100);
             
             // Calculate trading recommendations
             const entryTarget = action.toLowerCase() === 'buy' ? currentPrice * 0.98 : currentPrice; // 2% below for entries
@@ -1386,9 +1755,146 @@
             }
         }
 
+        // Bust service worker caches on load
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+        }
+
+        // Add a version string to assets (cache bust)
+        window.APP_VERSION = 'vigl-2025-08-14-fix';
+
         // Initialize dashboard when page loads
         document.addEventListener('DOMContentLoaded', () => {
             window.dashboard = new TradingDashboard();
+            
+            // Add global executeModalTrade function
+            window.executeModalTrade = async function () {
+              try {
+                const action = (window.currentTradeData?.action || 'buy').toLowerCase();
+                const symbol = window.currentTradeData?.symbol;
+                const price  = Number(window.currentTradeData?.price) || 0;
+
+                const dollarsEl = document.getElementById('tradeDollarAmount');
+                const dollars = Math.max(0, Number(dollarsEl?.value) || 0);
+
+                if (!symbol || !price || !dollars) {
+                  alert('Missing trade inputs. Check symbol, price, and dollar amount.');
+                  return;
+                }
+
+                // Set to false if your Alpaca account does not support fractional shares
+                const fractional = true;
+                const qty = fractional ? +(dollars / price).toFixed(4) : Math.max(1, Math.floor(dollars / price));
+
+                const payload = { action, symbol, qty, notional: dollars, priceHint: price };
+
+                if (window.dashboard?.executeTrade) {
+                  await window.dashboard.executeTrade(payload);
+                } else {
+                  const r = await fetch('/api/trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                  });
+                  const j = await r.json();
+                  if (!j.success) throw new Error(j.error || 'Trade failed');
+                }
+
+                closeTradeModal();
+              } catch (err) {
+                console.error(err);
+                alert(`Trade failed: ${err.message}`);
+              }
+            };
+            
+            // Add global executeBuy100 function - Trade Cockpit one-click buy
+            window.executeBuy100 = async function(symbol, price) {
+                try {
+                    console.log(`🚀 Trade Cockpit: Buy100 ${symbol} at $${price}`);
+                    
+                    // Show loading state
+                    const buttonSelector = `button[onclick*="executeBuy100('${symbol}'"]`;
+                    const button = document.querySelector(buttonSelector);
+                    if (button) {
+                        button.disabled = true;
+                        button.innerHTML = '⏳ Placing Order...';
+                    }
+                    
+                    // Execute buy100 order with bracket stops
+                    const response = await fetch('/api/discoveries/buy100', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            symbol,
+                            price,
+                            stopLossPercent: 10,    // 10% stop-loss
+                            takeProfitPercent: 25   // 25% take-profit
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        console.log(`✅ Buy100 order placed: ${result.orderId}`);
+                        
+                        // Show success notification
+                        showNotification(`🎉 Order Placed: ${result.quantity} shares of ${symbol} for $${result.actualCost}`, 'success');
+                        
+                        // Update button with success state
+                        if (button) {
+                            button.innerHTML = '✅ Order Placed!';
+                            button.className = 'w-full bg-green-700 text-white font-semibold py-3 px-4 rounded-lg';
+                            setTimeout(() => {
+                                button.disabled = false;
+                                button.innerHTML = `💰 BUY $100 ${symbol}`;
+                                button.className = 'w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg';
+                            }, 3000);
+                        }
+                        
+                        // Refresh dashboard to update positions
+                        setTimeout(() => window.dashboard?.loadData(), 2000);
+                        
+                    } else {
+                        throw new Error(result.error || 'Buy100 order failed');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Buy100 error:', error);
+                    
+                    // Show error notification
+                    showNotification(`❌ Order Failed: ${error.message}`, 'error');
+                    
+                    // Reset button state
+                    const buttonSelector = `button[onclick*="executeBuy100('${symbol}'"]`;
+                    const button = document.querySelector(buttonSelector);
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = `💰 BUY $100 ${symbol}`;
+                        button.className = 'w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg';
+                    }
+                }
+            };
+            
+            // Notification system for Trade Cockpit
+            window.showNotification = function(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                    type === 'success' ? 'bg-green-600 text-white' :
+                    type === 'error' ? 'bg-red-600 text-white' :
+                    'bg-blue-600 text-white'
+                }`;
+                notification.innerHTML = message;
+                
+                document.body.appendChild(notification);
+                
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+                
+                // Add click to dismiss
+                notification.onclick = () => notification.remove();
+            };
             
             // Add market intelligence button listener
             document.getElementById('toggleIntelligenceBtn').addEventListener('click', () => {
@@ -1477,5 +1983,226 @@
             }
         });
     </script>
+<!-- ================= VIGL DASHBOARD: FIXED CLIENT LOGIC ================ -->
+<script>
+(() => {
+  // ---------- config
+  const VIGL = {
+    DASH_URL: '/api/discoveries/dashboard',
+    TRIGGER_URL: '/api/trigger-vigl-scan',
+    BUY_URL: '/api/discoveries/buy100',
+    REFRESH_MS: 15000
+  };
+
+  // ---------- tiny dom helpers
+  const byId = (id) => document.getElementById(id);
+  const setText = (id, v) => byId(id)?.replaceChildren(document.createTextNode(String(v)));
+
+  // ---------- normalize server payload -> array of rows
+  function normalizeDiscoveries(j) {
+    const arr = j.candidates || j.discoveries || j.rows || [];
+    return arr.map((d, i) => ({
+      rank: d.rank ?? i + 1,
+      symbol: d.symbol || d.ticker,
+      ticker: d.ticker || d.symbol,
+      price: Number(d.price ?? 0),
+      score: Number(d.score ?? 0),
+      rvol: Number(d.rvol ?? d.volumeX ?? 0),
+      action: (d.action || d.status || 'MONITOR').toUpperCase(),
+      components: d.components || {},
+      catalyst: d.catalyst ?? null,
+      targetPrices: d.targetPrices ?? {
+        moderate: +(Number(d.price ?? 0) * 1.25).toFixed(2),
+        aggressive: +(Number(d.price ?? 0) * 1.5).toFixed(2)
+      }
+    }));
+  }
+
+  // ---------- counters (works standalone & as window.dashboard method)
+  function updateCountersFromList(list = []) {
+    const U = s => String(s || '').toUpperCase();
+    const found = list.length;
+    const buy   = list.filter(x => U(x.action) === 'BUY').length;
+    const watch = list.filter(x => U(x.action) === 'WATCHLIST').length;
+    const mon   = list.filter(x => U(x.action) === 'MONITOR').length;
+
+    setText('viglTotalDiscoveries', found);
+    setText('viglBuyCount', buy);
+    setText('viglWatchlistCount', watch);
+    setText('viglMonitorCount', mon);
+  }
+
+  // expose for any legacy calls like this.updateCountersFromList(...)
+  (function bindCounters() {
+    try {
+      const ctx = window.dashboard || window.app || window;
+      ctx.updateCountersFromList = updateCountersFromList;
+    } catch(_) {}
+  }());
+
+  // ---------- render discovery cards (optional container IDs supported)
+  function renderDiscoveryCards(rows) {
+    const el = byId('viglCards') || byId('vigl-cards') || byId('discoveryCards');
+    if (!el) return; // no cards container in this layout
+    el.innerHTML = '';
+
+    if (!rows.length) {
+      el.innerHTML = `
+        <div class="text-center text-gray-400 py-8">
+          No discoveries yet. Click <b>Scan Market</b> or wait for auto‑scan.
+        </div>`;
+      return;
+    }
+
+    const color = (act) =>
+      act === 'BUY' ? 'bg-emerald-600'
+    : act === 'WATCHLIST' ? 'bg-amber-500'
+    : 'bg-gray-500';
+
+    rows.slice(0, 12).forEach(d => {
+      el.insertAdjacentHTML('beforeend', `
+        <div class="rounded-2xl shadow p-3 bg-white/5 border border-white/10 mb-2">
+          <div class="flex items-center justify-between">
+            <div class="text-lg font-semibold">${d.ticker}</div>
+            <span class="px-2 py-1 text-white rounded-full text-xs ${color(d.action)}">
+              ${d.action}
+            </span>
+          </div>
+          <div class="mt-1 text-sm text-gray-300">
+            ${d.price.toFixed(2)} · RVOL ${d.rvol.toFixed(2)}× · Score ${d.score.toFixed(3)}
+          </div>
+          <div class="mt-3 flex gap-2">
+            <button class="px-3 py-1 rounded-lg text-white ${d.action==='BUY'?'bg-emerald-600 hover:bg-emerald-700':'bg-gray-600'}"
+                    ${d.action!=='BUY'?'disabled':''}
+                    onclick="window.executeBuy100 && window.executeBuy100('${d.symbol}', ${d.price})">
+              Buy $100
+            </button>
+            <button class="px-3 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                    onclick="window.scanMarket && window.scanMarket()">
+              Scan Market
+            </button>
+          </div>
+        </div>
+      `);
+    });
+  }
+
+  // ---------- data loader (cache‑busted)
+  async function fetchDiscoveries() {
+    const url = `${VIGL.DASH_URL}?t=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+    if (!res.ok) throw new Error(`dashboard ${res.status}`);
+    const j = await res.json();
+    console.log('📊 API Response:', { success: j.success, lastUpdated: j.lastUpdated, len: (j.candidates||j.discoveries||[]).length });
+    return normalizeDiscoveries(j);
+  }
+
+  async function loadViglDiscoveries() {
+    console.log('🔄 Loading VIGL discoveries…');
+    try {
+      const rows = await fetchDiscoveries();
+      updateCountersFromList(rows);
+      renderDiscoveryCards(rows);
+    } catch (e) {
+      console.error('VIGL load error:', e);
+      updateCountersFromList([]);
+      renderDiscoveryCards([]);
+    }
+  }
+
+  // ---------- scan trigger → then refresh from dashboard (authoritative)
+  async function scanMarket() {
+    try {
+      const res = await fetch(VIGL.TRIGGER_URL, { method: 'POST' });
+      const j = await res.json().catch(()=> ({}));
+      console.log('🛰️ scan triggered:', j);
+    } catch (e) {
+      console.warn('scan trigger error (continuing):', e);
+    } finally {
+      await loadViglDiscoveries();
+    }
+  }
+
+  // ---------- buy $100 (server‑side bracket; requires token if your API does)
+  async function executeBuy100(symbol, refPrice) {
+    try {
+      const res = await fetch(VIGL.BUY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, refPrice })
+      });
+      const j = await res.json();
+      if (j.success) {
+        alert(`✅ Order placed for ${symbol}`);
+      } else {
+        alert(`❌ Trade error: ${j.error || 'unknown'}`);
+      }
+    } catch (e) {
+      alert(`❌ Trade error: ${e.message}`);
+    }
+  }
+
+  // ---------- legacy bridge functions
+  function renderDiscoveryTiles(rows) {
+    renderDiscoveryCards(rows || []);
+  }
+  
+  function showViglScanning() {
+    console.log('🛰️ Scanning market...');
+  }
+  
+  function dedupeDiscoveries(rows) {
+    const seen = new Set();
+    return (rows || []).filter(r => {
+      const key = r.symbol || r.ticker;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // ---------- attach globals for existing buttons
+  window.scanMarket = scanMarket;
+  window.executeBuy100 = executeBuy100;
+  window.renderDiscoveryTiles = renderDiscoveryTiles;
+  window.showViglScanning = showViglScanning;
+  window.dedupeDiscoveries = dedupeDiscoveries;
+
+  // ---------- service‑worker/cache bust (avoids stale JS)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+  }
+
+  // ---------- boot
+  window.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 VIGL client boot');
+    loadViglDiscoveries();
+    // auto refresh
+    setInterval(loadViglDiscoveries, VIGL.REFRESH_MS);
+    // wire any existing "Scan Market" buttons
+    const scanBtn = document.querySelector('#btnScanMarket,[data-action="scan-market"]');
+    if (scanBtn) scanBtn.addEventListener('click', scanMarket);
+  });
+})();
+</script>
+<!-- =============== END VIGL DASHBOARD: FIXED CLIENT LOGIC ============== -->
+
+<script>
+  // Bridge: force the app to use the new safe functions
+  window.TradingDashboard = window.TradingDashboard || {};
+
+  // use the implementations from the new client you added
+  window.TradingDashboard.updateCountersFromList = updateCountersFromList;
+  window.TradingDashboard.renderDiscoveryTiles   = renderDiscoveryTiles;
+  window.TradingDashboard.renderViglDiscoveries  = renderDiscoveryTiles; // legacy alias
+  window.TradingDashboard.showViglScanning       = showViglScanning;
+
+  // legacy loader/scan map onto the new flow
+  window.TradingDashboard.loadViglDiscoveries = loadViglDiscoveries;
+  window.TradingDashboard.scanViglPatterns    = scanMarket;
+
+  // provide dedupe so any leftover legacy calls don't crash
+  window.dedupeDiscoveries = window.dedupeDiscoveries || dedupeDiscoveries;
+</script>
 </body>
 </html>

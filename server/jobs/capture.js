@@ -3,6 +3,11 @@ const { insertFeaturesSnapshot, upsertDiscovery } = require('../db/sqlite');
 const { fetchFeaturesForSymbols } = require('../services/features');
 const { squeezeScore } = require('../services/scoring');
 
+// Import new VIGL discovery components
+const { enrichFinalists } = require('../services/enrichment');
+const { viglScore } = require('../services/vigl-scoring');
+const { saveDiscoveryAtomic } = require('../db/discoveries-repository');
+
 /**
  * Capture daily features for symbols using rate-limited queue
  * @param {Array<string>} symbols List of symbols to capture
@@ -46,14 +51,25 @@ async function captureDaily(symbols = []) {
       
       // If high score, persist discovery (lowered threshold for testing)
       if (score >= 0.8) {
+        // Ensure we have a valid price before persisting
+        const price = features.price || features.currentPrice || 0;
+        if (!price || price <= 0) {
+          console.log(`⚠️ Skipping ${symbol} - no valid price (${price})`);
+          continue;
+        }
+        
         const discoveryId = uuidv4();
+        // Use the simplified prepared statement that matches the schema
         upsertDiscovery.run({
           id: discoveryId,
-          asof: today,
           symbol,
           score: score,
-          features_json: JSON.stringify(features),
-          created_at: Date.now()
+          features_json: JSON.stringify({
+            ...features,
+            price: price,
+            asof: today,
+            created_at: Date.now()
+          })
         });
         
         discoveries.push({
@@ -90,18 +106,22 @@ function startDailyCapture() {
 }
 
 /**
- * Get all active tradeable stocks from market
+ * Get all active tradeable stocks from market (returns both symbols and ticker data)
  */
-async function getMarketUniverse() {
+async function getMarketUniverseWithData() {
   try {
     const axios = require('axios');
     const POLYGON_KEY = process.env.POLYGON_API_KEY;
     
     if (!POLYGON_KEY) {
       console.log('⚠️ No Polygon API key, using default symbols');
-      return process.env.SCAN_SYMBOLS 
+      const defaultSymbols = process.env.SCAN_SYMBOLS 
         ? process.env.SCAN_SYMBOLS.split(',')
         : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL'];
+      return { 
+        symbols: defaultSymbols, 
+        tickers: [] // No ticker data available without API key
+      };
     }
     
     // Get all US stocks snapshot for high-volume movers
@@ -120,42 +140,157 @@ async function getMarketUniverse() {
                  t.ticker.length <= 5;  // Normal tickers only
         })
         .sort((a, b) => (b.day.v * b.day.c) - (a.day.v * a.day.c)) // Sort by dollar volume
-        .slice(0, 200) // Top 200 most liquid
-        .map(t => t.ticker);
+        .slice(0, 200); // Top 200 most liquid
       
       if (tradeable.length > 0) {
-        console.log(`📊 Scanning ${tradeable.length} liquid stocks from market`);
-        return tradeable;
+        console.log(`📊 Got ${tradeable.length} liquid stocks from market for prefiltering`);
+        return {
+          symbols: tradeable.map(t => t.ticker),
+          tickers: tradeable
+        };
       }
     }
     
     // Fallback to configured symbols or defaults
     console.log('⚠️ Using fallback symbols');
-    return process.env.SCAN_SYMBOLS 
+    const fallbackSymbols = process.env.SCAN_SYMBOLS 
       ? process.env.SCAN_SYMBOLS.split(',')
       : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL', 
          'SPY', 'QQQ', 'NVAX', 'SNDL', 'PLTR', 'NIO', 'AAL', 'F', 'GE', 'BAC'];
+    return {
+      symbols: fallbackSymbols,
+      tickers: [] // No ticker data for fallback
+    };
   } catch (error) {
     console.error('⚠️ Error fetching market universe:', error.message);
     // Return defaults on error
-    return process.env.SCAN_SYMBOLS 
+    const errorFallback = process.env.SCAN_SYMBOLS 
       ? process.env.SCAN_SYMBOLS.split(',')
       : ['AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'AMZN', 'META', 'GOOGL'];
+    return {
+      symbols: errorFallback,
+      tickers: []
+    };
   }
 }
 
 /**
- * Run discovery capture immediately
+ * Get all active tradeable stocks from market (legacy function for compatibility)
+ */
+async function getMarketUniverse() {
+  const { symbols } = await getMarketUniverseWithData();
+  return symbols;
+}
+
+// Import the new prefilter service
+const { prefilterUniverse } = require('../services/prefilter');
+
+/**
+ * Run VIGL discovery using complete optimized pipeline
+ */
+async function runVIGLDiscovery() {
+  try {
+    console.log('🎯 Starting VIGL Discovery Pipeline...');
+    
+    // Stage 1: Get market universe and prefilter to candidates
+    const { symbols, tickers } = await getMarketUniverseWithData();
+    const { ranked: candidates, metrics } = prefilterUniverse(tickers);
+    
+    console.log(`📊 Prefilter: ${metrics.universe} universe → ${candidates.length} candidates`);
+    
+    if (candidates.length === 0) {
+      console.log('⚠️ No candidates passed prefiltering');
+      return [];
+    }
+    
+    // Stage 2: Enrich finalists with comprehensive data
+    console.log(`🔬 Enriching ${candidates.length} finalists...`);
+    const enrichedCandidates = await enrichFinalists(candidates);
+    
+    if (enrichedCandidates.length === 0) {
+      console.log('⚠️ No candidates survived enrichment');
+      return [];
+    }
+    
+    // Stage 3: VIGL scoring and classification
+    console.log(`🧮 VIGL scoring ${enrichedCandidates.length} enriched candidates...`);
+    const viglResults = [];
+    const asof = new Date();
+    
+    for (const candidate of enrichedCandidates) {
+      try {
+        const scored = viglScore(candidate);
+        
+        // Stage 4: Atomic persistence with price validation
+        const saveResult = saveDiscoveryAtomic(scored, asof);
+        
+        if (saveResult.success) {
+          viglResults.push(scored);
+          console.log(`💾 ${scored.symbol}: score=${scored.score}, action=${scored.action}`);
+        } else {
+          console.log(`⚠️ Skipped saving ${scored.symbol}: ${saveResult.reason || saveResult.error}`);
+        }
+        
+      } catch (scoringError) {
+        console.error(`❌ VIGL scoring failed for ${candidate.symbol}:`, scoringError.message);
+      }
+    }
+    
+    console.log(`✅ VIGL Discovery Complete: ${viglResults.length} discoveries persisted`);
+    
+    // Summary statistics
+    const summary = {
+      universe: metrics.universe,
+      prefiltered: candidates.length,
+      enriched: enrichedCandidates.length,
+      discoveries: viglResults.length,
+      actions: {
+        BUY: viglResults.filter(r => r.action === 'BUY').length,
+        WATCHLIST: viglResults.filter(r => r.action === 'WATCHLIST').length,
+        MONITOR: viglResults.filter(r => r.action === 'MONITOR').length,
+        DROP: viglResults.filter(r => r.action === 'DROP').length
+      },
+      avgScore: viglResults.length > 0 ? 
+        +(viglResults.reduce((sum, r) => sum + r.score, 0) / viglResults.length).toFixed(2) : 0
+    };
+    
+    console.log(`📊 VIGL Summary:`, summary);
+    return viglResults;
+    
+  } catch (error) {
+    console.error('❌ VIGL Discovery Pipeline Error:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Run discovery capture immediately (legacy compatibility)
  */
 async function runDiscoveryCapture() {
+  // Use new VIGL pipeline if available, fall back to legacy
+  if (process.env.USE_VIGL_PIPELINE === 'true') {
+    return runVIGLDiscovery();
+  }
+  
   try {
-    console.log('🔍 Running discovery capture...');
+    console.log('🔍 Running legacy discovery capture...');
     
-    // Get full market universe or use configured symbols
-    const symbols = await getMarketUniverse();
+    // Get full market snapshot with ticker data for prefiltering
+    const { symbols, tickers } = await getMarketUniverseWithData();
     
-    const discoveries = await captureDaily(symbols);
-    console.log(`✅ Capture complete: ${discoveries.length} discoveries from ${symbols.length} stocks`);
+    // Apply prefiltering to get top candidates only  
+    const { ranked: candidates, metrics } = prefilterUniverse(tickers);
+    console.log(`📊 Prefilter metrics:`, metrics);
+    
+    if (candidates.length === 0) {
+      console.log('⚠️ No candidates passed prefiltering criteria');
+      return [];
+    }
+    
+    console.log(`🎯 Processing ${candidates.length} prefiltered candidates (vs ${symbols.length} total universe)`);
+    
+    const discoveries = await captureDaily(candidates);
+    console.log(`✅ Capture complete: ${discoveries.length} discoveries from ${candidates.length} candidates`);
     
     return discoveries;
   } catch (error) {
@@ -167,5 +302,6 @@ async function runDiscoveryCapture() {
 module.exports = {
   captureDaily,
   startDailyCapture,
-  runDiscoveryCapture
+  runDiscoveryCapture,
+  runVIGLDiscovery
 };

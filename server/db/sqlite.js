@@ -191,9 +191,12 @@ const insertDiscovery = (row) => {
 
 const getLatestDiscoveriesForEngine = (limit = 50) => {
   const stmt = db.prepare(`
-    SELECT id, symbol, price, score, preset, action, features_json, audit_json, created_at
+    SELECT id, symbol, price, score, preset, action, features_json, audit_json, created_at, explosiveness_score, updated_at
     FROM discoveries
-    ORDER BY created_at DESC
+    ORDER BY 
+      CASE WHEN explosiveness_score IS NOT NULL THEN 0 ELSE 1 END,
+      explosiveness_score DESC,
+      created_at DESC
     LIMIT ?
   `);
   return stmt.all(limit);

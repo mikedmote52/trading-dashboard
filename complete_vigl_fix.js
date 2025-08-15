@@ -193,6 +193,7 @@ class CompleteVIGLFix {
       viglScore: Math.min(discovery.score / 100, 1.0),
       similarity: Math.min(discovery.score / 100, 1.0),
       isHighConfidence: discovery.score >= 75,
+      explosivenessScore: discovery.explosiveness_score || null,
       
       // Trading recommendations
       estimatedUpside: this._calculateUpside(discovery.score),

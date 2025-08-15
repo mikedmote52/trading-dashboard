@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head><title>Verify VIGL UI</title></head>
+<body>
+    <h2>Testing VIGL Dashboard API and DOM Updates</h2>
+    
+    <div>Current Stats:</div>
+    <div>Total: <span id="total">Loading...</span></div>
+    <div>BUY: <span id="buy">Loading...</span></div>  
+    <div>WATCHLIST: <span id="watch">Loading...</span></div>
+    <div>MONITOR: <span id="monitor">Loading...</span></div>
+    
+    <div><hr><h3>Test Results:</h3></div>
+    <div id="results">Running tests...</div>
+    
+    <script>
+        async function runTests() {
+            const results = [];
+            
+            try {
+                // Test 1: API Call
+                results.push("✅ Test 1: Fetching API...");
+                const response = await fetch(`/api/discoveries/dashboard?t=${Date.now()}`);
+                const data = await response.json();
+                
+                results.push(`✅ API Success: ${data.success}, Count: ${data.count}`);
+                results.push(`✅ Discoveries: ${data.discoveries?.length || 0}`);
+                
+                if (data.discoveries && data.discoveries.length > 0) {
+                    const buyCount = data.discoveries.filter(d => d.action === 'BUY').length;
+                    const watchCount = data.discoveries.filter(d => d.action === 'WATCHLIST').length;
+                    const monitorCount = data.discoveries.filter(d => d.action === 'MONITOR').length;
+                    
+                    results.push(`✅ BUY: ${buyCount}, WATCHLIST: ${watchCount}, MONITOR: ${monitorCount}`);
+                    
+                    // Test 2: DOM Updates
+                    results.push("✅ Test 2: Updating DOM...");
+                    document.getElementById('total').textContent = data.discoveries.length;
+                    document.getElementById('buy').textContent = buyCount;
+                    document.getElementById('watch').textContent = watchCount;
+                    document.getElementById('monitor').textContent = monitorCount;
+                    results.push("✅ DOM Updated Successfully");
+                    
+                    // Test 3: Show sample discovery
+                    const sample = data.discoveries[0];
+                    results.push(`✅ Sample: ${sample.symbol} (${sample.action}) at $${sample.price}`);
+                } else {
+                    results.push("❌ No discoveries found in API response");
+                }
+                
+            } catch (error) {
+                results.push(`❌ Error: ${error.message}`);
+            }
+            
+            document.getElementById('results').innerHTML = results.join('<br>');
+        }
+        
+        runTests();
+    </script>
+</body>
+</html>

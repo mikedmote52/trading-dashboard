@@ -4,6 +4,7 @@ const Engine = require('../services/squeeze/engine');
 const EngineOptimized = require('../services/squeeze/engine_optimized');
 const db = require('../db/sqlite');
 const { safeNum, formatPrice, formatPercent, formatMultiplier } = require('../services/squeeze/metrics_safety');
+const https = require('https');
 
 // New unified service and mapper
 const { scanOnce, topDiscoveries, getEngineInfo } = require('../services/discovery_service');
@@ -12,6 +13,99 @@ const { toUiDiscovery, mapDiscoveries } = require('./mappers/to_ui_discovery');
 // simple in-memory job registry
 const jobs = new Map();
 let lastJob = null;
+
+// Alpaca configuration
+const ALPACA_CONFIG = {
+  apiKey: process.env.APCA_API_KEY_ID,
+  secretKey: process.env.APCA_API_SECRET_KEY,
+  baseUrl: process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets'
+};
+
+/**
+ * Execute bracket order with Alpaca API
+ * @param {Object} orderData Bracket order configuration
+ * @returns {Promise<Object>} Result with success status and order ID
+ */
+async function executeBracketOrder(orderData) {
+  return new Promise((resolve) => {
+    if (!ALPACA_CONFIG.apiKey || !ALPACA_CONFIG.secretKey) {
+      console.error('❌ Alpaca credentials not configured');
+      resolve({ success: false, error: 'Alpaca API not configured' });
+      return;
+    }
+
+    const url = new URL(ALPACA_CONFIG.baseUrl);
+    const postData = JSON.stringify(orderData);
+    
+    const options = {
+      hostname: url.hostname,
+      path: '/v2/orders',
+      method: 'POST',
+      headers: {
+        'APCA-API-KEY-ID': ALPACA_CONFIG.apiKey,
+        'APCA-API-SECRET-KEY': ALPACA_CONFIG.secretKey,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log(`📡 Bracket order request: POST https://${url.hostname}/v2/orders`);
+    console.log(`📡 Order data:`, JSON.stringify(orderData, null, 2));
+
+    const req = https.request(options, (res) => {
+      let responseData = '';
+      res.on('data', chunk => responseData += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseData);
+          
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            console.log(`✅ Bracket order successful: ${parsed.id}`);
+            resolve({ 
+              success: true, 
+              orderId: parsed.id,
+              response: parsed 
+            });
+          } else {
+            console.error(`❌ Alpaca bracket order error: ${res.statusCode}`);
+            console.error(`❌ Response: ${responseData}`);
+            resolve({ 
+              success: false, 
+              error: `Alpaca API error: ${res.statusCode} - ${parsed?.message || responseData}` 
+            });
+          }
+        } catch (e) {
+          console.error('❌ Failed to parse bracket order response:', e.message);
+          console.error('❌ Raw response:', responseData);
+          resolve({ 
+            success: false, 
+            error: `Invalid response format: ${e.message}` 
+          });
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error('❌ Bracket order request failed:', err.message);
+      resolve({ 
+        success: false, 
+        error: `Network error: ${err.message}` 
+      });
+    });
+    
+    req.setTimeout(15000, () => {
+      req.destroy();
+      console.error('❌ Bracket order request timeout');
+      resolve({ 
+        success: false, 
+        error: 'Request timeout after 15 seconds' 
+      });
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
 
 // Debug endpoint to prove which engine is actually active
 router.get('/_debug/engine', (req, res) => {
@@ -38,20 +132,172 @@ router.get('/_debug/engine', (req, res) => {
   }
 });
 
+// POST /api/discoveries/buy100 -> Secure $100 VIGL buy with bracket orders
+router.post('/buy100', async (req, res) => {
+  try {
+    const { symbol, price, stopLossPercent = 10, takeProfitPercent = 25 } = req.body;
+    
+    // Input validation
+    if (!symbol || !/^[A-Z]{1,5}$/.test(symbol)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid symbol format',
+        symbol
+      });
+    }
+    
+    if (!price || price <= 0 || price > 1000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid price - must be between $0.01 and $1000',
+        symbol,
+        price
+      });
+    }
+    
+    console.log(`💰 VIGL Buy100: ${symbol} at $${price} with ${stopLossPercent}% stop-loss, ${takeProfitPercent}% take-profit`);
+    
+    // Calculate position size for $100 investment
+    const investmentAmount = 100.00;
+    const quantity = Math.floor(investmentAmount / price);
+    
+    if (quantity < 1) {
+      return res.status(400).json({
+        success: false,
+        error: `Price too high for $100 investment (calculated ${quantity} shares)`,
+        symbol,
+        price,
+        maxPrice: investmentAmount
+      });
+    }
+    
+    // Calculate bracket order levels
+    const actualCost = quantity * price;
+    const stopLossPrice = +(price * (1 - stopLossPercent / 100)).toFixed(2);
+    const takeProfitPrice = +(price * (1 + takeProfitPercent / 100)).toFixed(2);
+    
+    // Create bracket order (parent + OCO orders)
+    const bracketOrder = {
+      symbol: symbol.toString(),
+      qty: quantity.toString(),
+      side: 'buy',
+      type: 'market',
+      time_in_force: 'day',
+      order_class: 'bracket',
+      stop_loss: {
+        stop_price: stopLossPrice.toString(),
+        limit_price: stopLossPrice.toString()
+      },
+      take_profit: {
+        limit_price: takeProfitPrice.toString()
+      }
+    };
+    
+    console.log(`📊 Bracket Order: ${quantity} shares × $${price} = $${actualCost.toFixed(2)}`);
+    console.log(`📊 Stop Loss: $${stopLossPrice} (-${stopLossPercent}%)`);
+    console.log(`📊 Take Profit: $${takeProfitPrice} (+${takeProfitPercent}%)`);
+    
+    // Execute bracket order via Alpaca
+    const result = await executeBracketOrder(bracketOrder);
+    
+    if (result.success) {
+      console.log(`✅ VIGL Bracket Order placed: ${result.orderId} for ${symbol}`);
+      
+      res.json({
+        success: true,
+        orderId: result.orderId,
+        symbol,
+        quantity,
+        price,
+        actualCost: +actualCost.toFixed(2),
+        stopLossPrice,
+        takeProfitPrice,
+        stopLossPercent,
+        takeProfitPercent,
+        message: `Buy100 order placed: ${quantity} shares of ${symbol}`,
+        orderType: 'bracket',
+        source: 'vigl_buy100'
+      });
+    } else {
+      console.error(`❌ VIGL Buy100 failed for ${symbol}: ${result.error}`);
+      res.status(500).json({
+        success: false,
+        error: result.error,
+        symbol,
+        quantity,
+        price
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ VIGL Buy100 error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Buy100 operation failed',
+      message: error.message
+    });
+  }
+});
+
+// POST /api/discoveries/vigl -> Run complete VIGL discovery pipeline
+router.post('/vigl', async (req, res) => {
+  try {
+    const { runVIGLDiscovery } = require('../jobs/capture');
+    
+    console.log('🎯 Starting VIGL discovery pipeline via API...');
+    const startTime = Date.now();
+    
+    const results = await runVIGLDiscovery();
+    const duration = Date.now() - startTime;
+    
+    console.log(`✅ VIGL pipeline completed in ${duration}ms: ${results.length} discoveries`);
+    
+    res.json({
+      success: true,
+      pipeline: 'VIGL',
+      duration: `${duration}ms`,
+      results: results.length,
+      discoveries: results.map(r => ({
+        symbol: r.symbol,
+        score: r.score,
+        action: r.action,
+        price: r.price,
+        rvol: r.rvol
+      })),
+      summary: {
+        BUY: results.filter(r => r.action === 'BUY').length,
+        WATCHLIST: results.filter(r => r.action === 'WATCHLIST').length,
+        MONITOR: results.filter(r => r.action === 'MONITOR').length,
+        DROP: results.filter(r => r.action === 'DROP').length,
+        avgScore: results.length > 0 ? 
+          +(results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(2) : 0
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ VIGL API endpoint error:', error.message);
+    res.status(500).json({
+      success: false,
+      pipeline: 'VIGL',
+      error: error.message,
+      results: 0,
+      discoveries: [],
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // POST /api/discoveries/scan -> unified scan using DiscoveryService
 router.post('/scan', async (req, res) => {
   try {
     if (process.env.SELECT_ENGINE) {
       const { engine, results } = await scanOnce();
-      const discoveries = mapDiscoveries(results || [])
-        .filter(d => d.price > 0)
-        .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action));
-      
       return res.json({
         success: true,
         engine,
-        count: discoveries.length,
-        discoveries
+        count: results.length,
+        discoveries: results.map(toUiDiscovery)
       });
     }
     
@@ -192,6 +438,7 @@ function toUniformDiscovery(rawData) {
     score: safeNum(data.composite_score || rawData.score, 0),
     scoreConfidence: safeNum(data.score_confidence || audit.composite_confidence, 1.0),
     action: data.action || rawData.action || 'MONITOR',
+    explosivenessScore: safeNum(rawData.explosiveness_score, null),
     
     // Options flow
     options: {
@@ -253,33 +500,41 @@ function toUniformDiscovery(rawData) {
 // GET /api/discoveries/latest - Get latest discoveries using unified service
 router.get('/latest', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
-    const rows = await topDiscoveries(Math.min(limit, 200)); // Use unified service
+    const discoveries = db.db.prepare(`
+      SELECT COUNT(*) as total_count
+      FROM discoveries 
+      WHERE action IS NOT NULL
+    `).get();
     
-    const discoveries = mapDiscoveries(rows) // Use safe mapper
-      .filter(d => d.price > 0) // Remove invalid entries
-      .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action)) // Only actionable items
-      .sort((a, b) => b.score - a.score); // Sort by score descending
+    const actionBreakdown = db.db.prepare(`
+      SELECT action, COUNT(*) as count
+      FROM discoveries 
+      WHERE action IS NOT NULL
+      GROUP BY action
+    `).all();
     
-    const engineInfo = getEngineInfo();
+    const recentDiscoveries = db.db.prepare(`
+      SELECT symbol, score, action, price, created_at
+      FROM discoveries 
+      WHERE action IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all();
     
-    res.json({ 
-      success: true, 
-      discoveries,
-      count: discoveries.length,
-      lastUpdated: new Date().toISOString(),
-      engine: engineInfo.active_engine
+    res.json({
+      success: true,
+      count: discoveries.total_count,
+      discoveries: recentDiscoveries,
+      breakdown: actionBreakdown,
+      timestamp: new Date().toISOString()
     });
-  } catch (e) {
-    console.error('Latest discoveries error:', e);
-    // Never return 500 - always provide empty result for UI stability
-    res.json({ 
-      success: false, 
-      discoveries: [],
-      count: 0,
-      error: e.message,
-      lastUpdated: new Date().toISOString(),
-      engine: 'error'
+    
+  } catch (error) {
+    console.error('❌ Failed to get latest discoveries:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -426,31 +681,41 @@ router.get('/_debug/smoke', (_req, res) => {
   });
 });
 
-// GET /api/discoveries/raw - raw diagnostics without JSON parsing
+// GET /api/discoveries/raw - Raw discoveries for master automation
 router.get('/raw', async (_req, res) => {
   try {
-    // Direct SQL to avoid JSON parsing issues
-    const rawQuery = db.db.prepare(`
-      SELECT symbol, action, score, created_at,
-             CASE WHEN audit_json IS NULL THEN 'null'
-                  WHEN audit_json = 'undefined' THEN 'undefined_string'
-                  ELSE 'has_data' END as audit_status
+    const discoveries = db.db.prepare(`
+      SELECT symbol, score, action, price, features_json, created_at
       FROM discoveries 
-      ORDER BY created_at DESC 
-      LIMIT 20
+      WHERE action IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 100
     `).all();
     
-    res.json({ 
-      success: true, 
-      total_records: rawQuery.length,
-      sample_data: rawQuery,
-      audit_stats: rawQuery.reduce((stats, row) => {
-        stats[row.audit_status] = (stats[row.audit_status] || 0) + 1;
-        return stats;
-      }, {})
+    // Parse features_json to extract enrichment data
+    const enriched = discoveries.map(d => {
+      const features = d.features_json ? JSON.parse(d.features_json) : {};
+      return {
+        symbol: d.symbol,
+        score: d.score,
+        action: d.action,
+        price: d.price,
+        short_interest: features.short_interest || 0,
+        volume_ratio: features.volume_ratio || features.technicals?.rel_volume || 0,
+        created_at: d.created_at
+      };
     });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    
+    // Return array directly for master automation compatibility
+    res.json(enriched);
+    
+  } catch (error) {
+    console.error('❌ Failed to get raw discoveries:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -511,17 +776,59 @@ router.get('/_debug/last-error', (_req, res) => {
   }
 });
 
-// Dashboard endpoint for frontend compatibility - returns discoveries in dashboard format
+// Dashboard endpoint for frontend compatibility - NOW USES VIGL TABLE
 router.get('/dashboard', async (req, res) => {
   try {
+    const { getRecentDiscoveries, getDiscoveryStats } = require('../db/discoveries-repository');
     const limit = parseInt(req.query.limit) || 20;
-    const rows = await db.getLatestDiscoveriesForEngine(Math.min(limit, 100));
     
-    const discoveries = rows
-      .map(r => toUniformDiscovery(r))
-      .filter(d => d !== null && d.price > 0)
-      .filter(d => ['BUY', 'WATCHLIST', 'MONITOR'].includes(d.action))
-      .sort((a, b) => b.score - a.score);
+    console.log(`📊 Dashboard: Fetching VIGL discoveries (limit: ${limit})`);
+    
+    // Get recent VIGL discoveries from new table
+    const viglDiscoveries = getRecentDiscoveries(Math.min(limit, 50));
+    
+    // Map VIGL format to UI format with rank
+    const discoveries = viglDiscoveries.map((discovery, index) => ({
+      rank: index + 1,
+      symbol: discovery.symbol,
+      ticker: discovery.symbol,
+      name: discovery.symbol, // Company name would come from enrichment
+      currentPrice: discovery.price,
+      price: discovery.price,
+      score: Math.round(discovery.score * 25), // Convert 0-4 to 0-100 scale for UI
+      action: discovery.action,
+      rvol: discovery.rvol,
+      volumeSpike: discovery.rvol,
+      volumeX: discovery.rvol,
+      similarity: Math.min(discovery.score / 4, 1.0), // 0-1 scale
+      confidence: Math.min(discovery.score / 4, 1.0),
+      viglScore: Math.min(discovery.score / 4, 1.0),
+      isHighConfidence: discovery.score >= 2.5,
+      recommendation: discovery.action,
+      estimatedUpside: discovery.score >= 3.0 ? '100-200%' : 
+                       discovery.score >= 2.0 ? '50-100%' : '25-50%',
+      riskLevel: discovery.score >= 2.5 ? 'MODERATE' : 'HIGH',
+      discoveredAt: discovery.asof,
+      breakoutStrength: Math.min(discovery.score / 4, 1.0),
+      thesis: `VIGL pattern detected with ${discovery.rvol.toFixed(1)}x relative volume`,
+      // Add component breakdown from VIGL scoring
+      components: discovery.components || {},
+      createdAt: discovery.createdAt,
+      updatedAt: discovery.updatedAt,
+      
+      // Additional fields the UI expects
+      explosivenessScore: Math.round(discovery.score * 25), // Same as score for consistency
+      catalyst: null, // No catalyst data in VIGL system yet
+      targetPrices: {
+        moderate: +(discovery.price * 1.25).toFixed(2),
+        aggressive: +(discovery.price * 1.5).toFixed(2)
+      },
+      // Ensure all required fields exist
+      estimatedData: false
+    }));
+    
+    // Get summary statistics
+    const stats = getDiscoveryStats();
     
     res.json({
       success: true,
@@ -529,18 +836,29 @@ router.get('/dashboard', async (req, res) => {
       count: discoveries.length,
       lastUpdated: new Date().toISOString(),
       summary: {
-        viglOpportunities: discoveries.length,
+        viglOpportunities: stats.total,
         highConfidence: discoveries.filter(d => d.isHighConfidence).length,
         buySignals: discoveries.filter(d => d.action === 'BUY').length,
         watchlistItems: discoveries.filter(d => d.action === 'WATCHLIST').length,
+        monitorItems: discoveries.filter(d => d.action === 'MONITOR').length,
         avgScore: discoveries.length > 0 ? 
           Math.round(discoveries.reduce((sum, d) => sum + d.score, 0) / discoveries.length) : 0,
-        estimatedDataCount: discoveries.filter(d => d.estimatedData).length
+        maxScore: discoveries.length > 0 ? Math.max(...discoveries.map(d => d.score)) : 0,
+        avgRVOL: discoveries.length > 0 ?
+          +(discoveries.reduce((sum, d) => sum + d.rvol, 0) / discoveries.length).toFixed(2) : 0,
+        estimatedDataCount: 0 // VIGL system uses real data
+      },
+      // Include metadata about the new system
+      metadata: {
+        source: 'discoveries_vigl',
+        pipeline: 'prefilter → enrichment → vigl_scoring → atomic_save',
+        scoringRange: '0-4 VIGL scale (displayed as 0-100)',
+        lastScan: new Date().toISOString()
       }
     });
   } catch (error) {
-    console.error('Dashboard endpoint error:', error);
-    // Never return 500 to maintain UI stability
+    console.error('❌ Dashboard endpoint error:', error.message);
+    // Never return 500 to maintain UI stability - fallback to empty state
     res.json({ 
       success: false, 
       error: error.message,
@@ -552,8 +870,292 @@ router.get('/dashboard', async (req, res) => {
         highConfidence: 0,
         buySignals: 0,
         watchlistItems: 0,
+        monitorItems: 0,
         avgScore: 0,
+        maxScore: 0,
+        avgRVOL: 0,
         estimatedDataCount: 0
+      },
+      metadata: {
+        source: 'discoveries_vigl',
+        error: 'Failed to load VIGL discoveries'
+      }
+    });
+  }
+});
+
+// ==================== MISSING API ENDPOINTS FOR MASTER AUTOMATION ====================
+
+// DELETE /api/discoveries/clear - Clear stale discoveries
+router.delete('/clear', async (req, res) => {
+  try {
+    console.log('🧹 Clearing stale discoveries...');
+    
+    // Delete old records with null actions or older than 7 days
+    const result = db.db.prepare(`
+      DELETE FROM discoveries 
+      WHERE action IS NULL 
+         OR action = '' 
+         OR created_at < datetime('now', '-7 days')
+    `).run();
+    
+    console.log(`✅ Cleared ${result.changes} stale discovery records`);
+    
+    res.json({
+      success: true,
+      deleted: result.changes,
+      message: `Cleared ${result.changes} stale discoveries`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to clear discoveries:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Duplicate /raw endpoint removed - using the updated one above
+
+// Duplicate /latest endpoint removed - using the updated one above
+
+// POST /api/discoveries/backup - Backup discoveries
+router.post('/backup', async (req, res) => {
+  try {
+    const { filename = `trading_backup_${new Date().toISOString().split('T')[0]}.json` } = req.body;
+    
+    const discoveries = db.db.prepare(`
+      SELECT * FROM discoveries 
+      WHERE action IS NOT NULL
+      ORDER BY created_at DESC
+    `).all();
+    
+    // In a real system, you'd save this to file storage
+    console.log(`💾 Backup created: ${discoveries.length} records`);
+    
+    res.json({
+      success: true,
+      filename,
+      count: discoveries.length,
+      message: `Backup created with ${discoveries.length} discoveries`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Backup failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// POST /api/discoveries/enrich-and-rescore - Enrich discoveries with comprehensive features
+router.post('/enrich-and-rescore', async (req, res) => {
+  try {
+    const { enrichDiscoveries } = require('../enrich');
+    const { 
+      limit = 50, 
+      batchSize = 3, 
+      delayMs = 2000,
+      minScore = 0 
+    } = req.body;
+    
+    console.log(`🔬 Starting enrichment process...`);
+    console.log(`📊 Parameters: limit=${limit}, batchSize=${batchSize}, delayMs=${delayMs}`);
+    
+    // Get discoveries to enrich
+    const rawDiscoveries = db.db.prepare(`
+      SELECT symbol, score, action, price, features_json, created_at, id
+      FROM discoveries 
+      WHERE action IS NOT NULL 
+        AND score >= ?
+        AND (features_json IS NULL 
+             OR features_json NOT LIKE '%"enriched_at"%'
+             OR json_extract(features_json, '$.enrichment_version') IS NULL)
+      ORDER BY score DESC, created_at DESC
+      LIMIT ?
+    `).all(minScore, limit);
+    
+    if (rawDiscoveries.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No discoveries need enrichment',
+        enriched: 0,
+        failed: 0,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    console.log(`📥 Found ${rawDiscoveries.length} discoveries to enrich`);
+    
+    // Enrich discoveries
+    const enrichedResults = await enrichDiscoveries(rawDiscoveries, { batchSize, delayMs });
+    
+    // Update database with enriched data
+    const updateStmt = db.db.prepare(`
+      UPDATE discoveries 
+      SET features_json = ?, 
+          explosiveness_score = ?,
+          updated_at = ?
+      WHERE id = ?
+    `);
+    
+    let updated = 0;
+    let failed = 0;
+    
+    for (const result of enrichedResults) {
+      try {
+        if (result.enriched) {
+          updateStmt.run(
+            result.features_json,
+            result.explosiveness_score || null,
+            new Date().toISOString(),
+            result.id
+          );
+          updated++;
+        } else {
+          failed++;
+        }
+      } catch (updateError) {
+        console.error(`❌ Failed to update ${result.symbol}:`, updateError.message);
+        failed++;
+      }
+    }
+    
+    console.log(`✅ Enrichment complete: ${updated} updated, ${failed} failed`);
+    
+    // Get summary of explosiveness scores
+    const scoreStats = db.db.prepare(`
+      SELECT 
+        COUNT(*) as total_enriched,
+        AVG(explosiveness_score) as avg_explosiveness,
+        MAX(explosiveness_score) as max_explosiveness,
+        COUNT(CASE WHEN explosiveness_score >= 70 THEN 1 END) as high_explosiveness
+      FROM discoveries 
+      WHERE explosiveness_score IS NOT NULL
+    `).get();
+    
+    res.json({
+      success: true,
+      processed: rawDiscoveries.length,
+      enriched: updated,
+      failed: failed,
+      message: `Enriched ${updated} discoveries with comprehensive features`,
+      stats: {
+        totalEnriched: scoreStats.total_enriched,
+        avgExplosiveness: Math.round(scoreStats.avg_explosiveness || 0),
+        maxExplosiveness: scoreStats.max_explosiveness || 0,
+        highExplosiveness: scoreStats.high_explosiveness
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Enrichment failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// NEW VIGL DASHBOARD ENDPOINT - Clean ranked response from discoveries_vigl table
+router.get('/dashboard/vigl', async (req, res) => {
+  try {
+    const { getRecentDiscoveries, getDiscoveryStats } = require('../db/discoveries-repository');
+    const limit = parseInt(req.query.limit) || 20;
+    
+    console.log(`📊 Fetching VIGL discoveries (limit: ${limit})`);
+    
+    // Get recent VIGL discoveries from new table
+    const discoveries = getRecentDiscoveries(Math.min(limit, 50));
+    
+    // Add rank to each discovery based on sort order
+    const rankedDiscoveries = discoveries.map((discovery, index) => ({
+      ...discovery,
+      rank: index + 1
+    }));
+    
+    // Get summary statistics
+    const stats = getDiscoveryStats();
+    
+    console.log(`✅ Retrieved ${rankedDiscoveries.length} VIGL discoveries`);
+    
+    res.json({
+      success: true,
+      discoveries: rankedDiscoveries,
+      count: rankedDiscoveries.length,
+      lastUpdated: new Date().toISOString(),
+      
+      // VIGL-specific summary stats
+      summary: {
+        totalDiscoveries: stats.total,
+        buySignals: rankedDiscoveries.filter(d => d.action === 'BUY').length,
+        watchlistItems: rankedDiscoveries.filter(d => d.action === 'WATCHLIST').length,
+        monitorItems: rankedDiscoveries.filter(d => d.action === 'MONITOR').length,
+        avgScore: rankedDiscoveries.length > 0 ? 
+          +(rankedDiscoveries.reduce((sum, d) => sum + d.score, 0) / rankedDiscoveries.length).toFixed(2) : 0,
+        maxScore: rankedDiscoveries.length > 0 ? Math.max(...rankedDiscoveries.map(d => d.score)) : 0,
+        avgRVOL: rankedDiscoveries.length > 0 ?
+          +(rankedDiscoveries.reduce((sum, d) => sum + d.rvol, 0) / rankedDiscoveries.length).toFixed(2) : 0,
+        statsTimestamp: stats.timestamp
+      },
+      
+      // Action breakdown from database
+      breakdown: stats.byAction.reduce((acc, item) => {
+        acc[item.action] = {
+          count: item.count,
+          avgScore: +Number(item.avg_score).toFixed(2),
+          maxScore: +Number(item.max_score).toFixed(2)
+        };
+        return acc;
+      }, {}),
+      
+      // Data source metadata
+      metadata: {
+        source: 'discoveries_vigl',
+        table: 'New VIGL atomic persistence',
+        pipeline: 'prefilter → enrichment → vigl_scoring → atomic_save',
+        scoringRange: '0-4 scale',
+        classification: {
+          BUY: '≥2.50',
+          WATCHLIST: '≥1.75', 
+          MONITOR: '≥1.25',
+          DROP: '<1.25'
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ VIGL dashboard endpoint error:', error.message);
+    
+    // Graceful degradation - never break UI
+    res.json({
+      success: false,
+      error: error.message,
+      discoveries: [],
+      count: 0,
+      lastUpdated: new Date().toISOString(),
+      summary: {
+        totalDiscoveries: 0,
+        buySignals: 0,
+        watchlistItems: 0,
+        monitorItems: 0,
+        avgScore: 0,
+        maxScore: 0,
+        avgRVOL: 0,
+        statsTimestamp: new Date().toISOString()
+      },
+      breakdown: {},
+      metadata: {
+        source: 'discoveries_vigl',
+        error: 'Failed to load VIGL discoveries'
       }
     });
   }

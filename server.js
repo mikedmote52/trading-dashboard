@@ -161,6 +161,365 @@ app.get('/api/dashboard', async (req, res) => {
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
 
+// VIGL scan trigger endpoint for UI button
+app.post('/api/trigger-vigl-scan', async (req, res) => {
+  try {
+    console.log('🎯 UI triggered VIGL discovery scan...');
+    
+    const { runVIGLDiscovery } = require('./server/jobs/capture');
+    const startTime = Date.now();
+    
+    const results = await runVIGLDiscovery();
+    const duration = Date.now() - startTime;
+    
+    console.log(`✅ UI VIGL scan completed in ${duration}ms: ${results.length} discoveries`);
+    
+    res.json({
+      success: true,
+      message: `VIGL scan completed: ${results.length} discoveries found`,
+      results: results.length,
+      duration: `${duration}ms`,
+      discoveries: results.map(r => ({
+        symbol: r.symbol,
+        score: r.score,
+        action: r.action,
+        price: r.price,
+        rvol: r.rvol
+      })),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ UI VIGL scan error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'VIGL scan failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Accept VIGL discoveries FROM Python engine (MOVED BEFORE 404 HANDLER)
+app.post('/api/run-vigl-discovery', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    console.log(`🔍 [${requestId}] VIGL Discovery Request Started`);
+    console.log(`📡 [${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
+    console.log(`📊 [${requestId}] Body type: ${typeof req.body}, isArray: ${Array.isArray(req.body)}`);
+    
+    const discoveries = req.body;
+    
+    // Enhanced validation with detailed logging
+    if (!discoveries) {
+      console.error(`❌ [${requestId}] No request body received`);
+      return res.status(400).json({
+        success: false,
+        error: 'No request body received',
+        count: 0,
+        requestId
+      });
+    }
+    
+    if (!Array.isArray(discoveries)) {
+      console.error(`❌ [${requestId}] Invalid payload format:`, typeof discoveries);
+      console.error(`❌ [${requestId}] Payload sample:`, JSON.stringify(discoveries).substring(0, 500));
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid payload: expected array of discoveries',
+        count: 0,
+        received: typeof discoveries,
+        requestId
+      });
+    }
+
+    console.log(`✅ [${requestId}] Valid array received: ${discoveries.length} records`);
+    
+    // Immediate response for empty arrays (not an error)
+    if (discoveries.length === 0) {
+      console.log(`ℹ️  [${requestId}] Empty discovery array - no processing needed`);
+      return res.json({
+        success: true,
+        count: 0,
+        message: 'Empty discovery array processed',
+        requestId,
+        processingTime: Date.now() - startTime
+      });
+    }
+
+    const db = require('./server/db/sqlite');
+    let insertedCount = 0;
+    let errors = [];
+    let skippedCount = 0;
+
+    // Process each discovery with retry logic
+    for (let i = 0; i < discoveries.length; i++) {
+      const discovery = discoveries[i];
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          console.log(`🔄 [${requestId}] Processing discovery ${i+1}/${discoveries.length} (attempt ${attempts}): ${discovery.symbol}`);
+          
+          // Validate required fields
+          if (!discovery.symbol || typeof discovery.symbol !== 'string') {
+            errors.push(`Invalid symbol: ${discovery.symbol}`);
+            skippedCount++;
+            break;
+          }
+          
+          if (typeof discovery.score !== 'number' || isNaN(discovery.score)) {
+            errors.push(`Invalid score for ${discovery.symbol}: ${discovery.score}`);
+            skippedCount++;
+            break;
+          }
+
+          // CORRECTED ActionMapper based on NEW score ranges (3.0-5.0 = MONITOR)
+          let action;
+          if (discovery.score > 5.0) {
+            action = 'BUY';
+          } else if (discovery.score >= 3.0) {
+            action = 'MONITOR';
+          } else if (discovery.score >= 2.0) {
+            action = 'WATCHLIST';
+          } else {
+            action = 'IGNORE';
+          }
+
+          console.log(`📊 [${requestId}] ${discovery.symbol}: score=${discovery.score} → action=${action}`);
+
+          // Validate price field (required for discoveries table)
+          const price = discovery.price || discovery.current_price || 0;
+          if (!price || price <= 0) {
+            console.warn(`⚠️ [${requestId}] ${discovery.symbol}: No valid price, using 0`);
+          }
+
+          // Validate required enrichment fields
+          const shortInterest = discovery.short_interest || discovery.shortInterest || 0;
+          const volumeRatio = discovery.volume_ratio || discovery.volume_spike || discovery.volumeSpike || 0;
+          
+          if (!shortInterest || !volumeRatio) {
+            console.warn(`⚠️ [${requestId}] ${discovery.symbol}: Missing enrichment data (SI: ${shortInterest}, VR: ${volumeRatio}) - skipping`);
+            errors.push(`${discovery.symbol}: Missing short_interest or volume_ratio`);
+            skippedCount++;
+            break;
+          }
+
+          // Prepare discovery record for database
+          const discoveryRecord = {
+            symbol: discovery.symbol.toUpperCase(),
+            score: Math.round(discovery.score * 100) / 100,
+            action: action,
+            price: Math.max(0, parseFloat(price) || 0),
+            features_json: JSON.stringify({
+              score: discovery.score,
+              confidence: discovery.confidence || (discovery.score / 10),
+              short_interest: shortInterest,
+              volume_ratio: volumeRatio,
+              technicals: {
+                rel_volume: volumeRatio,
+                momentum: discovery.momentum || 0,
+                price_change: discovery.price_change || 0
+              },
+              catalyst: {
+                type: discovery.catalyst || 'VIGL Pattern Match'
+              },
+              source: 'python_vigl_engine',
+              validated: true,
+              request_id: requestId
+            }),
+            created_at: discovery.timestamp || discovery.created_at || new Date().toISOString()
+          };
+
+          // Insert into database with retry
+          await db.insertDiscovery(discoveryRecord);
+          insertedCount++;
+          console.log(`✅ [${requestId}] Inserted ${discovery.symbol}: ${discovery.score} → ${action} (SI: ${shortInterest}%, VR: ${volumeRatio}x)`);
+          break; // Success, exit retry loop
+
+        } catch (insertError) {
+          console.error(`❌ [${requestId}] Insert attempt ${attempts} failed for ${discovery.symbol}:`, insertError.message);
+          
+          if (attempts === maxAttempts) {
+            errors.push(`${discovery.symbol}: ${insertError.message} (${maxAttempts} attempts failed)`);
+          } else {
+            console.log(`🔄 [${requestId}] Retrying ${discovery.symbol} in 1 second...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      }
+    }
+
+    // Final results and response
+    const processingTime = Date.now() - startTime;
+    console.log(`📊 [${requestId}] VIGL Discovery Complete: ${insertedCount} inserted, ${skippedCount} skipped, ${errors.length} errors in ${processingTime}ms`);
+    
+    if (errors.length > 0) {
+      console.log(`❌ [${requestId}] Errors:`, errors);
+    }
+
+    // Generate comprehensive response
+    const response = {
+      success: true,
+      count: insertedCount,
+      skipped: skippedCount,
+      errors: errors,
+      message: `Successfully processed ${discoveries.length} discoveries: ${insertedCount} inserted, ${skippedCount} skipped`,
+      requestId,
+      processingTime,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`✅ [${requestId}] Response:`, JSON.stringify(response, null, 2));
+    res.json(response);
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    console.error(`❌ [${requestId}] VIGL discovery endpoint failed after ${processingTime}ms:`, error.message);
+    console.error(`❌ [${requestId}] Stack:`, error.stack);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      count: 0,
+      requestId,
+      processingTime,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// VIGL system health check (MOVED BEFORE 404 HANDLER)
+app.get('/api/vigl-health', async (req, res) => {
+  try {
+    res.json({
+      healthy: true,
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      healthy: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// VIGL discoveries endpoint for dashboard (MOVED BEFORE 404 HANDLER) - DISABLED IN FAVOR OF ENHANCED VERSION
+/* app.get('/api/vigl-discoveries', async (req, res) => {
+  try {
+    // Forward to the discoveries/latest endpoint
+    const discoveries = require('./server/db/sqlite').db.prepare(`
+      SELECT COUNT(*) as total_count
+      FROM discoveries 
+      WHERE action IS NOT NULL
+    `).get();
+    
+    const actionBreakdown = require('./server/db/sqlite').db.prepare(`
+      SELECT action, COUNT(*) as count
+      FROM discoveries 
+      WHERE action IS NOT NULL
+      GROUP BY action
+    `).all();
+    
+    const recentDiscoveries = require('./server/db/sqlite').db.prepare(`
+      SELECT symbol, score, action, price, features_json, created_at
+      FROM discoveries 
+      WHERE action IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all();
+    
+    // Parse features and format for dashboard
+    const formattedDiscoveries = recentDiscoveries.map(d => {
+      const features = d.features_json ? JSON.parse(d.features_json) : {};
+      return {
+        symbol: d.symbol,
+        score: d.score * 10, // Scale to 0-100 for dashboard
+        action: d.action,
+        price: d.price,
+        confidence: Math.min(d.score / 10, 1.0),
+        viglScore: Math.min(d.score / 10, 1.0),
+        similarity: Math.min(d.score / 10, 1.0),
+        isHighConfidence: d.score >= 3.0,
+        recommendation: d.action,
+        discoveredAt: d.created_at,
+        catalyst: features.catalyst?.type || 'Pattern Match',
+        volumeSpike: features.volume_ratio || 1.0,
+        momentum: features.technicals?.momentum || 0,
+        shortInterest: features.short_interest || 0
+      };
+    });
+    
+    const buyCount = actionBreakdown.find(b => b.action === 'BUY')?.count || 0;
+    const watchlistCount = actionBreakdown.find(b => b.action === 'WATCHLIST')?.count || 0;
+    const monitorCount = actionBreakdown.find(b => b.action === 'MONITOR')?.count || 0;
+    
+    res.json({
+      success: true,
+      count: discoveries.total_count,
+      discoveries: formattedDiscoveries,
+      buyCount,
+      watchlistCount,
+      monitorCount,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to get VIGL discoveries for dashboard:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      discoveries: [],
+      count: 0,
+      timestamp: new Date().toISOString()
+    });
+  }
+}); */
+
+// Trading actions
+app.post('/api/trade', async (req, res) => {
+  try {
+    const { action, symbol, qty } = req.body;
+    
+    if (!ALPACA_CONFIG.apiKey) {
+      return res.status(400).json({ error: 'Alpaca API not configured' });
+    }
+    
+    const orderData = {
+      symbol: symbol.toString(),
+      qty: qty.toString(),
+      side: action, // 'buy' or 'sell'
+      type: 'market',
+      time_in_force: 'day'
+    };
+    
+    console.log(`🔄 Placing ${action} order: ${qty} shares of ${symbol}`);
+    
+    const result = await makeAlpacaTradeRequest('orders', 'POST', orderData);
+    
+    if (result) {
+      console.log(`✅ Order placed successfully: ${result.id}`);
+      res.json({ 
+        success: true, 
+        orderId: result.id,
+        message: `${action.toUpperCase()} order placed: ${qty} shares of ${symbol}`
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to place order' });
+    }
+    
+  } catch (error) {
+    console.error('❌ Trading error:', error);
+    res.status(500).json({ error: 'Trading operation failed' });
+  }
+});
+
 // hard JSON 404 so /api/* never falls into SPA
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
@@ -1341,7 +1700,7 @@ app.get('/api/vigl-discoveries', async (req, res) => {
     // Get enhanced discoveries from database
     let discoveries = [];
     if (vigl.db) {
-      const rawDiscoveries = await vigl.db.getLatestDiscoveriesForEngine(20);
+      const rawDiscoveries = await vigl.db.getLatestDiscoveriesForEngine(50);
       discoveries = await Promise.all(
         rawDiscoveries.map(d => vigl._enhanceDiscovery(d))
       );
@@ -1368,198 +1727,7 @@ app.get('/api/vigl-discoveries', async (req, res) => {
   }
 });
 
-// Accept VIGL discoveries FROM Python engine (STABLE VERSION WITH RETRY LOGIC)
-app.post('/api/run-vigl-discovery', async (req, res) => {
-  const startTime = Date.now();
-  const requestId = Math.random().toString(36).substr(2, 9);
-  
-  try {
-    console.log(`🔍 [${requestId}] VIGL Discovery Request Started`);
-    console.log(`📡 [${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
-    console.log(`📊 [${requestId}] Body type: ${typeof req.body}, isArray: ${Array.isArray(req.body)}`);
-    
-    const discoveries = req.body;
-    
-    // Enhanced validation with detailed logging
-    if (!discoveries) {
-      console.error(`❌ [${requestId}] No request body received`);
-      return res.status(400).json({
-        success: false,
-        error: 'No request body received',
-        count: 0,
-        requestId
-      });
-    }
-    
-    if (!Array.isArray(discoveries)) {
-      console.error(`❌ [${requestId}] Invalid payload format:`, typeof discoveries);
-      console.error(`❌ [${requestId}] Payload sample:`, JSON.stringify(discoveries).substring(0, 500));
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid payload: expected array of discoveries',
-        count: 0,
-        received: typeof discoveries,
-        requestId
-      });
-    }
-
-    console.log(`✅ [${requestId}] Valid array received: ${discoveries.length} records`);
-    
-    // Immediate response for empty arrays (not an error)
-    if (discoveries.length === 0) {
-      console.log(`ℹ️  [${requestId}] Empty discovery array - no processing needed`);
-      return res.json({
-        success: true,
-        count: 0,
-        message: 'Empty discovery array processed',
-        requestId,
-        processingTime: Date.now() - startTime
-      });
-    }
-
-    const db = require('./server/db/sqlite');
-    let insertedCount = 0;
-    let errors = [];
-    let skippedCount = 0;
-
-    // Process each discovery with retry logic
-    for (let i = 0; i < discoveries.length; i++) {
-      const discovery = discoveries[i];
-      let attempts = 0;
-      const maxAttempts = 3;
-      
-      while (attempts < maxAttempts) {
-        try {
-          attempts++;
-          console.log(`🔄 [${requestId}] Processing discovery ${i+1}/${discoveries.length} (attempt ${attempts}): ${discovery.symbol}`);
-          
-          // Validate required fields
-          if (!discovery.symbol || typeof discovery.symbol !== 'string') {
-            errors.push(`Invalid symbol: ${discovery.symbol}`);
-            skippedCount++;
-            break;
-          }
-          
-          if (typeof discovery.score !== 'number' || isNaN(discovery.score)) {
-            errors.push(`Invalid score for ${discovery.symbol}: ${discovery.score}`);
-            skippedCount++;
-            break;
-          }
-
-          // CORRECTED ActionMapper based on NEW score ranges (3.0-5.0 = MONITOR)
-          let action;
-          if (discovery.score > 5.0) {
-            action = 'BUY';
-          } else if (discovery.score >= 3.0) {
-            action = 'MONITOR';
-          } else if (discovery.score >= 2.0) {
-            action = 'WATCHLIST';
-          } else {
-            action = 'IGNORE';
-          }
-
-          console.log(`📊 [${requestId}] ${discovery.symbol}: score=${discovery.score} → action=${action}`);
-
-          // Validate price field (required for discoveries table)
-          const price = discovery.price || discovery.current_price || 0;
-          if (!price || price <= 0) {
-            console.warn(`⚠️ [${requestId}] ${discovery.symbol}: No valid price, using 0`);
-          }
-
-          // Validate required enrichment fields
-          const shortInterest = discovery.short_interest || discovery.shortInterest || 0;
-          const volumeRatio = discovery.volume_ratio || discovery.volume_spike || discovery.volumeSpike || 0;
-          
-          if (!shortInterest || !volumeRatio) {
-            console.warn(`⚠️ [${requestId}] ${discovery.symbol}: Missing enrichment data (SI: ${shortInterest}, VR: ${volumeRatio}) - skipping`);
-            errors.push(`${discovery.symbol}: Missing short_interest or volume_ratio`);
-            skippedCount++;
-            break;
-          }
-
-          // Prepare discovery record for database
-          const discoveryRecord = {
-            symbol: discovery.symbol.toUpperCase(),
-            score: Math.round(discovery.score * 100) / 100,
-            action: action,
-            price: Math.max(0, parseFloat(price) || 0),
-            features_json: JSON.stringify({
-              score: discovery.score,
-              confidence: discovery.confidence || (discovery.score / 10),
-              short_interest: shortInterest,
-              volume_ratio: volumeRatio,
-              technicals: {
-                rel_volume: volumeRatio,
-                momentum: discovery.momentum || 0,
-                price_change: discovery.price_change || 0
-              },
-              catalyst: {
-                type: discovery.catalyst || 'VIGL Pattern Match'
-              },
-              source: 'python_vigl_engine',
-              validated: true,
-              request_id: requestId
-            }),
-            created_at: discovery.timestamp || discovery.created_at || new Date().toISOString()
-          };
-
-          // Insert into database with retry
-          await db.insertDiscovery(discoveryRecord);
-          insertedCount++;
-          console.log(`✅ [${requestId}] Inserted ${discovery.symbol}: ${discovery.score} → ${action} (SI: ${shortInterest}%, VR: ${volumeRatio}x)`);
-          break; // Success, exit retry loop
-
-        } catch (insertError) {
-          console.error(`❌ [${requestId}] Insert attempt ${attempts} failed for ${discovery.symbol}:`, insertError.message);
-          
-          if (attempts === maxAttempts) {
-            errors.push(`${discovery.symbol}: ${insertError.message} (${maxAttempts} attempts failed)`);
-          } else {
-            console.log(`🔄 [${requestId}] Retrying ${discovery.symbol} in 1 second...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-      }
-    }
-
-    // Final results and response
-    const processingTime = Date.now() - startTime;
-    console.log(`📊 [${requestId}] VIGL Discovery Complete: ${insertedCount} inserted, ${skippedCount} skipped, ${errors.length} errors in ${processingTime}ms`);
-    
-    if (errors.length > 0) {
-      console.log(`❌ [${requestId}] Errors:`, errors);
-    }
-
-    // Generate comprehensive response
-    const response = {
-      success: true,
-      count: insertedCount,
-      skipped: skippedCount,
-      errors: errors,
-      message: `Successfully processed ${discoveries.length} discoveries: ${insertedCount} inserted, ${skippedCount} skipped`,
-      requestId,
-      processingTime,
-      timestamp: new Date().toISOString()
-    };
-
-    console.log(`✅ [${requestId}] Response:`, JSON.stringify(response, null, 2));
-    res.json(response);
-
-  } catch (error) {
-    const processingTime = Date.now() - startTime;
-    console.error(`❌ [${requestId}] VIGL discovery endpoint failed after ${processingTime}ms:`, error.message);
-    console.error(`❌ [${requestId}] Stack:`, error.stack);
-    
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      count: 0,
-      requestId,
-      processingTime,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+// Duplicate removed - endpoint moved before 404 handler
 
 // Trigger VIGL discovery scan (separate endpoint for manual triggers)
 app.post('/api/trigger-vigl-scan', async (req, res) => {
@@ -1957,44 +2125,6 @@ app.post('/api/analyze', async (req, res) => {
 //     message: 'Market intelligence coming soon'
 //   });
 // });
-
-// Trading actions
-app.post('/api/trade', async (req, res) => {
-  try {
-    const { action, symbol, qty } = req.body;
-    
-    if (!ALPACA_CONFIG.apiKey) {
-      return res.status(400).json({ error: 'Alpaca API not configured' });
-    }
-    
-    const orderData = {
-      symbol: symbol.toString(),
-      qty: qty.toString(),
-      side: action, // 'buy' or 'sell'
-      type: 'market',
-      time_in_force: 'day'
-    };
-    
-    console.log(`🔄 Placing ${action} order: ${qty} shares of ${symbol}`);
-    
-    const result = await makeAlpacaTradeRequest('orders', 'POST', orderData);
-    
-    if (result) {
-      console.log(`✅ Order placed successfully: ${result.id}`);
-      res.json({ 
-        success: true, 
-        orderId: result.id,
-        message: `${action.toUpperCase()} order placed: ${qty} shares of ${symbol}`
-      });
-    } else {
-      res.status(500).json({ error: 'Failed to place order' });
-    }
-    
-  } catch (error) {
-    console.error('❌ Trading error:', error);
-    res.status(500).json({ error: 'Trading operation failed' });
-  }
-});
 
 // Helper function for trading requests
 function makeAlpacaTradeRequest(endpoint, method, data) {
