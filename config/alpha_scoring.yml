@@ -1,0 +1,74 @@
+# --- Adaptive prefilter strategy (cheap, daily bars only)
+prefilter_strategy:
+  target_keep: 200     # aim to keep ~200 for deeper checks
+  min_keep: 120        # never keep fewer than this before intraday checks
+  step_percentile: 5   # relax in 5-pt steps if too strict
+  adv_pct_min: 40      # start at 40th percentile of ADV
+  dollar_pct_min: 40   # start at 40th percentile of avg $ volume
+  atr_pct_min: 60      # start at 60th percentile of ATR%
+
+# --- Momentum lane (bypass if statistically "hot" on dailies)
+momentum_lane:
+  ret_5d_min: 0.15     # +15% in 5 trading days
+  day_range_min: 0.08  # today's range (H-L)/C >= 8%
+
+# --- Intraday gate auto-relax if too few make it past early step
+intraday_relax:
+  relax_if_under: 60   # if survivors before intraday < 60…
+  early_relvol_relaxed: 1.8  # …allow this lower RelVol gate (from 2.5)
+
+weights:
+  volume_momentum: 0.25
+  float_short: 0.20
+  catalysts: 0.20
+  sentiment: 0.15
+  options: 0.10
+  technicals: 0.10
+
+thresholds:
+  rel_vol_30m: 3.0
+  ema_bull_cross: true
+  atr_frac_min: 0.04
+  rsi_min: 60
+  rsi_max: 70
+  vwap_above: true
+  float_max_low: 50000000
+  alt_float_min_high: 150000000
+  short_interest_min: 0.20
+  borrow_fee_min: 0.20
+  utilization_min: 0.85
+  call_put_min: 2.0
+  iv_percentile_min: 80
+  score_watch: 70
+  score_trade_ready: 75
+
+universe:
+  max_symbols: 3000     # cap to speed up scans
+  include_etfs: false
+
+timing:
+  premarket_scan_cron: "15 6 * * 1-5"   # 6:15am PT
+  midday_scan_cron:    "30 10 * * 1-5"  # 10:30am PT
+  powerhour_scan_cron: "05 12 * * 1-5"  # 12:05pm PT
+
+prefilters:
+  price_min: 1.0
+  price_max: 100.0
+  adv_shares_min: 750000
+  avg_dollar_vol_min: 5000000
+  atr_pct_min: 0.03
+  exclude_otc: true
+  exclude_etf: true
+
+monthly:
+  ret_21d_min: 0.25          # 25% in ~1 month
+  breakout_lookback: 20      # 20-day high breakout
+  breakout_buffer: 0.01      # +1% through the high
+  up_days_window: 4
+  up_days_min: 3
+
+intraday_gates:
+  early_relvol_min: 2.5
+  day_change_min: 0.05
+  premarket_gap_min: 0.05
+  premarket_vol_min: 100000

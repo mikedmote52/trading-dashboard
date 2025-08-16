@@ -1,44 +1,11 @@
-PRAGMA foreign_keys=ON;
+const fs = require('fs');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
--- Clean up and recreate with proper schema
-DROP TABLE IF EXISTS vigl_discoveries;
-CREATE TABLE discoveries (
-  id TEXT PRIMARY KEY,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  symbol TEXT,
-  score REAL,
-  features_json TEXT
-);
+const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', 'trading_dashboard.db');
 
-DROP TABLE IF EXISTS features_snapshots;
-CREATE TABLE features_snapshot (
-  id TEXT PRIMARY KEY,
-  asof TEXT,
-  symbol TEXT,
-  short_interest_pct REAL,
-  borrow_fee_7d_change REAL,
-  rel_volume REAL,
-  momentum_5d REAL,
-  catalyst_flag INTEGER,
-  float_shares INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS decisions (
-  id TEXT PRIMARY KEY,
-  ts INTEGER,
-  kind TEXT,
-  symbol TEXT,
-  recommendation TEXT,
-  payload_json TEXT
-);
-
-CREATE TABLE IF NOT EXISTS thesis (
-  symbol TEXT PRIMARY KEY,
-  version INTEGER,
-  payload_json TEXT,
-  updated_at TEXT
-);
-
+// Read just the AlphaStack tables from schema.sql
+const alphaStackSQL = `
 -- AlphaStack tables
 CREATE TABLE IF NOT EXISTS short_metrics (
   symbol TEXT PRIMARY KEY,
@@ -100,10 +67,18 @@ CREATE TABLE IF NOT EXISTS screener_candidates (
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_discoveries_symbol ON discoveries(symbol);
-CREATE INDEX IF NOT EXISTS idx_discoveries_score ON discoveries(score);
-CREATE INDEX IF NOT EXISTS idx_features_symbol ON features_snapshot(symbol);
-CREATE INDEX IF NOT EXISTS idx_features_asof ON features_snapshot(asof);
 CREATE INDEX IF NOT EXISTS idx_screener_candidates_score ON screener_candidates(score);
 CREATE INDEX IF NOT EXISTS idx_screener_candidates_run ON screener_candidates(run_label);
 CREATE INDEX IF NOT EXISTS idx_screener_candidates_created ON screener_candidates(created_at);
+`;
+
+const db = new sqlite3.Database(DB_PATH);
+db.exec(alphaStackSQL, (err) => {
+  if (err) {
+    console.error('Migration failed:', err.message);
+    process.exit(1);
+  } else {
+    console.log('AlphaStack migration complete at', DB_PATH);
+    process.exit(0);
+  }
+});

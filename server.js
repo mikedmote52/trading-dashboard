@@ -55,9 +55,11 @@ function validateEnvironment() {
 // Run validation
 validateEnvironment();
 
+const fs = require('fs');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 const PortfolioIntelligence = require('./portfolio_intelligence');
@@ -73,6 +75,81 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+// AlphaStack Screener API
+app.get('/api/screener/top', (req, res) => {
+  try {
+    const db = new sqlite3.Database(path.join(__dirname, process.env.SQLITE_DB_PATH || 'trading_dashboard.db'));
+    const sql = `
+      SELECT sc.symbol, sc.score, sc.bucket, sc.reason, sc.created_at,
+             tm.price, tm.vwap, tm.rsi, tm.atr_frac, tm.ema9, tm.ema20, tm.rel_vol_30m, tm.multi_day_up,
+             sm.float_shares, sm.short_interest, sm.borrow_fee, sm.utilization,
+             om.call_put_ratio, om.near_atm_call_oi_change, om.iv_percentile,
+             se.reddit_mentions, se.stocktwits_msgs, se.youtube_trend, se.sentiment_score
+      FROM screener_candidates sc
+      LEFT JOIN technical_metrics tm USING(symbol)
+      LEFT JOIN short_metrics sm USING(symbol)
+      LEFT JOIN options_metrics om USING(symbol)
+      LEFT JOIN sentiment_metrics se USING(symbol)
+      WHERE sc.created_at >= datetime('now','-1 day')
+      ORDER BY sc.score DESC
+      LIMIT 100;`;
+
+    db.all(sql, [], (err, rows) => {
+      if (err) return res.status(500).json({ ok: false, error: String(err) });
+      const out = rows.map(r => ({
+        symbol: r.symbol,
+        score: r.score,
+        bucket: r.bucket,
+        parts: (()=>{ try { return JSON.parse(r.reason||"{}").parts || {}; } catch { return {}; } })(),
+        targets: (()=>{ try { return JSON.parse(r.reason||"{}").targets || {}; } catch { return {}; } })(),
+        price: r.price, vwap: r.vwap, rsi: r.rsi, atr_frac: r.atr_frac,
+        ema9: r.ema9, ema20: r.ema20, rel_vol_30m: r.rel_vol_30m,
+        float_shares: r.float_shares, short_interest: r.short_interest,
+        borrow_fee: r.borrow_fee, utilization: r.utilization,
+        call_put_ratio: r.call_put_ratio, near_atm_call_oi_change: r.near_atm_call_oi_change,
+        iv_percentile: r.iv_percentile,
+        reddit_mentions: r.reddit_mentions, stocktwits_msgs: r.stocktwits_msgs,
+        youtube_trend: r.youtube_trend, sentiment_score: r.sentiment_score,
+        created_at: r.created_at
+      }));
+      res.json({ ok: true, count: out.length, items: out });
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+// Screener run endpoint
+app.post('/api/screener/run', (req, res) => {
+  const { label } = req.body;
+  const validLabels = ['premarket', 'midday', 'powerhour', 'manual'];
+  
+  if (!validLabels.includes(label)) {
+    return res.status(400).json({ ok: false, error: 'Invalid label' });
+  }
+  
+  try {
+    const { execSync } = require('child_process');
+    process.env.SCREENER_LABEL = label;
+    
+    // Run screener in background
+    const { spawn } = require('child_process');
+    const screener = spawn('python3', ['agents/screener_worker.py'], {
+      env: { ...process.env, SCREENER_LABEL: label },
+      detached: true,
+      stdio: 'ignore'
+    });
+    
+    screener.unref();
+    
+    res.json({ ok: true, message: `Screener ${label} started` });
+    
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
 
 // mount API routes first
 const discoveriesRouter = require('./server/routes/discoveries');
@@ -84,8 +161,6 @@ app.use('/api/pm', require('./server/routes/pm'));
 app.get('/api/dashboard', async (req, res) => {
   try {
     const portfolio = await fetchAlpacaPositions();
-    
-    // Add risk analysis and thesis to each position
     portfolio.positions = portfolio.positions.map(position => {
       const riskAnalysis = analyzePositionRisk(position);
       const thesis = PositionThesis.generateThesis(position);
@@ -517,6 +592,252 @@ app.post('/api/trade', async (req, res) => {
   } catch (error) {
     console.error('❌ Trading error:', error);
     res.status(500).json({ error: 'Trading operation failed' });
+  }
+});
+
+// =============================================================================
+// MARKET DATA HELPERS - Real price enrichment
+// =============================================================================
+
+const ALPACA_DATA_BASE = 'https://data.alpaca.markets/v2';
+
+// Reuse your env keys
+function alpacaHeaders() {
+  return {
+    'APCA-API-KEY-ID': process.env.APCA_API_KEY_ID,
+    'APCA-API-SECRET-KEY': process.env.APCA_API_SECRET_KEY,
+  };
+}
+
+// Batch latest bars for multiple symbols; returns { AAPL: 186.12, ... }
+async function getLatestPrices(symbols = []) {
+  if (!symbols.length) return {};
+  const url = `${ALPACA_DATA_BASE}/stocks/bars/latest?symbols=${symbols.join(',')}`;
+  try {
+    const r = await fetch(url, { headers: alpacaHeaders() });
+    if (!r.ok) {
+      console.error('Alpaca latest bars failed:', r.status, await r.text());
+      return {};
+    }
+    const j = await r.json();
+    const out = {};
+    // j.bars shape: { AAPL: { c: 186.12, ... }, MSFT: {...} }
+    for (const s of symbols) {
+      const bar = j.bars?.[s];
+      if (bar && typeof bar.c === 'number') out[s] = bar.c;
+    }
+    return out;
+  } catch (error) {
+    console.error('Failed to fetch latest prices:', error.message);
+    return {};
+  }
+}
+
+// Cache prices for rate-limits
+const priceCache = new Map(); // key: CSV symbols, val: { ts, map }
+
+async function getLatestPricesCached(symbols) {
+  const key = symbols.sort().join(',');
+  const hit = priceCache.get(key);
+  if (hit && Date.now() - hit.ts < 5_000) return hit.map;
+
+  const map = await getLatestPrices(symbols);
+  priceCache.set(key, { ts: Date.now(), map });
+  return map;
+}
+
+// =============================================================================
+// MISSING API ENDPOINTS - Frontend-Backend Connector Fix
+// =============================================================================
+
+// 1. Dashboard-specific discoveries endpoint (frontend expects this)
+app.get('/api/discoveries/dashboard', async (req, res) => {
+  try {
+    console.log('📊 Dashboard discoveries request');
+    const db = require('./server/db/sqlite');
+    
+    // Get recent discoveries with proper formatting
+    const baseDiscoveries = db.db.prepare(`
+      SELECT symbol, score, action, price, features_json, created_at
+      FROM discoveries 
+      WHERE action IS NOT NULL
+        AND action != 'IGNORE'
+      ORDER BY score DESC, created_at DESC
+      LIMIT 50
+    `).all();
+    
+    // Get real-time prices for all symbols
+    const symbols = [...new Set(baseDiscoveries.map(d => d.symbol).filter(Boolean))];
+    console.log(`💰 Fetching live prices for ${symbols.length} symbols:`, symbols.slice(0, 5));
+    const priceMap = await getLatestPricesCached(symbols);
+    console.log(`💰 Price map result:`, Object.keys(priceMap).length, 'prices fetched, sample:', Object.entries(priceMap).slice(0, 3));
+    
+    // Transform to expected frontend format
+    const formattedDiscoveries = baseDiscoveries.map(d => {
+      const features = d.features_json ? JSON.parse(d.features_json) : {};
+      const realPrice = priceMap[d.symbol] ?? d.price ?? null; // prefer live price
+      return {
+        symbol: d.symbol,
+        ticker: d.symbol,
+        name: d.symbol,
+        price: realPrice,
+        currentPrice: realPrice,
+        score: d.score,
+        action: d.action,
+        recommendation: d.action,
+        
+        // VIGL pattern data
+        volumeSpike: features.technicals?.rel_volume || features.volume_ratio || 1.0,
+        rvol: features.technicals?.rel_volume || features.volume_ratio || 1.0,
+        volumeX: features.technicals?.rel_volume || features.volume_ratio || 1.0,
+        
+        // Calculated fields
+        confidence: Math.min(d.score / 100, 1.0),
+        viglScore: Math.min(d.score / 100, 1.0),
+        similarity: Math.min(d.score / 100, 1.0),
+        isHighConfidence: d.score >= 70,
+        
+        // Targets and timeline
+        estimatedUpside: d.score >= 80 ? '100-200%' : d.score >= 60 ? '50-100%' : '25-50%',
+        timeline: d.score >= 80 ? '3-6 months' : d.score >= 60 ? '2-4 months' : '1-3 months',
+        
+        // Risk and position sizing
+        riskLevel: d.score >= 70 ? 'MODERATE' : 'HIGH',
+        positionSize: d.score >= 80 ? 'MEDIUM' : 'SMALL',
+        recommendedQuantity: Math.max(1, Math.floor(100 / (d.price || 1))),
+        
+        // Target prices
+        targetPrices: {
+          moderate: (realPrice || 0) * (d.score >= 80 ? 1.5 : d.score >= 60 ? 1.25 : 1.15)
+        },
+        
+        // Metadata
+        catalyst: features.catalyst?.type || 'VIGL Pattern',
+        catalysts: features.catalyst?.type ? [features.catalyst.type] : ['VIGL Pattern'],
+        discoveredAt: d.created_at,
+        asof: d.created_at,
+        timestamp: d.created_at,
+        
+        // Short interest data
+        shortInterest: features.short_interest || 0,
+        short_interest: features.short_interest || 0
+      };
+    });
+    
+    // Calculate counts for stats
+    const buyCount = formattedDiscoveries.filter(d => d.action === 'BUY').length;
+    const watchlistCount = formattedDiscoveries.filter(d => d.action === 'WATCHLIST').length;
+    const monitorCount = formattedDiscoveries.filter(d => d.action === 'MONITOR').length;
+    
+    const response = {
+      success: true,
+      count: formattedDiscoveries.length,
+      discoveries: formattedDiscoveries,
+      candidates: formattedDiscoveries, // Alternative field name
+      data: formattedDiscoveries,       // Alternative field name
+      items: formattedDiscoveries,      // Alternative field name
+      results: formattedDiscoveries,    // Alternative field name
+      
+      // Stats for dashboard
+      buyCount,
+      watchlistCount,
+      monitorCount,
+      total: formattedDiscoveries.length,
+      
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`✅ Dashboard discoveries: ${formattedDiscoveries.length} found (${buyCount} BUY, ${watchlistCount} WATCH, ${monitorCount} MONITOR)`);
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ Dashboard discoveries error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      discoveries: [],
+      candidates: [],
+      data: [],
+      count: 0,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 2. Seeded discoveries endpoint (fallback compatibility)
+app.get('/api/discoveries/seeded', async (req, res) => {
+  // Forward to dashboard endpoint
+  res.redirect('/api/discoveries/dashboard');
+});
+
+// 3. Alternative VIGL discoveries endpoint
+app.get('/api/vigl/discoveries', async (req, res) => {
+  // Forward to dashboard endpoint
+  res.redirect('/api/discoveries/dashboard');
+});
+
+// 4. Market intelligence endpoint (prevent 404)
+app.get('/api/market-intelligence', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Market intelligence system ready',
+    discoveries: [],
+    confluences: [],
+    isMonitoring: false,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Alpaca buy endpoint for minimal buy button fix
+app.post('/api/alpaca/buy', async (req, res) => {
+  try {
+    const { symbol, quantity, order_type = 'market' } = req.body;
+    
+    if (!symbol || !quantity) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbol and quantity required'
+      });
+    }
+    
+    console.log(`💰 Alpaca buy order: ${quantity} shares of ${symbol}`);
+    
+    // Create order for Alpaca
+    const orderData = {
+      symbol: symbol.toString(),
+      qty: quantity.toString(),
+      side: 'buy',
+      type: order_type,
+      time_in_force: 'day'
+    };
+    
+    const result = await makeAlpacaTradeRequest('orders', 'POST', orderData);
+    
+    if (result) {
+      console.log(`✅ Alpaca order placed: ${result.id} for ${symbol}`);
+      
+      res.json({
+        success: true,
+        orderId: result.id,
+        symbol,
+        quantity,
+        order_type,
+        message: `Order placed: ${quantity} shares of ${symbol}`,
+        alpaca_response: result
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to place order with Alpaca'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Alpaca buy order failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
