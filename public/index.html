@@ -6,6 +6,7 @@
     <title>Trading Intelligence Dashboard</title>
     <link rel="stylesheet" href="/assets/tailwind.css">
     <script src="/js/alphastack-screener.js"></script>
+    <script src="/js/enhancedPortfolio.js"></script>
     <style>
         /* Dark theme base */
         body {
@@ -87,9 +88,19 @@
                         💼 Portfolio Positions
                         <span class="ml-2 text-xs px-2 py-1 rounded bg-green-700 text-green-200">LIVE</span>
                     </h2>
-                    <button id="refresh-portfolio" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg text-sm">
-                        🔄 Refresh
-                    </button>
+                    <div class="flex space-x-2">
+                        <div class="bg-gray-700 rounded-lg p-1 flex">
+                            <button id="basic-view" class="px-3 py-1 rounded text-xs transition-colors bg-blue-600 text-white">
+                                Basic
+                            </button>
+                            <button id="enhanced-view" class="px-3 py-1 rounded text-xs transition-colors text-gray-300 hover:text-white">
+                                Enhanced
+                            </button>
+                        </div>
+                        <button id="refresh-portfolio" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg text-sm">
+                            🔄 Refresh
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="portfolio-positions" class="loading">
@@ -201,11 +212,36 @@
             alert(`Would execute $100 buy order for ${symbol} at $${price}`);
         };
         
+        // Portfolio view management
+        let currentView = 'basic';
+        
+        function switchToBasicView() {
+            currentView = 'basic';
+            document.getElementById('basic-view').className = 'px-3 py-1 rounded text-xs transition-colors bg-blue-600 text-white';
+            document.getElementById('enhanced-view').className = 'px-3 py-1 rounded text-xs transition-colors text-gray-300 hover:text-white';
+            loadPortfolio();
+        }
+        
+        function switchToEnhancedView() {
+            currentView = 'enhanced';
+            document.getElementById('enhanced-view').className = 'px-3 py-1 rounded text-xs transition-colors bg-blue-600 text-white';
+            document.getElementById('basic-view').className = 'px-3 py-1 rounded text-xs transition-colors text-gray-300 hover:text-white';
+            
+            if (typeof window.initializeEnhancedPortfolio === 'function') {
+                window.initializeEnhancedPortfolio('portfolio-positions');
+                console.log('✅ Enhanced portfolio initialized');
+            } else {
+                console.error('❌ Enhanced portfolio not available');
+                alert('Enhanced portfolio is not available. Switching back to basic view.');
+                switchToBasicView();
+            }
+        }
+        
         // Initialize everything when page loads
         document.addEventListener('DOMContentLoaded', function() {
             console.log('📊 Initializing dashboard components...');
             
-            // Load portfolio immediately
+            // Load portfolio immediately (basic view by default)
             loadPortfolio();
             
             // Initialize AlphaStack screener
@@ -216,14 +252,30 @@
                 console.error('❌ AlphaStack screener not available');
             }
             
-            // Refresh button
-            document.getElementById('refresh-portfolio')?.addEventListener('click', loadPortfolio);
+            // Portfolio view toggle buttons
+            document.getElementById('basic-view')?.addEventListener('click', switchToBasicView);
+            document.getElementById('enhanced-view')?.addEventListener('click', switchToEnhancedView);
+            
+            // Refresh button - adapts to current view
+            document.getElementById('refresh-portfolio')?.addEventListener('click', function() {
+                if (currentView === 'enhanced' && window.enhancedPortfolio) {
+                    window.enhancedPortfolio.loadEnhancedPortfolio();
+                } else {
+                    loadPortfolio();
+                }
+            });
             
             console.log('🎉 Dashboard initialization complete');
         });
         
-        // Auto-refresh portfolio every 30 seconds
-        setInterval(loadPortfolio, 30000);
+        // Auto-refresh portfolio every 30 seconds - respects current view
+        setInterval(function() {
+            if (currentView === 'enhanced' && window.enhancedPortfolio) {
+                window.enhancedPortfolio.loadEnhancedPortfolio();
+            } else {
+                loadPortfolio();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
