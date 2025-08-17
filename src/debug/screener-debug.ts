@@ -1,8 +1,8 @@
 // ts-node friendly; compile with tsc if preferred
 // Assumes env: BASE_URL (http://localhost:3000 or Render URL)
 
-import fs from "node:fs";
-import path from "node:path";
+import * as fs from "fs";
+import * as path from "path";
 import fetch from "node-fetch";
 
 type Ticker = string;
@@ -116,7 +116,7 @@ function makeAdapter(modPath: string, httpPath: string) {
 
 // Common defaults — adjust to your repo layout if needed
 export const v1 = makeAdapter("./server/routes/alphastack.js", "/api/alphastack");
-export const v2 = makeAdapter("./server/routes/v2/scan.js", "/api/v2");
+export const v2 = makeAdapter("./server/routes/v2/scan.js", "/api/v2/scan");
 
 // ---------- Public Debug API ----------
 export async function getScreenerSnapshot(name: "v1" | "v2"): Promise<ScreenerSnapshot> {

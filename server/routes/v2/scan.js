@@ -1,142 +1,106 @@
 const express = require('express');
-const { spawn } = require('child_process');
-const path = require('path');
+const cache = require('../../../src/screener/v2/cache');
+const runDirectOnce = require('../../../src/screener/v2/run-direct');
+const { scheduleLoop } = require('../../../src/screener/v2/worker');
 const router = express.Router();
 
-// Scan cache with background refresh
-let scanCache = { 
-    data: { asof: null, results: [] }, 
-    ts: 0, 
-    running: false 
-};
-
-function parseScreenerOutput(output) {
-    try {
-        const lines = output.split('\n');
-        const jsonLine = lines.find(line => line.trim().startsWith('['));
-        
-        if (jsonLine) {
-            const candidates = JSON.parse(jsonLine);
-            return candidates.map(candidate => ({
-                ticker: candidate.symbol,
-                price: candidate.price,
-                changePct: candidate.upside_pct || 0,
-                rvol: candidate.rel_vol_30m || 1.0,
-                vwapRel: 1.0, // placeholder
-                floatM: 0, // placeholder
-                shortPct: candidate.short_interest || 0,
-                borrowFeePct: candidate.borrow_fee || 0,
-                utilizationPct: candidate.utilization || 0,
-                options: {
-                    cpr: 0,
-                    ivPctile: 0,
-                    atmOiTrend: "neutral"
-                },
-                technicals: {
-                    emaCross: false,
-                    atrPct: 0,
-                    rsi: 50
-                },
-                catalyst: {
-                    type: "Momentum",
-                    when: new Date().toISOString().split('T')[0]
-                },
-                sentiment: {
-                    redditRank: 5,
-                    stocktwitsRank: 5,
-                    youtubeTrend: "neutral"
-                },
-                score: candidate.score,
-                plan: {
-                    entry: candidate.thesis || "Momentum play",
-                    stopPct: 10,
-                    tp1Pct: candidate.upside_pct || 20,
-                    tp2Pct: (candidate.upside_pct || 20) * 2
-                }
-            }));
-        }
-        
-        return [];
-    } catch (error) {
-        console.error('Error parsing screener output:', error);
-        return [];
+// One-time boot (idempotent)
+let booted = false;
+router.use((req, _res, next) => {
+  if (!booted) {
+    booted = true;
+    if (process.env.ALPHASTACK_DEBUG === "1" || process.env.ENABLE_V2_WORKER !== "0") {
+      console.log('🚀 V2: Starting background worker');
+      scheduleLoop();
+    } else {
+      console.log('ℹ️ V2: Background worker disabled (ENABLE_V2_WORKER=0)');
     }
-}
+  }
+  next();
+});
 
-async function computeScanSafe() {
-    if (scanCache.running) return; // avoid stampede
-    scanCache.running = true;
-    
-    try {
-        console.log('🔄 V2 Scan: Background refresh starting...');
-        
-        const python = spawn('python3', [
-            path.join(__dirname, '../../agents/universe_screener.py'),
-            '--limit', '10',
-            '--exclude-symbols', 'BTAI,KSS,UP,TNXP'
-        ], {
-            cwd: path.join(__dirname, '../..'),
-            env: { ...process.env },
-            timeout: 15000 // 15 second timeout
-        });
-        
-        let output = '';
-        let errorOutput = '';
-        
-        python.stdout.on('data', (data) => {
-            output += data.toString();
-        });
-        
-        python.stderr.on('data', (data) => {
-            errorOutput += data.toString();
-        });
-        
-        python.on('close', (code) => {
-            if (code === 0) {
-                const results = parseScreenerOutput(output);
-                if (results.length > 0) {
-                    scanCache.data = {
-                        asof: new Date().toISOString(),
-                        results: results
-                    };
-                    scanCache.ts = Date.now();
-                    console.log(`✅ V2 Scan: Cache updated with ${results.length} candidates`);
-                }
-            } else {
-                console.error('❌ V2 Scan: Background refresh failed with code', code);
-            }
-        });
-        
-        python.on('error', (error) => {
-            console.error('❌ V2 Scan: Process error:', error.message);
-        });
-        
-    } catch (error) {
-        console.error('❌ V2 Scan: Compute failed:', error.message);
-    } finally {
-        scanCache.running = false;
-    }
-}
-
-// Background refresh every 30 seconds during market hours
-setInterval(computeScanSafe, 30000);
-
-// Warm cache on startup
-setTimeout(computeScanSafe, 2000);
 
 /**
  * GET /api/v2/scan/squeeze
- * Returns cached squeeze candidates (fast response)
+ * Returns squeeze candidates with fallback when cache is empty/stale
  */
 router.get('/squeeze', async (req, res) => {
     try {
-        // Return cached data immediately
-        res.json(scanCache.data);
+        const debug = "debug" in req.query;
+        const snap = cache.getSnapshot();
+
+        // Fresh cache → return immediately
+        if (snap.fresh && Array.isArray(snap.tickers) && snap.tickers.length > 0) {
+            res.set("x-cache", "fresh");
+            const results = snap.tickers.map(ticker => ({
+                ticker: ticker,
+                price: 0,
+                changePct: 0,
+                rvol: 1.0,
+                vwapRel: 1.0,
+                floatM: 0,
+                shortPct: 0,
+                borrowFeePct: 0,
+                utilizationPct: 0,
+                options: { cpr: 0, ivPctile: 0, atmOiTrend: "neutral" },
+                technicals: { emaCross: false, atrPct: 0, rsi: 50 },
+                catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
+                sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
+                score: 50,
+                plan: { entry: "Cache hit", stopPct: 10, tp1Pct: 20, tp2Pct: 40 }
+            }));
+            
+            return res.json({ 
+                asof: new Date(snap.updatedAt).toISOString(), 
+                results,
+                source: "cache"
+            });
+        }
+
+        // Fallback path: run direct once so UI isn't empty
+        console.log('🔄 V2 Scan: Cache miss/stale, running direct fallback');
+        const tickers = await runDirectOnce();
+        res.set("x-cache", "miss-fallback");
+        
+        if (!snap.tickers || !snap.tickers.length) {
+            // populate cache opportunistically
+            cache.setSnapshot(tickers);
+        }
+        
+        const results = tickers.map(ticker => ({
+            ticker: ticker,
+            price: 0,
+            changePct: 0,
+            rvol: 1.0,
+            vwapRel: 1.0,
+            floatM: 0,
+            shortPct: 0,
+            borrowFeePct: 0,
+            utilizationPct: 0,
+            options: { cpr: 0, ivPctile: 0, atmOiTrend: "neutral" },
+            technicals: { emaCross: false, atrPct: 0, rsi: 50 },
+            catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
+            sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
+            score: 50,
+            plan: { entry: "Direct run", stopPct: 10, tp1Pct: 20, tp2Pct: 40 }
+        }));
+        
+        return res.json({ 
+            asof: new Date().toISOString(), 
+            results, 
+            source: "fallback", 
+            debug: !!debug 
+        });
+        
     } catch (error) {
-        console.error('Error in /api/v2/scan/squeeze:', error);
+        console.error('❌ V2 Scan: Both cache and fallback failed:', error);
+        const snap = cache.getSnapshot();
         res.status(500).json({ 
-            error: 'Failed to fetch squeeze scan results',
-            message: error.message 
+            asof: new Date().toISOString(),
+            results: [], 
+            error: error.message, 
+            cacheError: snap.error, 
+            source: "error" 
         });
     }
 });
@@ -233,6 +197,25 @@ router.post('/stepwise', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// Debug status endpoint
+router.get('/debug/status', (req, res) => {
+    const snap = cache.getSnapshot();
+    res.json({
+        fresh: snap.fresh,
+        updatedAt: snap.updatedAt,
+        error: snap.error,
+        tickerCount: snap.tickers ? snap.tickers.length : 0,
+        refreshMs: Number(process.env.V2_REFRESH_MS || 30000),
+        cacheMs: Number(process.env.V2_CACHE_TTL_MS || 30000),
+        workerEnabled: process.env.ENABLE_V2_WORKER !== "0",
+        environment: {
+            pythonBin: process.env.PYTHON_BIN || "python3",
+            scriptPath: process.env.SCREENER_V2_SCRIPT || "agents/universe_screener.py",
+            cwd: process.env.SCREENER_CWD || process.cwd()
+        }
+    });
 });
 
 module.exports = router;

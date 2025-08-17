@@ -41,7 +41,7 @@ async function main() {
     Only_V2: setDiff.onlyB.length,
   });
 
-  if (setDiff.onlyV2?.length || setDiff.onlyA.length || setDiff.onlyB.length) {
+  if (setDiff.onlyA.length || setDiff.onlyB.length) {
     console.log(`Only in V1 (${setDiff.onlyA.length}):`, setDiff.onlyA.slice(0, 25));
     console.log(`Only in V2 (${setDiff.onlyB.length}):`, setDiff.onlyB.slice(0, 25));
   }
