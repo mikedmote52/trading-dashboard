@@ -79,6 +79,20 @@ const createHealthCheck = require('./server/middleware/healthCheck');
 app.use(cors());
 app.use(express.json());
 
+// Request timing and engine tracing
+app.use((req, res, next) => {
+  const t0 = Date.now();
+  res.on('finish', () => {
+    console.log(JSON.stringify({
+      path: req.path,
+      engine: req.query.engine || process.env.SELECT_ENGINE,
+      status: res.statusCode,
+      ms: Date.now() - t0
+    }));
+  });
+  next();
+});
+
 // Rate limiting for API routes
 app.use('/api/', rateLimiter.api);
 app.use('/api/alphastack/scan', rateLimiter.scan);
@@ -2261,10 +2275,12 @@ if (process.env.STRICT_STARTUP === 'true') {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Trading Intelligence Dashboard running on port ${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api/dashboard`);
+const port = process.env.PORT || 3003;
+app.listen(port, () => {
+  console.log(`listening`, { port, select_engine: process.env.SELECT_ENGINE });
+  console.log(`🚀 Trading Intelligence Dashboard running on port ${port}`);
+  console.log(`📊 Dashboard: http://localhost:${port}`);
+  console.log(`🔗 API: http://localhost:${port}/api/dashboard`);
   console.log(`🔑 Alpaca Connected: ${!!ALPACA_CONFIG.apiKey}`);
   
   // Show active discovery engine (PROOF of which engine is running)
@@ -2273,7 +2289,7 @@ app.listen(PORT, '0.0.0.0', () => {
     const engineInfo = getEngineInfo();
     console.log(`🎯 VIGL Discovery Engine: ${engineInfo.active_engine.toUpperCase()} (SELECT_ENGINE=${engineInfo.env_setting})`);
     console.log(`🔍 Available engines: ${engineInfo.available_engines.join(', ')}`);
-    console.log(`🔧 Debug endpoint: http://localhost:${PORT}/api/discoveries/_debug/engine`);
+    console.log(`🔧 Debug endpoint: http://localhost:${port}/api/discoveries/_debug/engine`);
   } catch (error) {
     console.error('⚠️ Failed to load engine info:', error.message);
   }
