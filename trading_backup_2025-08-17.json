@@ -153,8 +153,8 @@
     "dailyPnL": 0,
     "dailyPnLPercent": 0,
     "positionCount": 7,
-    "timestamp": "2025-08-17T04:46:19.002Z"
+    "timestamp": "2025-08-17T06:47:19.020Z"
   },
-  "timestamp": "2025-08-17T04:46:19.002Z",
+  "timestamp": "2025-08-17T06:47:19.020Z",
   "source": "alpaca-api"
 }
