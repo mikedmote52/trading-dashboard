@@ -31,35 +31,44 @@ router.get('/squeeze', async (req, res) => {
 
         // Fresh cache → return immediately
         if (snap.fresh && Array.isArray(snap.tickers) && snap.tickers.length > 0) {
-            res.set("x-cache", "fresh");
-            const results = snap.tickers.map(candidate => ({
-                ticker: candidate.symbol || candidate,
-                price: candidate.price || 0,
-                changePct: candidate.upside_pct || 0,
-                rvol: candidate.rel_vol_30m || 1.0,
-                vwapRel: 1.0,
-                floatM: candidate.float_shares ? (candidate.float_shares / 1000000) : 0,
-                shortPct: candidate.short_interest || 0,
-                borrowFeePct: candidate.borrow_fee || 0,
-                utilizationPct: candidate.utilization || 0,
-                options: { cpr: 0, ivPctile: 0, atmOiTrend: "neutral" },
-                technicals: { emaCross: false, atrPct: 0, rsi: 50 },
-                catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
-                sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
-                score: candidate.score || 50,
-                plan: { 
-                    entry: candidate.thesis || "Cache hit", 
-                    stopPct: 10, 
-                    tp1Pct: candidate.upside_pct || 20, 
-                    tp2Pct: (candidate.upside_pct || 20) * 2 
-                }
-            }));
+            // Check if cache contains full objects or just strings
+            const firstItem = snap.tickers[0];
+            const hasFullData = typeof firstItem === 'object' && firstItem.symbol;
             
-            return res.json({ 
-                asof: new Date(snap.updatedAt).toISOString(), 
-                results,
-                source: "cache"
-            });
+            if (!hasFullData) {
+                // Cache contains old string-only data, force fallback
+                console.log('🔄 V2 Scan: Cache contains string tickers, forcing fallback for real data');
+            } else {
+                res.set("x-cache", "fresh");
+                const results = snap.tickers.map(candidate => ({
+                    ticker: candidate.symbol || candidate,
+                    price: candidate.price || 0,
+                    changePct: candidate.upside_pct || 0,
+                    rvol: candidate.rel_vol_30m || 1.0,
+                    vwapRel: 1.0,
+                    floatM: candidate.float_shares ? (candidate.float_shares / 1000000) : 0,
+                    shortPct: candidate.short_interest || 0,
+                    borrowFeePct: candidate.borrow_fee || 0,
+                    utilizationPct: candidate.utilization || 0,
+                    options: { cpr: 0, ivPctile: 0, atmOiTrend: "neutral" },
+                    technicals: { emaCross: false, atrPct: 0, rsi: 50 },
+                    catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
+                    sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
+                    score: candidate.score || 50,
+                    plan: { 
+                        entry: candidate.thesis || "Cache hit", 
+                        stopPct: 10, 
+                        tp1Pct: candidate.upside_pct || 20, 
+                        tp2Pct: (candidate.upside_pct || 20) * 2 
+                    }
+                }));
+                
+                return res.json({ 
+                    asof: new Date(snap.updatedAt).toISOString(), 
+                    results,
+                    source: "cache"
+                });
+            }
         }
 
         // Fallback path: run direct once so UI isn't empty
