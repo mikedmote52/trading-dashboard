@@ -1,0 +1,412 @@
+/**
+ * AlphaStack V3 Component Styles
+ * Optimized for performance with minimal CSS-in-JS overhead
+ */
+
+/* Container styles */
+.alphaStackContainer {
+  @apply min-h-0 flex flex-col;
+  contain: layout style paint;
+  will-change: auto;
+}
+
+/* Header optimizations */
+.header {
+  @apply flex justify-between items-center mb-6 flex-shrink-0;
+  contain: layout;
+}
+
+.title {
+  @apply text-xl font-bold text-white mb-1 flex items-center;
+}
+
+.subtitle {
+  @apply text-slate-300 text-xs;
+}
+
+.statusBadge {
+  @apply ml-2 text-xs px-2 py-1 rounded;
+}
+
+.liveBadge {
+  @apply bg-blue-700 text-blue-200;
+}
+
+.updatingBadge {
+  @apply bg-yellow-700 text-yellow-200;
+}
+
+/* Button styles */
+.refreshButton {
+  @apply bg-blue-600 hover:bg-blue-700 disabled:opacity-50 
+         px-3 py-2 rounded-lg font-medium transition-colors 
+         flex items-center text-sm;
+  transition-duration: 150ms;
+}
+
+.refreshButton:disabled {
+  cursor: not-allowed;
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Statistics bar */
+.statsContainer {
+  @apply flex justify-center space-x-6 mb-6 text-xs text-slate-400 flex-shrink-0;
+}
+
+/* Grid optimizations */
+.candidatesGrid {
+  @apply grid gap-4 flex-1 min-h-0;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  contain: layout;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
+  .candidatesGrid {
+    grid-template-columns: 1fr;
+    gap: 3;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .candidatesGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1536px) {
+  .candidatesGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1537px) {
+  .candidatesGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Candidate card styles */
+.candidateCard {
+  @apply relative bg-slate-800/60 backdrop-blur-sm rounded-lg p-4 
+         hover:bg-slate-800/80 
+         transition-all shadow-lg hover:shadow-xl;
+  contain: layout style paint;
+  will-change: transform;
+  transition-duration: 200ms;
+  min-height: 400px; /* Prevent layout shift */
+}
+
+.candidateCard:hover {
+  transform: scale(1.02);
+}
+
+.cardHeader {
+  @apply flex justify-between items-start mb-3;
+}
+
+.tickerInfo {
+  @apply flex-1 min-w-0;
+}
+
+.ticker {
+  @apply font-bold text-lg text-white truncate;
+}
+
+.price {
+  @apply text-sm text-slate-300;
+}
+
+.change {
+  @apply text-xs font-medium;
+}
+
+.changePositive {
+  @apply text-green-400;
+}
+
+.changeNegative {
+  @apply text-red-400;
+}
+
+.scoreSection {
+  @apply text-right flex-shrink-0;
+}
+
+.score {
+  @apply text-2xl font-bold;
+}
+
+.scoreHigh { @apply text-green-400; }
+.scoreMedium { @apply text-yellow-400; }
+.scoreLow { @apply text-orange-400; }
+.scoreCritical { @apply text-red-400; }
+
+.bucket {
+  @apply text-xs font-medium;
+}
+
+.bucketTradeReady { @apply text-green-300; }
+.bucketWatch { @apply text-yellow-300; }
+.bucketMonitor { @apply text-blue-300; }
+
+/* Border colors for cards */
+.borderTradeReady { @apply border-green-400; }
+.borderWatch { @apply border-yellow-400; }
+.borderMonitor { @apply border-blue-400; }
+
+/* Metrics grid */
+.metricsGrid {
+  @apply grid grid-cols-3 gap-2 text-xs mb-3;
+}
+
+.metricItem {
+  @apply bg-slate-900/40 rounded px-2 py-1;
+  contain: layout;
+}
+
+.metricLabel {
+  @apply text-slate-400 text-xs leading-tight;
+}
+
+.metricValue {
+  @apply font-semibold text-white text-xs leading-tight;
+}
+
+/* Thesis section */
+.thesisSection {
+  @apply bg-blue-900/30 rounded-lg p-3 mb-3 border border-blue-700/50;
+}
+
+.thesisContent {
+  @apply flex items-start space-x-2;
+}
+
+.thesisIcon {
+  @apply text-blue-300 text-sm mt-0.5 flex-shrink-0;
+}
+
+.thesisText {
+  @apply flex-1 min-w-0;
+}
+
+.thesisLabel {
+  @apply text-xs font-medium text-blue-200 mb-1;
+}
+
+.thesisEntry {
+  @apply text-xs text-blue-100 leading-relaxed;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.thesisTargets {
+  @apply flex justify-between mt-2 text-xs;
+}
+
+.targetProfit {
+  @apply text-green-300;
+}
+
+.targetStop {
+  @apply text-red-300;
+}
+
+/* Catalyst and sentiment */
+.contextGrid {
+  @apply grid grid-cols-2 gap-2 mb-3 text-xs;
+}
+
+.catalystItem {
+  @apply bg-purple-900/30 rounded px-2 py-1;
+}
+
+.catalystType {
+  @apply text-purple-300 font-medium text-xs;
+}
+
+.catalystWhen {
+  @apply text-purple-200 text-xs;
+}
+
+.sentimentItem {
+  @apply bg-orange-900/30 rounded px-2 py-1;
+}
+
+.sentimentLabel {
+  @apply text-orange-300 font-medium text-xs;
+}
+
+.sentimentValues {
+  @apply text-orange-200 text-xs;
+}
+
+/* Action buttons */
+.actionButtons {
+  @apply flex space-x-2;
+}
+
+.buyButton {
+  @apply flex-1 bg-gradient-to-r from-green-500 to-green-600 
+         hover:from-green-600 hover:to-green-700 
+         text-white font-semibold py-2 px-3 rounded-lg 
+         transition-all transform hover:scale-105 shadow-lg
+         text-sm;
+  transition-duration: 150ms;
+}
+
+.watchButton {
+  @apply bg-slate-600 hover:bg-slate-500 
+         text-white font-semibold py-2 px-3 rounded-lg 
+         transition-all transform hover:scale-105
+         text-sm;
+  transition-duration: 150ms;
+}
+
+/* Score progress bar */
+.scoreProgress {
+  @apply mt-3 h-2 bg-slate-700 rounded-full overflow-hidden;
+}
+
+.scoreBar {
+  @apply h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all;
+  transition-duration: 500ms;
+}
+
+/* Loading states */
+.loadingContainer {
+  @apply bg-slate-800/60 backdrop-blur-sm rounded-lg p-8 text-center;
+}
+
+.loadingSpinner {
+  @apply inline-block animate-spin w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full mb-4;
+}
+
+.loadingTitle {
+  @apply text-lg font-bold text-white mb-2;
+}
+
+.loadingSubtitle {
+  @apply text-slate-300 text-sm;
+}
+
+/* Error states */
+.errorContainer {
+  @apply bg-red-900/20 border border-red-500/50 rounded-lg p-6 text-center;
+}
+
+.errorIcon {
+  @apply text-4xl mb-3;
+}
+
+.errorTitle {
+  @apply text-lg font-bold text-red-400 mb-2;
+}
+
+.errorMessage {
+  @apply text-red-300 text-sm mb-4;
+}
+
+.errorButton {
+  @apply bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm;
+}
+
+/* Empty state */
+.emptyContainer {
+  @apply bg-slate-800/60 backdrop-blur-sm rounded-lg p-12 text-center;
+}
+
+.emptyIcon {
+  @apply text-6xl mb-4;
+}
+
+.emptyTitle {
+  @apply text-xl font-bold text-white mb-2;
+}
+
+.emptyMessage {
+  @apply text-slate-300 mb-4;
+}
+
+.emptyButton {
+  @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm;
+}
+
+/* Fallback mode */
+.fallbackContainer {
+  @apply bg-yellow-900/20 border border-yellow-500/50 rounded-lg p-6 text-center;
+}
+
+.fallbackIcon {
+  @apply text-4xl mb-3;
+}
+
+.fallbackTitle {
+  @apply text-lg font-bold text-yellow-400 mb-2;
+}
+
+.fallbackMessage {
+  @apply text-yellow-300 text-sm;
+}
+
+/* Truncation notice */
+.truncationNotice {
+  @apply text-center mt-6 text-slate-400 text-sm;
+}
+
+.truncationText {
+  @apply text-xs;
+}
+
+/* Performance optimizations */
+.gpuAccelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Dark theme optimizations */
+@media (prefers-color-scheme: dark) {
+  .candidateCard {
+    @apply bg-slate-900/60;
+  }
+  
+  .candidateCard:hover {
+    @apply bg-slate-900/80;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .candidateCard,
+  .buyButton,
+  .watchButton,
+  .refreshButton {
+    transition: none;
+  }
+  
+  .candidateCard:hover {
+    transform: none;
+  }
+  
+  .buyButton:hover,
+  .watchButton:hover {
+    transform: none;
+  }
+  
+  .spinIcon,
+  .loadingSpinner {
+    animation: none;
+  }
+}

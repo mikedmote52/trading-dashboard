@@ -1,0 +1,42 @@
+{
+  "project": "AlphaStack V3 Dashboard",
+  "version": "3.0.0",
+  "claude_code_version": "2025",
+  "architecture": "multi-agent",
+  "max_turns": 20,
+  "system_prompt": "Implement AlphaStack V3 dashboard following financial application best practices in CLAUDE.md. Prioritize performance, safety, and live-data integrity.",
+  "allowed_tools": ["Read", "Write", "Edit", "MultiEdit", "Bash", "Glob", "Grep", "LS", "WebFetch", "Task"],
+  "mcp_servers": ["filesystem", "github", "npm"],
+  "permission_mode": "acceptEdits",
+  "performance_targets": {
+    "initial_load": "2000ms",
+    "api_response_handling": "100ms", 
+    "memory_usage": "50MB",
+    "bundle_size": "500KB"
+  },
+  "safety_requirements": {
+    "read_only_operations": true,
+    "feature_flag_rollback": true,
+    "error_boundaries": true,
+    "graceful_degradation": true
+  },
+  "protected_systems": {
+    "alphastack_core": {
+      "description": "AlphaStack discovery engine - THE core system for finding stocks",
+      "protection_level": "IMMUTABLE",
+      "protected_files": [
+        "agents/universe_screener.py",
+        "src/screener/v2/",
+        "server/routes/v2/scan.js"
+      ],
+      "allowed_operations": ["READ_ONLY", "UI_DISPLAY"],
+      "forbidden_operations": ["MODIFY_ALGORITHM", "CHANGE_LOGIC", "ALTER_SCORING"],
+      "note": "AlphaStack is the proven discovery system - dashboard only displays its output"
+    },
+    "portfolio_system": {
+      "description": "Portfolio analysis system - separate from discovery",
+      "protection_level": "ISOLATED",
+      "note": "Portfolio system analyzes positions but never modifies AlphaStack discovery"
+    }
+  }
+}

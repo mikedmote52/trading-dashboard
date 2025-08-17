@@ -1,0 +1,331 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Rollback reason'
+        required: true
+        type: string
+      rollback_mode:
+        description: 'Rollback mode'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+        - emergency
+        - auto
+        - manual
+      confirm:
+        description: 'Type "CONFIRM" to proceed with rollback'
+        required: true
+        type: string
+
+env:
+  NODE_VERSION: '18'
+  ROLLBACK_TIMEOUT: 300  # 5 minutes
+
+jobs:
+  validate-rollback:
+    name: Validate Rollback Request
+    runs-on: ubuntu-latest
+    outputs:
+      should_rollback: ${{ steps.validation.outputs.should_rollback }}
+      rollback_mode: ${{ steps.validation.outputs.rollback_mode }}
+    
+    steps:
+    - name: Validate confirmation
+      id: validation
+      run: |
+        if [ "${{ github.event.inputs.confirm }}" != "CONFIRM" ]; then
+          echo "::error::Rollback not confirmed. Please type 'CONFIRM' to proceed."
+          exit 1
+        fi
+        
+        echo "✅ Rollback confirmed"
+        echo "should_rollback=true" >> $GITHUB_OUTPUT
+        echo "rollback_mode=${{ github.event.inputs.rollback_mode }}" >> $GITHUB_OUTPUT
+    
+    - name: Log rollback initiation
+      run: |
+        echo "🚨 Emergency rollback initiated"
+        echo "Reason: ${{ github.event.inputs.reason }}"
+        echo "Mode: ${{ github.event.inputs.rollback_mode }}"
+        echo "Initiated by: ${{ github.actor }}"
+        echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  execute-rollback:
+    name: Execute Emergency Rollback
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: needs.validate-rollback.outputs.should_rollback == 'true'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Execute emergency rollback
+      id: rollback
+      env:
+        ROLLBACK_MODE: ${{ needs.validate-rollback.outputs.rollback_mode }}
+        ROLLBACK_REASON: ${{ github.event.inputs.reason }}
+        PROD_URL: ${{ secrets.PROD_URL }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      timeout-minutes: 5
+      run: |
+        echo "🚨 Executing emergency rollback..."
+        echo "Mode: $ROLLBACK_MODE"
+        echo "Reason: $ROLLBACK_REASON"
+        
+        # Make rollback script executable
+        chmod +x scripts/deploy/rollback.sh
+        
+        # Set environment variables
+        export DEPLOY_URL="$PROD_URL"
+        export READ_ONLY_MODE=true
+        export FORCE_V2_FALLBACK=true
+        export ALPHASTACK_V3_DISABLED=true
+        
+        # Execute rollback
+        scripts/deploy/rollback.sh "$ROLLBACK_MODE" "$ROLLBACK_REASON" || {
+          echo "rollback_success=false" >> $GITHUB_OUTPUT
+          echo "::error::Emergency rollback failed"
+          exit 1
+        }
+        
+        echo "rollback_success=true" >> $GITHUB_OUTPUT
+        echo "✅ Emergency rollback completed"
+    
+    - name: Validate rollback
+      if: steps.rollback.outputs.rollback_success == 'true'
+      env:
+        PROD_URL: ${{ secrets.PROD_URL }}
+      timeout-minutes: 3
+      run: |
+        echo "Validating rollback..."
+        
+        # Wait for rollback to take effect
+        sleep 15
+        
+        # Validate system is in safe mode
+        DEPLOY_URL="$PROD_URL" node -e "
+          const axios = require('axios');
+          
+          async function validateRollback() {
+            try {
+              const response = await axios.get('$PROD_URL/api/health', { timeout: 10000 });
+              
+              if (response.status !== 200) {
+                throw new Error(\`Health check failed: \${response.status}\`);
+              }
+              
+              console.log('✅ System responding after rollback');
+              
+              // Check if system is in read-only mode
+              const health = response.data;
+              if (health.checks && health.checks.feature_flags) {
+                console.log('Feature flags status:', health.checks.feature_flags.message);
+              }
+              
+              return true;
+            } catch (error) {
+              console.error('❌ Rollback validation failed:', error.message);
+              process.exit(1);
+            }
+          }
+          
+          validateRollback();
+        " || {
+          echo "::error::Rollback validation failed"
+          exit 1
+        }
+        
+        echo "✅ Rollback validation passed"
+    
+    - name: Run rollback verification
+      if: steps.rollback.outputs.rollback_success == 'true'
+      run: |
+        echo "Running rollback verification..."
+        
+        # Execute rollback validation script
+        chmod +x scripts/deploy/rollback.sh
+        scripts/deploy/rollback.sh validate || {
+          echo "::warning::Rollback verification completed with warnings"
+        }
+        
+        echo "✅ Rollback verification completed"
+    
+    - name: Send notifications
+      if: always()
+      env:
+        ROLLBACK_SUCCESS: ${{ steps.rollback.outputs.rollback_success }}
+        ROLLBACK_REASON: ${{ github.event.inputs.reason }}
+        ROLLBACK_MODE: ${{ needs.validate-rollback.outputs.rollback_mode }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        echo "Sending rollback notifications..."
+        
+        TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        STATUS="success"
+        STATUS_EMOJI="✅"
+        COLOR="good"
+        
+        if [ "$ROLLBACK_SUCCESS" != "true" ]; then
+          STATUS="failed"
+          STATUS_EMOJI="❌"
+          COLOR="danger"
+        fi
+        
+        # Slack notification
+        if [ -n "$SLACK_WEBHOOK_URL" ]; then
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"🚨 Emergency Rollback $STATUS\",
+                \"fields\": [
+                  {\"title\": \"Reason\", \"value\": \"$ROLLBACK_REASON\", \"short\": true},
+                  {\"title\": \"Mode\", \"value\": \"$ROLLBACK_MODE\", \"short\": true},
+                  {\"title\": \"Initiated By\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Workflow\", \"value\": \"${{ github.run_id }}\", \"short\": true}
+                ],
+                \"ts\": $(date +%s)
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+        fi
+        
+        # Discord notification
+        if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"embeds\": [{
+                \"title\": \"🚨 AlphaStack Emergency Rollback\",
+                \"description\": \"$STATUS_EMOJI Rollback $STATUS\",
+                \"color\": $([ "$STATUS" = "success" ] && echo "65280" || echo "16711680"),
+                \"fields\": [
+                  {\"name\": \"Reason\", \"value\": \"$ROLLBACK_REASON\", \"inline\": true},
+                  {\"name\": \"Mode\", \"value\": \"$ROLLBACK_MODE\", \"inline\": true},
+                  {\"name\": \"Initiated By\", \"value\": \"${{ github.actor }}\", \"inline\": true}
+                ],
+                \"timestamp\": \"$TIMESTAMP\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+        fi
+        
+        echo "✅ Notifications sent"
+
+  post-rollback-monitoring:
+    name: Post-Rollback Monitoring
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, execute-rollback]
+    if: needs.execute-rollback.outputs.rollback_success == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Monitor system stability
+      env:
+        PROD_URL: ${{ secrets.PROD_URL }}
+      timeout-minutes: 10
+      run: |
+        echo "Monitoring system stability post-rollback..."
+        
+        # Monitor for 5 minutes to ensure stability
+        MONITOR_DURATION=300  # 5 minutes
+        START_TIME=$(date +%s)
+        HEALTH_CHECKS=0
+        FAILED_CHECKS=0
+        
+        while [ $(($(date +%s) - START_TIME)) -lt $MONITOR_DURATION ]; do
+          ((HEALTH_CHECKS++))
+          
+          echo "Health check $HEALTH_CHECKS..."
+          
+          if ! curl -f -s "$PROD_URL/api/health" >/dev/null 2>&1; then
+            ((FAILED_CHECKS++))
+            echo "⚠️ Health check failed ($FAILED_CHECKS failures)"
+            
+            if [ $FAILED_CHECKS -ge 3 ]; then
+              echo "::error::System unstable after rollback - manual intervention required"
+              exit 1
+            fi
+          else
+            echo "✅ Health check passed"
+            FAILED_CHECKS=0  # Reset counter on success
+          fi
+          
+          sleep 30
+        done
+        
+        TOTAL_TIME=$(($(date +%s) - START_TIME))
+        SUCCESS_RATE=$(echo "scale=2; ($HEALTH_CHECKS - $FAILED_CHECKS) * 100 / $HEALTH_CHECKS" | bc -l)
+        
+        echo "✅ Monitoring completed"
+        echo "Total checks: $HEALTH_CHECKS"
+        echo "Failed checks: $FAILED_CHECKS"
+        echo "Success rate: ${SUCCESS_RATE}%"
+        echo "Monitor duration: ${TOTAL_TIME}s"
+        
+        if [ $FAILED_CHECKS -gt 1 ]; then
+          echo "::warning::System showing instability after rollback"
+        fi
+    
+    - name: Generate rollback report
+      env:
+        ROLLBACK_REASON: ${{ github.event.inputs.reason }}
+        ROLLBACK_MODE: ${{ needs.validate-rollback.outputs.rollback_mode }}
+      run: |
+        echo "Generating rollback report..."
+        
+        # Create comprehensive rollback report
+        cat > rollback-report.json << EOF
+        {
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "rollback": {
+            "reason": "$ROLLBACK_REASON",
+            "mode": "$ROLLBACK_MODE",
+            "initiated_by": "${{ github.actor }}",
+            "workflow_run": "${{ github.run_id }}",
+            "success": true
+          },
+          "system_status": {
+            "health_endpoint": "responsive",
+            "feature_flags": "safe_mode",
+            "alphastack_protection": "enabled"
+          },
+          "recommendations": [
+            "Investigate root cause of issue that triggered rollback",
+            "Review deployment process for improvements",
+            "Validate fix before next deployment attempt",
+            "Consider extended testing in staging environment"
+          ]
+        }
+        EOF
+        
+        echo "📊 Rollback report generated"
+        cat rollback-report.json
+        
+        echo "✅ Post-rollback procedures completed"

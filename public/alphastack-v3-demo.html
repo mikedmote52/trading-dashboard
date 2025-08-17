@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaStack V3 - High-Performance Trading Dashboard</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <link href="/assets/tailwind.css" rel="stylesheet">
+    
+    <!-- React 18 from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Custom styles -->
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .performance-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .performance-good { background: rgba(34, 197, 94, 0.8); }
+        .performance-warning { background: rgba(245, 158, 11, 0.8); }
+        .performance-error { background: rgba(239, 68, 68, 0.8); }
+        
+        /* Loading shimmer effect */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        .loading-shimmer {
+            background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    <!-- Performance indicator -->
+    <div id="performance-indicator" class="performance-indicator">
+        Load Time: <span id="load-time">--</span>ms | 
+        Update Time: <span id="update-time">--</span>ms
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold">AlphaStack V3 Dashboard</h1>
+                    <p class="text-slate-400 text-sm">High-performance React component demonstration</p>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="toggle-v3" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
+                        Toggle V3/V2
+                    </button>
+                    <button id="force-refresh" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm">
+                        Force Refresh
+                    </button>
+                    <button id="toggle-theme" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm">
+                        Toggle Theme
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main content area -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- System status -->
+        <div id="system-status" class="mb-6 p-4 bg-slate-800/60 rounded-lg">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="font-semibold mb-1">System Status</h3>
+                    <div class="text-sm text-slate-400">
+                        <span id="feature-flags-status">Loading feature flags...</span> | 
+                        <span id="api-status">Checking API...</span> | 
+                        <span id="react-status">React: <span class="text-green-400">Ready</span></span>
+                    </div>
+                </div>
+                <div id="connection-indicator" class="w-3 h-3 rounded-full bg-yellow-400 animate-pulse"></div>
+            </div>
+        </div>
+
+        <!-- AlphaStack V3 React Component Container -->
+        <div id="alphastack-v3-container" class="min-h-96">
+            <!-- Loading placeholder -->
+            <div class="loading-placeholder">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <!-- Skeleton cards -->
+                    <div class="bg-slate-800/60 rounded-lg p-4 loading-shimmer h-96"></div>
+                    <div class="bg-slate-800/60 rounded-lg p-4 loading-shimmer h-96"></div>
+                    <div class="bg-slate-800/60 rounded-lg p-4 loading-shimmer h-96"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fallback content for V2 mode -->
+        <div id="v2-fallback" class="hidden">
+            <div class="bg-blue-900/20 border border-blue-500/50 rounded-lg p-6 text-center">
+                <div class="text-4xl mb-3">📊</div>
+                <h3 class="text-lg font-bold text-blue-400 mb-2">V2 Mode Active</h3>
+                <p class="text-blue-300 text-sm mb-4">Using legacy AlphaStack interface</p>
+                <a href="/screener.html" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                    Open Legacy Interface
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Debug panel (development only) -->
+    <div id="debug-panel" class="fixed bottom-4 left-4 bg-black/80 rounded-lg p-4 text-xs text-green-400 font-mono max-w-md hidden">
+        <div class="mb-2 font-bold">Debug Information</div>
+        <div id="debug-content">
+            <!-- Debug info will be populated here -->
+        </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script>
+        // Performance monitoring
+        const performanceMonitor = {
+            startTime: performance.now(),
+            
+            updateIndicator(loadTime, updateTime) {
+                document.getElementById('load-time').textContent = loadTime.toFixed(0);
+                document.getElementById('update-time').textContent = updateTime.toFixed(0);
+                
+                const indicator = document.getElementById('performance-indicator');
+                if (loadTime < 2000) {
+                    indicator.className = 'performance-indicator performance-good';
+                } else if (loadTime < 5000) {
+                    indicator.className = 'performance-indicator performance-warning';
+                } else {
+                    indicator.className = 'performance-indicator performance-error';
+                }
+            }
+        };
+
+        // Feature flags mock (for demo)
+        window.featureFlags = {
+            ALPHASTACK_V3_ENABLED: true,
+            V3_PERFORMANCE_MODE: true,
+            V3_REAL_TIME_UPDATES: true,
+            shouldUseV3: () => window.featureFlags.ALPHASTACK_V3_ENABLED,
+            isEnabled: (flag) => window.featureFlags[flag] || false
+        };
+
+        // Mock AlphaStack V3 components (would be real in bundled version)
+        window.AlphaStackV3Components = {
+            AlphaStackV3WithErrorBoundary: function(props) {
+                return React.createElement('div', {
+                    className: 'bg-green-900/20 border border-green-500/50 rounded-lg p-6 text-center'
+                }, [
+                    React.createElement('div', { className: 'text-4xl mb-3' }, '🚀'),
+                    React.createElement('h3', { 
+                        className: 'text-lg font-bold text-green-400 mb-2' 
+                    }, 'AlphaStack V3 Component'),
+                    React.createElement('p', { 
+                        className: 'text-green-300 text-sm mb-4' 
+                    }, 'React component would render here with real data from /api/v2/scan/squeeze'),
+                    React.createElement('div', { 
+                        className: 'text-xs text-green-400 font-mono' 
+                    }, `Props: autoRefresh=${props.autoRefresh}, refreshInterval=${props.refreshInterval}ms`)
+                ]);
+            }
+        };
+
+        // System status checks
+        async function checkSystemStatus() {
+            try {
+                // Check feature flags
+                document.getElementById('feature-flags-status').innerHTML = 
+                    `<span class="text-green-400">Feature flags: Active</span>`;
+
+                // Check API
+                const apiResponse = await fetch('/api/v2/scan/squeeze');
+                if (apiResponse.ok) {
+                    document.getElementById('api-status').innerHTML = 
+                        `<span class="text-green-400">API: Connected</span>`;
+                    document.getElementById('connection-indicator').className = 
+                        'w-3 h-3 rounded-full bg-green-400';
+                } else {
+                    throw new Error('API check failed');
+                }
+
+            } catch (error) {
+                document.getElementById('api-status').innerHTML = 
+                    `<span class="text-red-400">API: Error</span>`;
+                document.getElementById('connection-indicator').className = 
+                    'w-3 h-3 rounded-full bg-red-400';
+            }
+        }
+
+        // Button handlers
+        document.getElementById('toggle-v3').addEventListener('click', () => {
+            window.featureFlags.ALPHASTACK_V3_ENABLED = !window.featureFlags.ALPHASTACK_V3_ENABLED;
+            location.reload();
+        });
+
+        document.getElementById('force-refresh').addEventListener('click', () => {
+            if (window.alphaStackIntegration && window.alphaStackIntegration.isActive()) {
+                window.alphaStackIntegration.refresh();
+            }
+        });
+
+        document.getElementById('toggle-theme').addEventListener('click', () => {
+            document.body.classList.toggle('dark');
+        });
+
+        // Event listeners for React component
+        document.addEventListener('alphastack:candidateSelect', (event) => {
+            console.log('Candidate selected:', event.detail.candidate);
+            alert(`Selected: ${event.detail.candidate.ticker}`);
+        });
+
+        document.addEventListener('alphastack:dataLoad', (event) => {
+            const { data, stats } = event.detail;
+            console.log(`Data loaded: ${data.length} candidates, avg score: ${stats.avgScore}`);
+            
+            const loadTime = performance.now() - performanceMonitor.startTime;
+            performanceMonitor.updateIndicator(loadTime, 0);
+        });
+
+        document.addEventListener('alphastack:error', (event) => {
+            console.error('AlphaStack error:', event.detail.error);
+        });
+
+        // Debug panel toggle (Ctrl+D)
+        document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey && event.key === 'd') {
+                event.preventDefault();
+                const panel = document.getElementById('debug-panel');
+                panel.classList.toggle('hidden');
+                
+                if (!panel.classList.contains('hidden')) {
+                    document.getElementById('debug-content').innerHTML = `
+                        React: ${typeof React !== 'undefined' ? 'Loaded' : 'Missing'}<br>
+                        ReactDOM: ${typeof ReactDOM !== 'undefined' ? 'Loaded' : 'Missing'}<br>
+                        V3 Enabled: ${window.featureFlags.ALPHASTACK_V3_ENABLED}<br>
+                        Performance Mode: ${window.featureFlags.V3_PERFORMANCE_MODE}<br>
+                        Integration Active: ${window.alphaStackIntegration ? window.alphaStackIntegration.isActive() : 'No'}<br>
+                        Load Time: ${(performance.now() - performanceMonitor.startTime).toFixed(1)}ms
+                    `;
+                }
+            }
+        });
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🚀 AlphaStack V3 Demo initializing...');
+            
+            await checkSystemStatus();
+            
+            // Remove loading placeholder when React component loads
+            setTimeout(() => {
+                const placeholder = document.querySelector('.loading-placeholder');
+                if (placeholder) {
+                    placeholder.style.display = 'none';
+                }
+            }, 2000);
+        });
+    </script>
+
+    <!-- Integration script -->
+    <script src="/src/integration/AlphaStackV3Integration.js"></script>
+</body>
+</html>
