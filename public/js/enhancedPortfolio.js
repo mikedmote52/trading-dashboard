@@ -588,6 +588,10 @@ class EnhancedPortfolio {
    * Show modal dialog
    */
   showModal(content) {
+    // Remove any existing modals first
+    const existingModals = document.querySelectorAll('.modal');
+    existingModals.forEach(modal => modal.remove());
+    
     const modal = document.createElement('div');
     modal.className = 'modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
@@ -604,6 +608,15 @@ class EnhancedPortfolio {
         modal.remove();
       }
     });
+    
+    // Close on Escape key
+    const escapeHandler = (e) => {
+      if (e.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
   }
 
   /**
@@ -627,12 +640,29 @@ class EnhancedPortfolio {
   }
 }
 
-// Global initialization
+// Global initialization function
 window.initializeEnhancedPortfolio = function(containerId) {
-  window.enhancedPortfolio = new EnhancedPortfolio(containerId);
+  console.log('🎯 Initializing Enhanced Portfolio for container:', containerId);
+  
+  // Create singleton instance
+  if (!window.enhancedPortfolio) {
+    window.enhancedPortfolio = new EnhancedPortfolio(containerId);
+  }
+  
+  // Load enhanced portfolio data
   window.enhancedPortfolio.loadEnhancedPortfolio();
+  
   return window.enhancedPortfolio;
 };
+
+// Auto-initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('📊 Enhanced Portfolio script loaded');
+  });
+} else {
+  console.log('📊 Enhanced Portfolio script loaded');
+}
 
 // Auto-refresh every 60 seconds
 setInterval(() => {
