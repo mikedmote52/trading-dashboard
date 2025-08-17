@@ -56,5 +56,5 @@ services:
     # Health check configuration
     healthCheckPath: /api/health
     
-    # Auto-deploy from stable branch
-    autoDeploy: false  # Manual deployment for safety
+    # Auto-deploy from main branch
+    autoDeploy: true
