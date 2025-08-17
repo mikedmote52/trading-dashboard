@@ -85,9 +85,7 @@ app.use('/api/alphastack/scan', rateLimiter.scan);
 app.use('/api/portfolio', rateLimiter.portfolio);
 
 // mount API routes first
-const discoveriesRouter = require('./server/routes/discoveries');
 const screenerRouter = require('./server/routes/screener');
-app.use('/api/discoveries', discoveriesRouter);
 app.use('/api/screener', screenerRouter);
 app.use('/api/portfolio', require('./server/routes/portfolio'));
 app.use('/api/pm', require('./server/routes/pm'));
@@ -110,13 +108,13 @@ app.get('/api/dashboard', async (req, res) => {
       };
     });
     
-    const discoveries = await scanForViglPatterns();
+    // discoveries removed - using AlphaStack instead
     
     // Fetch real portfolio alerts from API service
     const portfolioAlerts = await fetchPortfolioAlerts();
     
     // Combine with existing alert system
-    const alerts = await generateAlerts(portfolio, discoveries);
+    const alerts = await generateAlerts(portfolio, []);
     
     // Add critical portfolio alerts to the top
     if (portfolioAlerts.length > 0) {
@@ -135,7 +133,7 @@ app.get('/api/dashboard', async (req, res) => {
     }
     
     // Generate comprehensive portfolio health analysis
-    const healthAnalysis = PortfolioHealth.analyzePortfolioHealth(portfolio, discoveries);
+    const healthAnalysis = PortfolioHealth.analyzePortfolioHealth(portfolio, []);
     
     const dashboardData = {
       portfolio: {
@@ -144,7 +142,7 @@ app.get('/api/dashboard', async (req, res) => {
         totalPnL: portfolio.totalPnL || 0,
         totalPnLPercent: portfolio.totalPnLPercent || 0
       },
-      discoveries,
+      // discoveries removed - using AlphaStack
       alerts,
       health: healthAnalysis,
       lastUpdated: new Date().toISOString(),
@@ -152,12 +150,12 @@ app.get('/api/dashboard', async (req, res) => {
         totalValue: portfolio.totalValue,
         dailyPnL: portfolio.dailyPnL,
         totalPnL: portfolio.totalPnL || 0,
-        viglScore: discoveries.length > 0 ? Math.max(...discoveries.map(d => d.confidence)) : 0,
+        // viglScore removed - using AlphaStack
         avgWolfRisk: portfolio.positions.length > 0 
           ? portfolio.positions.reduce((sum, p) => sum + p.riskAnalysis.wolfScore, 0) / portfolio.positions.length
           : 0,
         highRiskPositions: portfolio.positions.filter(p => p.riskAnalysis.wolfScore >= 0.6).length,
-        viglOpportunities: discoveries.filter(d => d.confidence >= 0.6).length
+        // viglOpportunities removed - using AlphaStack
       }
     };
     
@@ -174,8 +172,10 @@ app.get('/api/dashboard', async (req, res) => {
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
 
-// VIGL scan trigger endpoint for UI button
-app.post('/api/trigger-vigl-scan', async (req, res) => {
+// VIGL endpoints removed - using AlphaStack screener instead
+
+// Trading actions
+app.post('/api/trade', async (req, res) => {
   try {
     console.log('🎯 UI triggered VIGL discovery scan...');
     
@@ -823,7 +823,8 @@ let lastViglScan = null;
 let viglScanInProgress = false;
 
 // Fetch VIGL discoveries from real-time API service
-async function scanForViglPatterns() {
+// scanForViglPatterns removed - using AlphaStack instead
+async function scanForViglPatterns_DISABLED() {
   console.log('🔍 Fetching discoveries from SQLite database...');
   
   // Check cache first (2 minute refresh for active trading)
@@ -2256,14 +2257,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.error('⚠️ Failed to load engine info:', error.message);
   }
   
-  // Start capture job for continuous data collection
-  try {
-    const capture = require('./server/jobs/capture');
-    capture.startDailyCapture();
-    console.log('📡 Capture job started - will run every 30 minutes');
-  } catch (error) {
-    console.error('⚠️ Failed to start capture job:', error.message);
-  }
+  // VIGL capture job removed - using AlphaStack universe scanning instead
+  console.log('📡 Background jobs: VIGL capture disabled, AlphaStack on-demand scanning enabled');
 });
 
 process.on('SIGTERM', () => {
