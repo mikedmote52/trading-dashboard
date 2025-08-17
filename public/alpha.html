@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaStack Squeeze Dashboard (Beta)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .beta-badge {
+            background: #f59e0b;
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .feature-flag-notice {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-flag-notice.disabled {
+            background: #7f1d1d;
+            border-color: #991b1b;
+        }
+        
+        .scan-results {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .result-card {
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .result-card:hover {
+            border-color: #4ade80;
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.2);
+        }
+        
+        .ticker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .ticker-symbol {
+            font-size: 20px;
+            font-weight: 600;
+            color: #4ade80;
+        }
+        
+        .score-badge {
+            background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        
+        .metric-item {
+            background: #1a1a1a;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .metric-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .error {
+            background: #7f1d1d;
+            border: 1px solid #991b1b;
+            color: #fca5a5;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .navigation {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .nav-link {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #4ade80;
+        }
+        
+        .nav-link.active {
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        pre {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            font-size: 12px;
+            color: #22d3ee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AlphaStack Squeeze Dashboard</h1>
+            <span class="beta-badge">Beta</span>
+        </div>
+        
+        <div class="navigation">
+            <a href="/" class="nav-link">← Back to Classic Dashboard</a>
+            <a href="/alpha" class="nav-link active">Alpha Dashboard</a>
+        </div>
+        
+        <div id="feature-flag-notice" class="feature-flag-notice">
+            <span>🚀</span>
+            <span>Alpha dashboard is enabled (NEW_DASH_ENABLED=true)</span>
+        </div>
+        
+        <div id="scan-container" class="scan-results">
+            <div class="loading">Loading squeeze scan data...</div>
+        </div>
+        
+        <div id="raw-data" style="margin-top: 40px;">
+            <h3 style="margin-bottom: 16px; color: #888;">Raw API Response</h3>
+            <pre id="json-output"></pre>
+        </div>
+    </div>
+    
+    <script>
+        // Check feature flag
+        const isEnabled = true; // In production, this would check env var
+        
+        async function loadSqueezeScan() {
+            const container = document.getElementById('scan-container');
+            const jsonOutput = document.getElementById('json-output');
+            
+            try {
+                // Fetch squeeze scan data
+                const response = await fetch('/api/v2/scan/squeeze');
+                const data = await response.json();
+                
+                // Display raw JSON
+                jsonOutput.textContent = JSON.stringify(data, null, 2);
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to fetch scan data');
+                }
+                
+                // Render results
+                if (data.results && data.results.length > 0) {
+                    container.innerHTML = data.results.map(result => `
+                        <div class="result-card">
+                            <div class="ticker-header">
+                                <span class="ticker-symbol">${result.ticker}</span>
+                                <span class="score-badge">Score: ${result.score}</span>
+                            </div>
+                            
+                            <div class="metrics-grid">
+                                <div class="metric-item">
+                                    <div class="metric-label">Price</div>
+                                    <div class="metric-value">$${result.price}</div>
+                                </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Change</div>
+                                    <div class="metric-value">${result.changePct}%</div>
+                                </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">RVol</div>
+                                    <div class="metric-value">${result.rvol}x</div>
+                                </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Short %</div>
+                                    <div class="metric-value">${result.shortPct}%</div>
+                                </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Borrow Fee</div>
+                                    <div class="metric-value">${result.borrowFeePct}%</div>
+                                </div>
+                                <div class="metric-item">
+                                    <div class="metric-label">Entry</div>
+                                    <div class="metric-value">${result.plan.entry}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="loading">No squeeze candidates found</div>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading squeeze scan:', error);
+                container.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                jsonOutput.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function loadTickerMetrics(ticker) {
+            try {
+                const response = await fetch(`/api/v2/metrics/${ticker}`);
+                const data = await response.json();
+                console.log(`Metrics for ${ticker}:`, data);
+                return data;
+            } catch (error) {
+                console.error(`Error loading metrics for ${ticker}:`, error);
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!isEnabled) {
+                document.getElementById('feature-flag-notice').className = 'feature-flag-notice disabled';
+                document.getElementById('feature-flag-notice').innerHTML = 
+                    '<span>⚠️</span><span>Alpha dashboard is disabled. Set NEW_DASH_ENABLED=true to enable.</span>';
+            }
+            
+            loadSqueezeScan();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadSqueezeScan, 30000);
+            
+            // Test ticker metrics endpoint
+            loadTickerMetrics('EXAMPLE');
+        });
+    </script>
+</body>
+</html>

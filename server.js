@@ -92,6 +92,13 @@ app.use('/api/pm', require('./server/routes/pm'));
 app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
 
+// V2 API Routes (isolated for new dashboard - read-only)
+if (process.env.NEW_DASH_ENABLED === 'true') {
+  console.log('🚀 V2 API routes enabled for alpha dashboard');
+  app.use('/api/v2/scan', require('./server/routes/v2/scan'));
+  app.use('/api/v2/metrics', require('./server/routes/v2/metrics'));
+}
+
 // Main dashboard data - moved before 404 handler
 app.get('/api/dashboard', async (req, res) => {
   try {
@@ -542,9 +549,16 @@ app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
 });
 
-// only serve static when explicitly enabled
-if (process.env.SERVE_STATIC === 'true') {
+// Serve static files (including alpha dashboard)
+if (process.env.SERVE_STATIC === 'true' || process.env.NEW_DASH_ENABLED === 'true') {
   app.use(require('express').static('public'));
+  
+  // Add alpha route when feature flag is enabled
+  if (process.env.NEW_DASH_ENABLED === 'true') {
+    app.get('/alpha', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'alpha.html'));
+    });
+  }
 }
 
 // Token-based authentication middleware for secure endpoints

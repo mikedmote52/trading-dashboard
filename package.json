@@ -10,6 +10,7 @@
     "test:e2e": "node scripts/e2e_verify.js",
     "migrate": "node scripts/init_db.js",
     "dev": "nodemon server.js || node server.js",
+    "dev:alpha": "node -r dotenv/config server.js dotenv_config_path=.env.alpha",
     "dev:css": "npx tailwindcss -i public/tw.css -o public/assets/tailwind.css --watch",
     "build": "echo 'No build step required for Node.js app'",
     "build:css": "npx tailwindcss -i public/tw.css -o public/assets/tailwind.css --minify",
