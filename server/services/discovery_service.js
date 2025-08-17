@@ -29,22 +29,19 @@ async function scanOnce() {
   
   try {
     const engine = new EngineClass();
-    const results = await engine.run();
+    const out = await engine.run();
     const duration = Date.now() - startTime;
     
-    console.log(`✅ Engine '${key}' completed in ${duration}ms`);
-    console.log(`📦 engine=${key} results=${results.candidates?.length || 0}`);
+    // Normalize engines that return an object { candidates: [...] }
+    const results = Array.isArray(out) ? out
+                  : Array.isArray(out?.candidates) ? out.candidates
+                  : Array.isArray(out?.discoveries) ? out.discoveries
+                  : [];
     
-    return { 
-      engine: key, 
-      results: results.candidates || [],
-      metadata: {
-        duration,
-        universe_count: results.universe_count,
-        enriched_count: results.enriched_count,
-        discovery_metrics: results.discovery_metrics
-      }
-    };
+    console.log(`✅ Engine '${key}' completed in ${duration}ms`);
+    console.log(`📦 engine=${key} results=${results.length}`);
+    
+    return { engine: key, results };
   } catch (error) {
     console.error(`❌ Engine '${key}' failed:`, error.message);
     throw error;

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test VIGL UI</title>
+</head>
+<body>
+    <h1>Test VIGL Discovery Loading</h1>
+    <div id="viglTotalDiscoveries">Loading...</div>
+    <div id="viglBuyCount">Loading...</div>
+    <div id="viglWatchlistCount">Loading...</div>
+    <div id="viglMonitorCount">Loading...</div>
+    <div id="discoveries">Loading discoveries...</div>
+    
+    <script>
+        async function testLoadViglDiscoveries() {
+            try {
+                console.log('🔄 Loading VIGL discoveries...');
+                const response = await fetch('/api/discoveries/dashboard', { cache: 'no-store' });
+                const result = await response.json();
+                
+                console.log('📊 API Response:', { success: result.success, count: result.count, discoveries: result.discoveries?.length });
+                
+                if (result.success) {
+                    const discoveries = result.discoveries || [];
+                    
+                    // Update stats
+                    const buyCount = discoveries.filter(d => d.action === 'BUY').length;
+                    const watchlistCount = discoveries.filter(d => d.action === 'WATCHLIST').length;
+                    const monitorCount = discoveries.filter(d => d.action === 'MONITOR').length;
+                    
+                    document.getElementById('viglTotalDiscoveries').textContent = discoveries.length;
+                    document.getElementById('viglBuyCount').textContent = buyCount;
+                    document.getElementById('viglWatchlistCount').textContent = watchlistCount;
+                    document.getElementById('viglMonitorCount').textContent = monitorCount;
+                    
+                    // Show discovery symbols
+                    const discoverySymbols = discoveries.map(d => `${d.symbol} (${d.action})`).join(', ');
+                    document.getElementById('discoveries').textContent = discoverySymbols;
+                    
+                    console.log(`✅ Loaded ${discoveries.length} VIGL discoveries: ${buyCount} BUY, ${watchlistCount} WATCHLIST, ${monitorCount} MONITOR`);
+                } else {
+                    console.warn('⚠️ API returned success=false:', result);
+                    document.getElementById('viglTotalDiscoveries').textContent = '0';
+                    document.getElementById('viglBuyCount').textContent = '0';
+                    document.getElementById('viglWatchlistCount').textContent = '0';
+                    document.getElementById('viglMonitorCount').textContent = '0';
+                    document.getElementById('discoveries').textContent = 'No discoveries';
+                }
+            } catch (error) {
+                console.error('❌ Failed to load VIGL discoveries:', error);
+                document.getElementById('viglTotalDiscoveries').textContent = 'Error';
+                document.getElementById('viglBuyCount').textContent = 'Error';
+                document.getElementById('viglWatchlistCount').textContent = 'Error';
+                document.getElementById('viglMonitorCount').textContent = 'Error';
+                document.getElementById('discoveries').textContent = 'Error loading discoveries';
+            }
+        }
+        
+        // Run test on page load
+        testLoadViglDiscoveries();
+        
+        // Also test direct DOM manipulation
+        setTimeout(() => {
+            console.log('Testing direct DOM updates...');
+            document.getElementById('viglTotalDiscoveries').textContent = 'TEST3';
+            document.getElementById('viglBuyCount').textContent = 'TEST1';
+            document.getElementById('viglWatchlistCount').textContent = 'TEST1';
+            document.getElementById('viglMonitorCount').textContent = 'TEST1';
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -53,6 +53,7 @@ function makeAlpacaRequest(endpoint) {
     const baseUrl = process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets';
     
     if (!apiKey || !secretKey) {
+      console.log('⚠️ Missing Alpaca API credentials');
       resolve(null);
       return;
     }
@@ -75,18 +76,26 @@ function makeAlpacaRequest(endpoint) {
         try {
           const parsed = JSON.parse(data);
           if (res.statusCode !== 200) {
+            console.error(`❌ Alpaca API error ${res.statusCode}:`, parsed);
             resolve(null);
           } else {
             resolve(parsed);
           }
         } catch (e) {
+          console.error('❌ Alpaca JSON parse error:', e.message);
           resolve(null);
         }
       });
     });
 
-    req.on('error', () => resolve(null));
-    req.setTimeout(10000, () => resolve(null));
+    req.on('error', (err) => {
+      console.error('❌ Alpaca request error:', err.message);
+      resolve(null);
+    });
+    req.setTimeout(30000, () => {
+      console.error('❌ Alpaca request timeout');
+      resolve(null);
+    });
     req.end();
   });
 }
@@ -98,14 +107,19 @@ module.exports = {
       let symbols = [];
       
       if (assets && Array.isArray(assets)) {
-        // Broader universe: Include all liquid stocks from major exchanges
-        // Only basic filters: major exchanges, no special characters, active trading
+        // FULL MARKET UNIVERSE: All tradeable stocks for VIGL discovery
+        // Pre-filter for efficiency: major exchanges, normal tickers, active trading
         symbols = assets
           .filter(a => a.exchange === 'NASDAQ' || a.exchange === 'NYSE' || a.exchange === 'ARCA')
           .filter(a => a.symbol && !a.symbol.includes('.') && !a.symbol.includes('-'))
+          .filter(a => a.symbol.length <= 5) // Normal tickers only (exclude complex instruments)
           .filter(a => a.tradable === true && a.status === 'active')
-          .map(a => a.symbol)
-          .slice(0, 500); // Expanded universe for better discovery
+          .map(a => a.symbol);
+        
+        console.log(`🌐 Full market universe: ${symbols.length} tradeable stocks loaded`);
+        
+        // VIGL-specific pre-filtering for efficiency:
+        // We'll do volume/price filtering after data fetch to find real opportunities
       }
       
       // Add test symbols if configured via env var

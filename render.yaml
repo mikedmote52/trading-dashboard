@@ -1,62 +1,60 @@
 services:
-  # Background VIGL Scanner Worker
-  - type: worker
-    name: vigl-scanner-worker
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python vigl_background_worker.py
+  # Unified Trading Dashboard Web Service
+  - type: web
+    name: trading-dashboard
+    env: node
+    buildCommand: npm install && pip3 install -r requirements.txt
+    startCommand: npm run render:start
+    plan: starter
     envVars:
+      # Market Data API
       - key: POLYGON_API_KEY
         sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: vigl-database
-          property: connectionString
-  
-  # Background Portfolio Manager Worker
-  - type: worker
-    name: portfolio-manager-worker
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python portfolio_background_worker.py
-    envVars:
+      
+      # Alpaca Trading API (Paper Trading)  
       - key: APCA_API_KEY_ID
         sync: false
       - key: APCA_API_SECRET_KEY
         sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: vigl-database
-          property: connectionString
-    
-  # Web API Service
-  - type: web
-    name: vigl-api-service
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn vigl_api:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: vigl-database
-          property: connectionString
-    
-  # Frontend Web Service
-  - type: web
-    name: vigl-frontend
-    env: node
-    buildCommand: npm install
-    startCommand: node server.js
-    envVars:
-      - key: VIGL_API_URL
-        value: https://vigl-api-service.onrender.com
-      - key: APCA_API_KEY_ID
+      - key: APCA_API_BASE_URL
+        value: https://paper-api.alpaca.markets
+        
+      # Legacy variable names (for compatibility)
+      - key: ALPACA_API_KEY
         sync: false
-      - key: APCA_API_SECRET_KEY
+      - key: ALPACA_SECRET_KEY  
         sync: false
-
-# Database
-databases:
-  - name: vigl-database
-    databaseName: vigl_db
-    user: vigl_user
+      - key: ALPACA_BASE_URL
+        value: https://paper-api.alpaca.markets
+      
+      # Server Configuration
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SERVE_STATIC
+        value: true
+        
+      # Admin Authentication
+      - key: ADMIN_TOKEN
+        sync: false
+        
+      # Trading Configuration
+      - key: VIGL_BUY_THRESH
+        value: 70
+      - key: VIGL_WATCH_THRESH
+        value: 55
+      - key: VIGL_MONITOR_THRESH
+        value: 35
+      - key: SCAN_MAX_TICKERS
+        value: 1200
+        
+      # Scoring Configuration (keep as single line JSON)
+      - key: SCORING_WEIGHTS_JSON
+        value: '{"short_interest_weight":2.0,"borrow_fee_weight":1.5,"volume_weight":1.2,"momentum_weight":1.0,"catalyst_weight":0.8,"float_penalty_weight":-0.6}'
+    
+    # Health check configuration
+    healthCheckPath: /api/health
+    
+    # Auto-deploy from stable branch
+    autoDeploy: false  # Manual deployment for safety
