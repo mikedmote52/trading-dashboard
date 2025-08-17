@@ -141,4 +141,98 @@ router.get('/squeeze', async (req, res) => {
     }
 });
 
+// Debug endpoints for screener comparison
+router.get('/criteria', (req, res) => {
+    res.json({
+        universe_limit: 10,
+        exclude_symbols: "BTAI,KSS,UP,TNXP", 
+        data_source: "universe_screener.py + v2_formatting",
+        version: "v2",
+        caching: "30s background refresh",
+        timeout: "15000ms"
+    });
+});
+
+router.get('/datasources', (req, res) => {
+    res.json([
+        { name: "Polygon", version: "REST API v2", lastSync: "real-time", notes: "Price and volume data" },
+        { name: "Python Universe Screener", version: "1.0", lastSync: "cached-30s", notes: "Momentum and technical analysis via V2 formatting" },
+        { name: "V2 Cache Layer", version: "1.0", lastSync: new Date().toISOString(), notes: "Background refresh with 30s intervals" }
+    ]);
+});
+
+router.get('/filters', (req, res) => {
+    res.json([
+        "universe_generation",
+        "momentum_filter",
+        "volume_filter", 
+        "technical_analysis",
+        "exclusion_filter",
+        "v2_formatting",
+        "cache_layer"
+    ]);
+});
+
+router.post('/stepwise', async (req, res) => {
+    try {
+        // Simulate stepwise filtering for V2 (with cache layer)
+        const universe = req.body.universe || [];
+        const reports = [
+            {
+                filterName: "universe_generation",
+                beforeCount: 0,
+                afterCount: 50,
+                dropped: [],
+                kept: Array.from({length: 50}, (_, i) => `STOCK${i+1}`)
+            },
+            {
+                filterName: "momentum_filter",
+                beforeCount: 50,
+                afterCount: 25,
+                dropped: Array.from({length: 25}, (_, i) => `STOCK${i+26}`),
+                kept: Array.from({length: 25}, (_, i) => `STOCK${i+1}`)
+            },
+            {
+                filterName: "volume_filter",
+                beforeCount: 25,
+                afterCount: 15,
+                dropped: Array.from({length: 10}, (_, i) => `STOCK${i+16}`),
+                kept: Array.from({length: 15}, (_, i) => `STOCK${i+1}`)
+            },
+            {
+                filterName: "technical_analysis", 
+                beforeCount: 15,
+                afterCount: 12,
+                dropped: Array.from({length: 3}, (_, i) => `STOCK${i+13}`),
+                kept: Array.from({length: 12}, (_, i) => `STOCK${i+1}`)
+            },
+            {
+                filterName: "exclusion_filter",
+                beforeCount: 12,
+                afterCount: 10,
+                dropped: Array.from({length: 2}, (_, i) => `STOCK${i+11}`),
+                kept: Array.from({length: 10}, (_, i) => `STOCK${i+1}`)
+            },
+            {
+                filterName: "v2_formatting",
+                beforeCount: 10,
+                afterCount: 10,
+                dropped: [],
+                kept: Array.from({length: 10}, (_, i) => `STOCK${i+1}`)
+            },
+            {
+                filterName: "cache_layer",
+                beforeCount: 10,
+                afterCount: 10,
+                dropped: [],
+                kept: Array.from({length: 10}, (_, i) => `STOCK${i+1}`)
+            }
+        ];
+        
+        res.json(reports);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

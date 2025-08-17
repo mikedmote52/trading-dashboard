@@ -132,4 +132,79 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Debug endpoints for screener comparison
+router.get('/criteria', (req, res) => {
+  res.json({
+    universe_limit: 10,
+    exclude_symbols: "BTAI,KSS,UP,TNXP",
+    data_source: "universe_screener.py",
+    version: "v1"
+  });
+});
+
+router.get('/datasources', (req, res) => {
+  res.json([
+    { name: "Polygon", version: "REST API v2", lastSync: "real-time", notes: "Price and volume data" },
+    { name: "Python Universe Screener", version: "1.0", lastSync: "on-demand", notes: "Momentum and technical analysis" }
+  ]);
+});
+
+router.get('/filters', (req, res) => {
+  res.json([
+    "universe_generation",
+    "momentum_filter", 
+    "volume_filter",
+    "technical_analysis",
+    "exclusion_filter"
+  ]);
+});
+
+router.post('/stepwise', async (req, res) => {
+  try {
+    // Simulate stepwise filtering for AlphaStack
+    const universe = req.body.universe || [];
+    const reports = [
+      {
+        filterName: "universe_generation",
+        beforeCount: 0,
+        afterCount: 50,
+        dropped: [],
+        kept: Array.from({length: 50}, (_, i) => `STOCK${i+1}`)
+      },
+      {
+        filterName: "momentum_filter",
+        beforeCount: 50,
+        afterCount: 25,
+        dropped: Array.from({length: 25}, (_, i) => `STOCK${i+26}`),
+        kept: Array.from({length: 25}, (_, i) => `STOCK${i+1}`)
+      },
+      {
+        filterName: "volume_filter", 
+        beforeCount: 25,
+        afterCount: 15,
+        dropped: Array.from({length: 10}, (_, i) => `STOCK${i+16}`),
+        kept: Array.from({length: 15}, (_, i) => `STOCK${i+1}`)
+      },
+      {
+        filterName: "technical_analysis",
+        beforeCount: 15,
+        afterCount: 10,
+        dropped: Array.from({length: 5}, (_, i) => `STOCK${i+11}`),
+        kept: Array.from({length: 10}, (_, i) => `STOCK${i+1}`)
+      },
+      {
+        filterName: "exclusion_filter",
+        beforeCount: 10,
+        afterCount: 5,
+        dropped: Array.from({length: 5}, (_, i) => `STOCK${i+6}`),
+        kept: Array.from({length: 5}, (_, i) => `STOCK${i+1}`)
+      }
+    ];
+    
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
