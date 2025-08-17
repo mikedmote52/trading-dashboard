@@ -70,9 +70,19 @@ const DataValidation = require('./utils/data_validation');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Load middleware
+const errorHandler = require('./server/middleware/errorHandler');
+const rateLimiter = require('./server/middleware/rateLimiter');
+const createHealthCheck = require('./server/middleware/healthCheck');
+
+// Apply middleware
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting for API routes
+app.use('/api/', rateLimiter.api);
+app.use('/api/alphastack/scan', rateLimiter.scan);
+app.use('/api/portfolio', rateLimiter.portfolio);
 
 // mount API routes first
 const discoveriesRouter = require('./server/routes/discoveries');
@@ -522,6 +532,9 @@ app.post('/api/trade', async (req, res) => {
     res.status(500).json({ error: 'Trading operation failed' });
   }
 });
+
+// Health check endpoint (required for Render deployment)
+app.get('/api/health', createHealthCheck());
 
 // hard JSON 404 so /api/* never falls into SPA
 app.use('/api', (req, res) => {
@@ -2221,6 +2234,9 @@ if (process.env.STRICT_STARTUP === 'true') {
 } else {
   console.log('ℹ️  Startup health check disabled (set STRICT_STARTUP=true to enable)');
 }
+
+// Global error handler (must be last middleware)
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
