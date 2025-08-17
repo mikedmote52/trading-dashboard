@@ -71,7 +71,14 @@ class EnhancedPortfolio {
       return;
     }
 
-    container.innerHTML = this.positions.map(position => this.createEnhancedTile(position)).join('');
+    // Render enhanced position tiles in a responsive grid
+    container.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        ${this.positions.map(position => this.createEnhancedTile(position)).join('')}
+      </div>
+    `;
+    
+    console.log(`✅ Rendered ${this.positions.length} enhanced position tiles in grid layout`);
   }
 
   /**
@@ -103,27 +110,27 @@ class EnhancedPortfolio {
     const thesisColor = strengthColor[thesis.thesisStrength] || strengthColor['NEUTRAL'];
     
     return `
-      <div class="enhanced-position-tile bg-white bg-opacity-8 border border-white border-opacity-15 rounded-lg p-4 mb-4 hover:bg-opacity-12 transition-all duration-300">
+      <div class="enhanced-position-tile bg-slate-800 border border-slate-600 rounded-xl p-5 shadow-xl hover:shadow-2xl hover:bg-slate-750 transition-all duration-300 transform hover:-translate-y-1">
         
         <!-- Header Section -->
-        <div class="flex justify-between items-start mb-3">
+        <div class="flex justify-between items-start mb-4">
           <div class="flex-1">
-            <div class="flex items-center space-x-3">
-              <h3 class="font-bold text-xl text-white">${symbol}</h3>
-              <div class="thesis-indicator ${thesisColor} px-2 py-1 rounded-md text-xs font-medium">
+            <div class="flex items-center space-x-3 mb-2">
+              <h3 class="font-bold text-2xl text-white">${symbol}</h3>
+              <div class="thesis-indicator ${thesisColor} px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
                 ${thesis.thesisStrength || 'STABLE'}
               </div>
             </div>
-            <div class="text-sm text-blue-200 mt-1">
-              ${qty} shares @ $${currentPrice?.toFixed(2)}
+            <div class="text-sm text-slate-300">
+              <span class="font-semibold">${qty}</span> shares @ <span class="font-semibold text-blue-300">$${currentPrice?.toFixed(2)}</span>
             </div>
           </div>
           
           <div class="text-right">
-            <div class="font-bold text-lg ${pnlColor}">
+            <div class="font-bold text-xl ${pnlColor}">
               $${unrealizedPnL?.toFixed(2)}
             </div>
-            <div class="text-sm ${pnlColor}">
+            <div class="text-sm ${pnlColor} font-semibold">
               ${unrealizedPnLPercent?.toFixed(1)}%
             </div>
           </div>
@@ -174,24 +181,40 @@ class EnhancedPortfolio {
         ` : ''}
 
         <!-- Action Buttons -->
-        <div class="action-buttons flex space-x-2 mb-3">
-          ${actionButtons.map(button => `
-            <button 
-              onclick="window.enhancedPortfolio.executeAction('${symbol}', '${button.type}', '${button.amount}')"
-              class="${button.color} text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all transform hover:scale-105 ${button.priority === 'PRIMARY' ? 'ring-2 ring-white ring-opacity-30' : ''}"
-            >
-              ${button.label}
-            </button>
-          `).join('')}
+        <div class="action-buttons flex flex-wrap gap-2 mb-3">
+          ${actionButtons.map(button => {
+            // Ensure proper button colors based on type
+            let buttonClass = '';
+            if (button.type === 'BUY') {
+              buttonClass = 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg border border-emerald-500';
+            } else if (button.type === 'REDUCE') {
+              buttonClass = 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg border border-amber-500';
+            } else if (button.type === 'SELL') {
+              buttonClass = 'bg-red-600 hover:bg-red-700 text-white shadow-lg border border-red-500';
+            } else {
+              buttonClass = 'bg-gray-600 hover:bg-gray-700 text-white shadow-lg border border-gray-500';
+            }
+            
+            const priorityRing = button.priority === 'PRIMARY' ? 'ring-2 ring-blue-400 ring-opacity-50' : '';
+            
+            return `
+              <button 
+                onclick="window.enhancedPortfolio.executeAction('${symbol}', '${button.type}', '${button.amount}')"
+                class="${buttonClass} ${priorityRing} text-sm font-bold px-4 py-2 rounded-lg transition-all transform hover:scale-105 hover:shadow-xl"
+              >
+                ${button.label}
+              </button>
+            `;
+          }).join('')}
         </div>
 
         <!-- Detail Link -->
-        <div class="border-t border-gray-600 border-opacity-30 pt-3">
+        <div class="border-t border-slate-600 border-opacity-40 pt-3 mt-4">
           <button 
             onclick="window.enhancedPortfolio.showPositionDetail('${symbol}')"
-            class="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+            class="w-full bg-slate-700 hover:bg-slate-600 text-blue-300 hover:text-blue-200 text-sm font-semibold py-2 px-4 rounded-lg transition-all border border-slate-500 hover:border-blue-400"
           >
-            📊 View Detailed Analysis →
+            📊 View Detailed Analysis
           </button>
         </div>
       </div>
