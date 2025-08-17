@@ -28,6 +28,7 @@ router.get('/squeeze', async (req, res) => {
     try {
         const debug = "debug" in req.query;
         const snap = cache.getSnapshot();
+        console.log(`🔍 V2 Debug: Cache fresh=${snap.fresh}, count=${snap.tickers?.length || 0}, first=${typeof snap.tickers?.[0]}`);
 
         // Fresh cache → return immediately
         if (snap.fresh && Array.isArray(snap.tickers) && snap.tickers.length > 0) {

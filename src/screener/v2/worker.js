@@ -34,10 +34,10 @@ function runOnce() {
           
           if (jsonLine) {
             const parsed = JSON.parse(jsonLine);
-            const tickers = parsed.map(candidate => candidate.symbol || candidate);
-            cache.setSnapshot(tickers || []);
-            console.log(`✅ V2 Worker: Cache updated with ${(tickers || []).length} candidates`);
-            resolve({ ok: true, count: (tickers || []).length });
+            // Store full candidate data, not just tickers
+            cache.setSnapshot(parsed || []);
+            console.log(`✅ V2 Worker: Cache updated with ${(parsed || []).length} candidates`);
+            resolve({ ok: true, count: (parsed || []).length });
           } else {
             cache.setSnapshot([]);
             console.log(`⚠️ V2 Worker: No candidates found in output`);

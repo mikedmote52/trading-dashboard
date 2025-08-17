@@ -5,7 +5,7 @@ const state = {
   error: null,
 };
 
-const TTL_MS = Number(process.env.V2_CACHE_TTL_MS || 5_000); // 5s default for faster refresh
+const TTL_MS = Number(process.env.V2_CACHE_TTL_MS || 1_000); // 1s default to force invalidation
 
 function isFresh() {
   return state.tickers && (Date.now() - state.updatedAt) < TTL_MS;

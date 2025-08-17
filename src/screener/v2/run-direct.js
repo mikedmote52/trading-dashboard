@@ -27,8 +27,8 @@ module.exports = function runDirectOnce() {
           
           if (jsonLine) {
             const parsed = JSON.parse(jsonLine);
-            const tickers = parsed.map(candidate => candidate.symbol || candidate);
-            resolve(tickers || []);
+            // Return FULL candidate data, not just tickers
+            resolve(parsed || []);
           } else {
             resolve([]);
           }
