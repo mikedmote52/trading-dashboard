@@ -30,10 +30,13 @@ function saveSimpleBackup(dashboardData) {
         // Append to daily file (don't overwrite)
         let dailyBackups = [];
         try {
-            const existing = fs.readFileSync(filename, 'utf8');
-            dailyBackups = JSON.parse(existing);
+            if (fs.existsSync(filename)) {
+                const existing = fs.readFileSync(filename, 'utf8');
+                const parsed = JSON.parse(existing || '[]');
+                dailyBackups = Array.isArray(parsed) ? parsed : []; // guard against non-array
+            }
         } catch (e) {
-            // File doesn't exist, start fresh
+            console.warn(`Backup parse failed, starting fresh []: ${e.message}`);
             dailyBackups = [];
         }
         

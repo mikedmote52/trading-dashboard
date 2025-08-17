@@ -545,6 +545,10 @@ app.post('/api/trade', async (req, res) => {
 // Health check endpoint (required for Render deployment)
 app.get('/api/health', createHealthCheck());
 
+// Health check aliases for Render compatibility
+app.get('/healthz', (req, res) => res.send('ok'));
+app.get('/health', (req, res) => res.send('ok'));
+
 // hard JSON 404 so /api/* never falls into SPA
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
