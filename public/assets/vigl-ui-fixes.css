@@ -1,0 +1,90 @@
+/* Drop-in UI fixes for VIGL tiles & layout. Load AFTER Tailwind in <head>.
+   Targets generic markup so it works with legacy renderers.
+*/
+:root{
+  --bg1:#0d1320;--bg2:#0f172a;--panel:#131c2e;--card:#162033;--muted:#a6b2c9;--text:#e6edf6;--ring:rgba(100,180,255,.25);
+}
+body{background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--text)}
+
+/* page container */
+.vigl-container{max-width:1200px;margin:0 auto;padding:16px}
+
+/* discovery grid */
+#viglCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;align-items:start}
+
+/* card base */
+#viglCards > *{background:var(--card);border:1px solid rgba(148,163,184,.18);border-radius:16px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:14px;overflow:hidden}
+#viglCards .vigl-card{background:var(--card)}
+
+/* headings/meta inside cards */
+#viglCards h3{margin:0 0 6px;font:600 18px/1.2 system-ui}
+#viglCards .meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
+#viglCards .meta label{display:block;color:var(--muted);font-size:12px}
+#viglCards .meta span{font-weight:700}
+#viglCards .catalyst{margin:8px 0 0;color:#cde3ff;font-size:13px}
+
+/* prevent huge inner elements from exploding the layout */
+#viglCards canvas,#viglCards img,#viglCards .chart{max-height:200px;width:100%;object-fit:contain;border-radius:10px}
+
+/* panel blocks elsewhere */
+.panel{background:var(--panel);border:1px solid rgba(148,163,184,.14);border-radius:20px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+
+/* compact stat pills */
+.pill{background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.14);border-radius:12px;padding:8px 10px}
+
+/* utility helpers in case legacy markup lacks classes */
+.vigl-stack{display:flex;flex-direction:column;gap:12px}
+.vigl-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+
+/* tighten buttons */
+button, .btn{border-radius:10px;border:1px solid rgba(148,163,184,.18);background:#0f172a;color:var(--text);padding:8px 12px}
+button:hover, .btn:hover{box-shadow:0 0 0 4px var(--ring)}
+
+/* make everything readable even if Tailwind classes are missing */
+*{min-width:0}
+
+/* Portfolio Positions - force dark theme visibility */
+#portfolioPositions .bg-white {
+  background: var(--card) !important;
+  color: var(--text) !important;
+}
+
+#portfolioPositions {
+  background: var(--panel);
+  color: var(--text);
+}
+
+#portfolioPositions * {
+  color: inherit;
+}
+
+#portfolioPositions .text-white {
+  color: #ffffff !important;
+}
+
+#portfolioPositions .text-blue-200 {
+  color: #dbeafe !important;
+}
+
+#portfolioPositions .text-blue-300 {
+  color: #93c5fd !important;
+}
+
+#portfolioPositions .status-green {
+  color: #10b981 !important;
+}
+
+#portfolioPositions .status-red {
+  color: #ef4444 !important;
+}
+
+#portfolioPositions .status-yellow {
+  color: #f59e0b !important;
+}
+
+/* Force visibility for all portfolio position text */
+#portfolioPositions .bg-white.bg-opacity-10 {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  color: #e6edf6 !important;
+}

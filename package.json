@@ -20,7 +20,8 @@
     "render:build": "npm install && node scripts/verify_getcompanyprofile.js",
     "render:start": "NODE_ENV=production node server.js",
     "watchdog": "node scripts/engine_watchdog.js",
-    "verify": "node scripts/verify_getcompanyprofile.js"
+    "verify": "node scripts/verify_getcompanyprofile.js",
+    "universe:build2": "python3 scripts/build_universe_v2.py --days 30"
   },
   "dependencies": {
     "axios": "^1.11.0",

@@ -39,6 +39,65 @@ CREATE TABLE IF NOT EXISTS thesis (
   updated_at TEXT
 );
 
+-- Thesis events table for learning loop
+CREATE TABLE IF NOT EXISTS thesis_events (
+  id TEXT PRIMARY KEY,
+  symbol TEXT,
+  event_type TEXT,
+  event_data TEXT,
+  created_at TEXT,
+  FOREIGN KEY (symbol) REFERENCES thesis(symbol)
+);
+
+-- AlphaStack screener tables
+CREATE TABLE IF NOT EXISTS screener_candidates (
+  id TEXT PRIMARY KEY,
+  symbol TEXT,
+  score REAL,
+  bucket TEXT,
+  reason TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS technical_metrics (
+  symbol TEXT PRIMARY KEY,
+  price REAL,
+  volume INTEGER,
+  rel_vol_30m REAL,
+  vwap REAL,
+  rsi REAL,
+  atr_frac REAL,
+  momentum_5d REAL,
+  momentum_21d REAL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS short_metrics (
+  symbol TEXT PRIMARY KEY,
+  float_shares INTEGER,
+  short_interest REAL,
+  borrow_fee REAL,
+  days_to_cover REAL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS options_metrics (
+  symbol TEXT PRIMARY KEY,
+  call_put_ratio REAL,
+  iv_rank REAL,
+  option_volume INTEGER,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sentiment_metrics (
+  symbol TEXT PRIMARY KEY,
+  reddit_mentions INTEGER,
+  sentiment_score REAL,
+  news_volume INTEGER,
+  social_volume INTEGER,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_discoveries_symbol ON discoveries(symbol);
 CREATE INDEX IF NOT EXISTS idx_discoveries_score ON discoveries(score);

@@ -1,0 +1,82 @@
+# AlphaStack Screener Configuration
+
+# Universe configuration (controls, no randomness)
+universe:
+  include_otc: false
+  exchanges: ["XNYS","XNAS","XASE"]   # NYSE, NASDAQ, AMEX
+  max_tickers: 6000                   # cap after reference listing
+  features_days: 30
+  price_min: 1.0
+  price_max: 100.0
+  enrich_short_max: 800               # how many finalists to enrich w/ short data
+  require_feature_coverage: 0.80      # failover if <80% symbols have features
+  fail_if_under: false                # if true, stop; else continue with what we have
+
+# Prefilters (price band)
+prefilters:
+  price_min: 1.0
+  price_max: 100.0
+
+# Prefilter strategy with adaptive percentiles
+prefilter_strategy:
+  target_keep: 200
+  min_keep: 120
+  adv_pct_min: 40
+  dollar_pct_min: 40
+  atr_pct_min: 60
+  step_percentile: 5
+
+# Monthly momentum detection
+monthly:
+  breakout_buffer: 0.01
+
+# Mode configurations
+modes:
+  growth30:
+    shortlist:
+      target_keep: 150
+      min_keep: 100
+
+# Priority symbols are ALWAYS included in every scan
+priority_symbols:
+  - BTAI
+  - KSS
+  - UP
+  - TNXP
+
+# Legacy adaptive prefiltering strategy
+adaptive_prefilter:
+  initial_thresholds:
+    min_price: 1.0
+    max_price: 100.0
+    min_volume: 1000000
+    min_market_cap: 10000000
+    max_float: 500000000
+  
+  relaxation_steps:
+    - volume_multiplier: 0.5
+      market_cap_multiplier: 0.5
+    - volume_multiplier: 0.25
+      market_cap_multiplier: 0.25
+    - volume_multiplier: 0.1
+      market_cap_multiplier: 0.1
+
+# Monthly momentum detection
+momentum_lanes:
+  breakout_threshold: 0.15  # 15% monthly gain
+  up_day_ratio: 0.6         # 60% up days in 21-day period
+  volume_spike: 2.0         # 2x average volume
+
+# Scoring weights for thesis generation
+scoring_weights:
+  momentum: 0.3
+  volume: 0.25
+  short_interest: 0.2
+  technical: 0.15
+  sentiment: 0.1
+
+# Thesis generation settings
+thesis_config:
+  min_confidence: 0.6
+  require_catalyst: true
+  max_risk_score: 0.8

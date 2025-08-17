@@ -76,9 +76,12 @@ app.use(express.json());
 
 // mount API routes first
 const discoveriesRouter = require('./server/routes/discoveries');
+const screenerRouter = require('./server/routes/screener');
 app.use('/api/discoveries', discoveriesRouter);
+app.use('/api/screener', screenerRouter);
 app.use('/api/portfolio', require('./server/routes/portfolio'));
 app.use('/api/pm', require('./server/routes/pm'));
+app.use('/api/alphastack', require('./server/routes/alphastack'));
 
 // Main dashboard data - moved before 404 handler
 app.get('/api/dashboard', async (req, res) => {
