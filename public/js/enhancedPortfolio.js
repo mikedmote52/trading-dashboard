@@ -201,33 +201,260 @@ class EnhancedPortfolio {
   /**
    * Execute trading action
    */
-  async executeAction(symbol, actionType, amount) {
+  async executeAction(symbol, actionType, suggestedAmount) {
     try {
-      console.log(`💰 Execute ${actionType} for ${symbol}: ${amount}`);
+      console.log(`💰 Execute ${actionType} for ${symbol}: ${suggestedAmount}`);
       
-      // Show confirmation dialog
-      const confirmed = confirm(
-        `Confirm ${actionType} action for ${symbol}?\n\n` +
-        `Action: ${actionType}\n` +
-        `Amount: ${amount}\n\n` +
-        `This will execute a real trade in your Alpaca paper account.`
-      );
+      const position = this.positions.find(p => p.symbol === symbol);
+      if (!position) return;
       
-      if (!confirmed) return;
-      
-      // For now, show success message - later integrate with Alpaca API
-      this.showNotification(`${actionType} order submitted for ${symbol} (${amount})`, 'success');
-      
-      // TODO: Integrate with actual trading API
-      // const response = await fetch('/api/trading/execute', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ symbol, actionType, amount })
-      // });
+      // Show interactive trading modal
+      this.showTradingModal(symbol, actionType, suggestedAmount, position);
       
     } catch (error) {
       console.error('❌ Action execution error:', error);
       this.showNotification(`Failed to execute ${actionType} for ${symbol}: ${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * Show interactive trading modal with amount selection and stop loss
+   */
+  showTradingModal(symbol, actionType, suggestedAmount, position) {
+    const currentPrice = position.currentPrice;
+    const isBuy = actionType.includes('BUY');
+    const isReduce = actionType.includes('REDUCE');
+    
+    const modalContent = `
+      <div class="trading-modal max-w-md mx-auto">
+        <h2 class="text-2xl font-bold mb-4">${actionType} ${symbol}</h2>
+        
+        <div class="space-y-4">
+          <!-- Current Position Info -->
+          <div class="bg-gray-800 rounded-lg p-3">
+            <div class="flex justify-between text-sm">
+              <span>Current Price:</span>
+              <span class="font-bold">$${currentPrice?.toFixed(2)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span>Current Shares:</span>
+              <span class="font-bold">${position.qty}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span>P&L:</span>
+              <span class="font-bold ${position.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}">
+                $${position.unrealizedPnL?.toFixed(2)} (${position.unrealizedPnLPercent?.toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+
+          <!-- Order Type Selection -->
+          <div>
+            <label class="block text-sm font-medium mb-2">Order Type</label>
+            <select id="orderType" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+              <option value="market">Market Order (Execute Immediately)</option>
+              <option value="limit">Limit Order (Set Price)</option>
+              ${!isBuy ? '<option value="stop_loss">Stop Loss Order</option>' : ''}
+            </select>
+          </div>
+
+          <!-- Amount Selection -->
+          <div>
+            <label class="block text-sm font-medium mb-2">Amount</label>
+            <div class="flex space-x-2 mb-2">
+              <button onclick="document.getElementById('amountType').value='dollars'; window.enhancedPortfolio.updateAmountField('${symbol}', '${currentPrice}')" 
+                      class="px-3 py-1 bg-blue-600 rounded text-xs">$ Amount</button>
+              <button onclick="document.getElementById('amountType').value='shares'; window.enhancedPortfolio.updateAmountField('${symbol}', '${currentPrice}')" 
+                      class="px-3 py-1 bg-gray-600 rounded text-xs">Shares</button>
+              ${isReduce ? '<button onclick="document.getElementById(\'amountType\').value=\'percent\'; window.enhancedPortfolio.updateAmountField(\'' + symbol + '\', \'' + currentPrice + '\')" class="px-3 py-1 bg-yellow-600 rounded text-xs">% of Position</button>' : ''}
+            </div>
+            <input type="hidden" id="amountType" value="dollars">
+            <input type="number" id="tradeAmount" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" 
+                   placeholder="Enter amount" value="${isBuy ? '500' : isReduce ? '25' : '100'}" step="0.01">
+            <div id="shareCalculation" class="text-xs text-gray-400 mt-1"></div>
+          </div>
+
+          <!-- Limit Price (if limit order) -->
+          <div id="limitPriceSection" class="hidden">
+            <label class="block text-sm font-medium mb-2">Limit Price</label>
+            <input type="number" id="limitPrice" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" 
+                   placeholder="$${currentPrice?.toFixed(2)}" value="${currentPrice?.toFixed(2)}" step="0.01">
+          </div>
+
+          <!-- Stop Loss (for buy orders) -->
+          ${isBuy ? `
+          <div>
+            <label class="block text-sm font-medium mb-2">
+              <input type="checkbox" id="addStopLoss" class="mr-2"> Add Stop Loss
+            </label>
+            <div id="stopLossSection" class="hidden">
+              <input type="number" id="stopLossPrice" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" 
+                     placeholder="Stop loss price" value="${(currentPrice * 0.9)?.toFixed(2)}" step="0.01">
+              <div class="text-xs text-gray-400 mt-1">Suggested: 10% below current price</div>
+            </div>
+          </div>
+          ` : ''}
+
+          <!-- Action Buttons -->
+          <div class="flex space-x-3 pt-4">
+            <button onclick="window.enhancedPortfolio.submitTrade('${symbol}', '${actionType}')" 
+                    class="flex-1 ${isBuy ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white font-bold py-3 rounded-lg">
+              ${actionType}
+            </button>
+            <button onclick="this.closest('.modal').remove()" 
+                    class="px-6 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        // Show/hide limit price section
+        document.getElementById('orderType').addEventListener('change', function() {
+          const limitSection = document.getElementById('limitPriceSection');
+          if (this.value === 'limit') {
+            limitSection.classList.remove('hidden');
+          } else {
+            limitSection.classList.add('hidden');
+          }
+        });
+
+        // Show/hide stop loss section
+        const stopLossCheckbox = document.getElementById('addStopLoss');
+        if (stopLossCheckbox) {
+          stopLossCheckbox.addEventListener('change', function() {
+            const stopLossSection = document.getElementById('stopLossSection');
+            if (this.checked) {
+              stopLossSection.classList.remove('hidden');
+            } else {
+              stopLossSection.classList.add('hidden');
+            }
+          });
+        }
+
+        // Update share calculation when amount changes
+        document.getElementById('tradeAmount').addEventListener('input', function() {
+          window.enhancedPortfolio.updateAmountField('${symbol}', '${currentPrice}');
+        });
+
+        // Initial calculation
+        window.enhancedPortfolio.updateAmountField('${symbol}', '${currentPrice}');
+      </script>
+    `;
+    
+    this.showModal(modalContent);
+  }
+
+  /**
+   * Update amount field calculations
+   */
+  updateAmountField(symbol, currentPrice) {
+    const amountType = document.getElementById('amountType')?.value;
+    const tradeAmount = parseFloat(document.getElementById('tradeAmount')?.value) || 0;
+    const calculationDiv = document.getElementById('shareCalculation');
+    
+    if (!calculationDiv) return;
+    
+    const position = this.positions.find(p => p.symbol === symbol);
+    if (!position) return;
+    
+    let calculationText = '';
+    
+    if (amountType === 'dollars') {
+      const shares = Math.floor(tradeAmount / currentPrice);
+      calculationText = `≈ ${shares} shares at $${currentPrice}`;
+    } else if (amountType === 'shares') {
+      const dollarAmount = tradeAmount * currentPrice;
+      calculationText = `≈ $${dollarAmount.toFixed(2)} at $${currentPrice}`;
+    } else if (amountType === 'percent') {
+      const sharesToSell = Math.floor((tradeAmount / 100) * position.qty);
+      const dollarAmount = sharesToSell * currentPrice;
+      calculationText = `≈ ${sharesToSell} shares = $${dollarAmount.toFixed(2)}`;
+    }
+    
+    calculationDiv.textContent = calculationText;
+  }
+
+  /**
+   * Submit trade order
+   */
+  async submitTrade(symbol, actionType) {
+    try {
+      const orderType = document.getElementById('orderType')?.value;
+      const amountType = document.getElementById('amountType')?.value;
+      const tradeAmount = parseFloat(document.getElementById('tradeAmount')?.value) || 0;
+      const limitPrice = parseFloat(document.getElementById('limitPrice')?.value);
+      const addStopLoss = document.getElementById('addStopLoss')?.checked;
+      const stopLossPrice = parseFloat(document.getElementById('stopLossPrice')?.value);
+      
+      if (!tradeAmount || tradeAmount <= 0) {
+        this.showNotification('Please enter a valid amount', 'error');
+        return;
+      }
+      
+      const position = this.positions.find(p => p.symbol === symbol);
+      if (!position) return;
+      
+      // Calculate shares
+      let shares = 0;
+      if (amountType === 'dollars') {
+        shares = Math.floor(tradeAmount / position.currentPrice);
+      } else if (amountType === 'shares') {
+        shares = Math.floor(tradeAmount);
+      } else if (amountType === 'percent') {
+        shares = Math.floor((tradeAmount / 100) * position.qty);
+      }
+      
+      if (shares <= 0) {
+        this.showNotification('Invalid share quantity calculated', 'error');
+        return;
+      }
+      
+      // Prepare order data
+      const orderData = {
+        symbol,
+        actionType,
+        orderType,
+        shares,
+        dollarAmount: shares * position.currentPrice,
+        limitPrice: orderType === 'limit' ? limitPrice : null,
+        stopLoss: addStopLoss ? stopLossPrice : null
+      };
+      
+      // Show confirmation
+      const confirmMessage = 
+        `Confirm ${actionType} Order:\n\n` +
+        `Symbol: ${symbol}\n` +
+        `Shares: ${shares}\n` +
+        `Estimated Cost: $${orderData.dollarAmount.toFixed(2)}\n` +
+        `Order Type: ${orderType.toUpperCase()}\n` +
+        (orderData.limitPrice ? `Limit Price: $${orderData.limitPrice}\n` : '') +
+        (orderData.stopLoss ? `Stop Loss: $${orderData.stopLoss}\n` : '') +
+        `\nThis will execute in your Alpaca paper account.`;
+      
+      if (!confirm(confirmMessage)) return;
+      
+      // Close modal
+      document.querySelector('.modal')?.remove();
+      
+      // For now, show success - later integrate with Alpaca API
+      this.showNotification(
+        `${actionType} order submitted: ${shares} shares of ${symbol} for $${orderData.dollarAmount.toFixed(2)}`, 
+        'success'
+      );
+      
+      // TODO: Integrate with actual Alpaca trading API
+      console.log('Order data:', orderData);
+      
+      // Refresh portfolio after a delay
+      setTimeout(() => {
+        this.loadEnhancedPortfolio();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('❌ Trade submission error:', error);
+      this.showNotification(`Failed to submit trade: ${error.message}`, 'error');
     }
   }
 
