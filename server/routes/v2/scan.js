@@ -32,22 +32,27 @@ router.get('/squeeze', async (req, res) => {
         // Fresh cache → return immediately
         if (snap.fresh && Array.isArray(snap.tickers) && snap.tickers.length > 0) {
             res.set("x-cache", "fresh");
-            const results = snap.tickers.map(ticker => ({
-                ticker: ticker,
-                price: 0,
-                changePct: 0,
-                rvol: 1.0,
+            const results = snap.tickers.map(candidate => ({
+                ticker: candidate.symbol || candidate,
+                price: candidate.price || 0,
+                changePct: candidate.upside_pct || 0,
+                rvol: candidate.rel_vol_30m || 1.0,
                 vwapRel: 1.0,
-                floatM: 0,
-                shortPct: 0,
-                borrowFeePct: 0,
-                utilizationPct: 0,
+                floatM: candidate.float_shares ? (candidate.float_shares / 1000000) : 0,
+                shortPct: candidate.short_interest || 0,
+                borrowFeePct: candidate.borrow_fee || 0,
+                utilizationPct: candidate.utilization || 0,
                 options: { cpr: 0, ivPctile: 0, atmOiTrend: "neutral" },
                 technicals: { emaCross: false, atrPct: 0, rsi: 50 },
                 catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
                 sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
-                score: 50,
-                plan: { entry: "Cache hit", stopPct: 10, tp1Pct: 20, tp2Pct: 40 }
+                score: candidate.score || 50,
+                plan: { 
+                    entry: candidate.thesis || "Cache hit", 
+                    stopPct: 10, 
+                    tp1Pct: candidate.upside_pct || 20, 
+                    tp2Pct: (candidate.upside_pct || 20) * 2 
+                }
             }));
             
             return res.json({ 
@@ -59,30 +64,35 @@ router.get('/squeeze', async (req, res) => {
 
         // Fallback path: run direct once so UI isn't empty
         console.log('🔄 V2 Scan: Cache miss/stale, running direct fallback');
-        const tickers = await runDirectOnce();
+        const candidates = await runDirectOnce();
         res.set("x-cache", "miss-fallback");
         
         if (!snap.tickers || !snap.tickers.length) {
             // populate cache opportunistically
-            cache.setSnapshot(tickers);
+            cache.setSnapshot(candidates);
         }
         
-        const results = tickers.map(ticker => ({
-            ticker: ticker,
-            price: 0,
-            changePct: 0,
-            rvol: 1.0,
+        const results = candidates.map(candidate => ({
+            ticker: candidate.symbol || candidate,
+            price: candidate.price || 0,
+            changePct: candidate.upside_pct || 0,
+            rvol: candidate.rel_vol_30m || 1.0,
             vwapRel: 1.0,
-            floatM: 0,
-            shortPct: 0,
-            borrowFeePct: 0,
-            utilizationPct: 0,
+            floatM: candidate.float_shares ? (candidate.float_shares / 1000000) : 0,
+            shortPct: candidate.short_interest || 0,
+            borrowFeePct: candidate.borrow_fee || 0,
+            utilizationPct: candidate.utilization || 0,
             options: { cpr: 0, ivPctile: 0, atmOiTrend: "neutral" },
             technicals: { emaCross: false, atrPct: 0, rsi: 50 },
             catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
             sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
-            score: 50,
-            plan: { entry: "Direct run", stopPct: 10, tp1Pct: 20, tp2Pct: 40 }
+            score: candidate.score || 50,
+            plan: { 
+                entry: candidate.thesis || "Fallback run", 
+                stopPct: 10, 
+                tp1Pct: candidate.upside_pct || 20, 
+                tp2Pct: (candidate.upside_pct || 20) * 2 
+            }
         }));
         
         return res.json({ 
