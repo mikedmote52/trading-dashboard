@@ -229,12 +229,88 @@
         .success {
             color: #10b981;
         }
+        
+        .thesis {
+            position: relative;
+        }
+        
+        .thesis-text {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        
+        .thesis-info {
+            background: none;
+            border: none;
+            color: #3b82f6;
+            cursor: pointer;
+            margin-left: 4px;
+            font-size: 14px;
+        }
+        
+        .thesis-info:hover {
+            color: #2563eb;
+        }
+        
+        .popover {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 300px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .popover.reasons div {
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+        
+        .popover.reasons div b {
+            color: #f1f5f9;
+        }
+        
+        .btn-trade {
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .btn-trade:hover {
+            background: #059669;
+        }
+        
+        .badge {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        .subnote {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🚀 Enhanced Trading Dashboard</h1>
-        <p>Real AlphaStack Discoveries + Portfolio Intelligence with Trading Power-ups</p>
+        <p>Real AlphaStack Discoveries + Portfolio Intelligence with Trading Power-ups
+        <span id="cacheBadge" class="badge">Engine: … · Cache: …</span></p>
     </div>
 
     <div class="dashboard-grid">
@@ -242,6 +318,7 @@
             <h2>🔍 Live AlphaStack Discoveries</h2>
             <button class="refresh-btn" onclick="loadLiveDiscoveries()">Refresh Discoveries</button>
             <div class="status" id="discoveryStatus">Loading real discovery data...</div>
+            <div class="subnote">Click 🛒 Trade to place paper orders with position sizing. R:R shown at TP1/TP2.</div>
             
             <table class="discoveries-table">
                 <thead>
@@ -251,13 +328,14 @@
                         <th>Price</th>
                         <th>Score</th>
                         <th>RVOL</th>
-                        <th>R:R</th>
+                        <th>R:R <span title="R:R = (Target - Entry) / (Entry - Stop). 2.0R means risk $1 to make $2.">ℹ️</span></th>
+                        <th>Thesis</th>
                         <th>Trade</th>
                     </tr>
                 </thead>
                 <tbody id="discoveryTableBody">
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: #64748b;">
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #64748b;">
                             Loading real AlphaStack discovery data...
                         </td>
                     </tr>
@@ -283,75 +361,137 @@
     <script src="/components/risk-reward-overlay.js"></script>
 
     <script>
+        // Configuration
+        const isProd = location.hostname.includes('onrender.com');
+        const baseRefresh = isProd ? 150000 : 60000; // 150s prod, 60s local
+        function withJitter(ms){ return ms + Math.floor(Math.random()*15000); } // +0–15s
+
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {
             loadLiveDiscoveries();
             loadPortfolioIntelligence();
+            refreshBadge();
             
-            // Auto-refresh every 60 seconds
             setInterval(() => {
                 loadLiveDiscoveries();
                 loadPortfolioIntelligence();
-            }, 60000);
+                refreshBadge();
+            }, withJitter(baseRefresh));
+            
+            console.log(`🔄 Auto-refresh every ${baseRefresh/1000}s + jitter (${isProd ? 'production' : 'local'} mode)`);
         });
 
-        async function loadLiveDiscoveries() {
+        async function refreshBadge(){
+            try{ 
+                const s = await fetch('/api/debug/v2/status').then(r=>r.json());
+                const age = s?.cache?.updatedAt ? Math.max(0,(Date.now()-s.cache.updatedAt)/1000).toFixed(0) : '—';
+                document.getElementById('cacheBadge').textContent = `Engine: ${s.engine} · Cache: ${s.cache.source||'n/a'} · ${age}s ago`;
+            }catch{}
+        }
+
+        async function fetchDiscoveries(){
+            const r = await fetch('/api/v2/scan/squeeze?engine=optimized', { cache:'no-store' });
+            if (r.status === 429) throw new Error('429 Too Many Requests');
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        }
+
+        function renderDiscoveries(items) {
             const tbody = document.getElementById('discoveryTableBody');
-            const status = document.getElementById('discoveryStatus');
             
-            status.textContent = 'Fetching real AlphaStack discoveries...';
-            status.className = 'status loading';
-            
-            try {
-                // Fetch REAL AlphaStack discoveries (NEW opportunities, not portfolio positions)
-                const response = await fetch('/api/alphastack/scan');
-                const data = await response.json();
-                
-                if (data && data.success && data.candidates && data.candidates.length > 0) {
-                    console.log('✅ Loaded real AlphaStack discoveries:', data.candidates.length);
-                    
-                    // Show NEW opportunities from AlphaStack discovery engine
-                    tbody.innerHTML = data.candidates.slice(0, 10).map((candidate, index) => `
-                        <tr class="discovery-row" data-symbol="${candidate.symbol}">
-                            <td class="symbol">${candidate.symbol}</td>
-                            <td><span class="action buy">BUY</span></td>
-                            <td class="price">$${candidate.price?.toFixed(2) || 'N/A'}</td>
-                            <td class="score">${candidate.score || 'N/A'}</td>
-                            <td>${candidate.rel_vol?.toFixed(1) || '1.0'}x</td>
-                            <td class="risk-reward-cell">📊</td>
-                            <td class="trading-cell">💰</td>
-                        </tr>
-                    `).join('');
-                    
-                    status.textContent = `✅ ${data.candidates.length} new opportunities discovered`;
-                    status.className = 'status success';
-                    
-                    // Initialize trading components
-                    setTimeout(() => {
-                        if (window.oneClickTrading) {
-                            window.oneClickTrading.addTradingButtons();
-                        }
-                        if (window.riskRewardOverlay) {
-                            window.riskRewardOverlay.addRiskRewardColumns();
-                        }
-                    }, 500);
-                    
-                } else {
-                    throw new Error('No new discovery opportunities available');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error loading discoveries:', error);
-                status.textContent = `❌ Error: ${error.message}`;
-                status.className = 'status error';
-                
+            if (!items || items.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: #ef4444;">
-                            Failed to load real discovery data. Check API connection.
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #64748b;">
+                            No discoveries available
                         </td>
                     </tr>
                 `;
+                return;
+            }
+
+            tbody.innerHTML = items.slice(0, 10).map((item, index) => {
+                const symbol = item.ticker || item.symbol;
+                const thesis = item.thesis || 'Analysis pending';
+                const reasons = item.reasons || [];
+                
+                return `
+                    <tr class="discovery-row" data-symbol="${symbol}">
+                        <td class="symbol">${symbol}</td>
+                        <td><span class="action buy">BUY</span></td>
+                        <td class="price">$${(item.price || 0).toFixed(2)}</td>
+                        <td class="score">${item.score || 'N/A'}</td>
+                        <td>${(item.rvol || item.rel_vol || 1.0).toFixed(1)}x</td>
+                        <td class="risk-reward-cell">📊</td>
+                        <td>
+                            <div class="thesis">
+                                <span class="thesis-text">${thesis.substring(0, 40)}${thesis.length > 40 ? '...' : ''}</span>
+                                <button class="thesis-info" title="Why AlphaStack picked this">ℹ️</button>
+                                <div class="popover reasons" hidden>
+                                    ${reasons.map(r => `<div><b>${r.label}:</b> ${r.value}</div>`).join('') || '<div>No detailed analysis available</div>'}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn-trade" title="Open paper trade ticket with position sizing">🛒 Trade</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Add event listeners for thesis info buttons
+            tbody.querySelectorAll('.thesis-info').forEach(btn => {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    const popover = btn.nextElementSibling;
+                    // Hide all other popovers
+                    tbody.querySelectorAll('.popover').forEach(p => {
+                        if (p !== popover) p.hidden = true;
+                    });
+                    popover.hidden = !popover.hidden;
+                };
+            });
+
+            // Close popovers when clicking elsewhere
+            document.addEventListener('click', () => {
+                tbody.querySelectorAll('.popover').forEach(p => p.hidden = true);
+            });
+        }
+
+        async function loadLiveDiscoveries(){
+            const status = document.getElementById('discoveryStatus');
+            
+            try{
+                status.textContent = 'Fetching optimized discoveries...';
+                status.className = 'status loading';
+                
+                const data = await fetchDiscoveries();
+                const items = Array.isArray(data.results) ? data.results : [];
+                
+                status.textContent = `✅ Loaded ${items.length} from optimized scan`;
+                status.className = 'status success';
+                
+                renderDiscoveries(items);
+                
+                // Initialize trading components after render
+                setTimeout(() => {
+                    if (window.oneClickTrading) {
+                        window.oneClickTrading.addTradingButtons();
+                    }
+                    if (window.riskRewardOverlay) {
+                        window.riskRewardOverlay.addRiskRewardColumns();
+                    }
+                }, 500);
+                
+            }catch(e){
+                if(String(e.message).includes('429')){
+                    status.textContent = '⏳ Rate limited — keeping last data; will retry';
+                    status.className = 'status loading';
+                    return;
+                }
+                status.textContent = `❌ ${e.message}`;
+                status.className = 'status error';
+                renderDiscoveries([]);
             }
         }
 

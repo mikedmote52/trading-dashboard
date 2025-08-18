@@ -109,6 +109,32 @@ if (process.env.PORTFOLIO_INTELLIGENCE === 'true') {
 app.use(cors());
 app.use(express.json());
 
+// Conservative server timeouts to prevent 502 errors
+app.use((req, res, next) => {
+  // Skip timeout for discovery endpoints as they have their own timeout handling
+  const isDiscoveryEndpoint = req.url.includes('/v2/scan') || req.url.includes('/squeeze');
+  
+  if (!isDiscoveryEndpoint) {
+    // Set conservative request timeout (30 seconds) for non-discovery endpoints
+    req.setTimeout(30000, () => {
+      console.log('⏰ Request timeout:', req.url);
+      if (!res.headersSent && !res.finished) {
+        res.status(408).json({ error: 'Request timeout' });
+      }
+    });
+    
+    // Set conservative response timeout (25 seconds) for non-discovery endpoints
+    res.setTimeout(25000, () => {
+      console.log('⏰ Response timeout (25000ms):', req.url);
+      if (!res.headersSent && !res.finished) {
+        res.status(504).json({ error: 'Response timeout' });
+      }
+    });
+  }
+  
+  next();
+});
+
 // Add metrics middleware if enabled
 if (metricsService) {
   app.use(metricsService.getExpressMiddleware());
@@ -155,12 +181,63 @@ app.use('/api/portfolio-intelligence', require('./server/routes/portfolio-intell
 // Debug status endpoints for cache visibility
 app.use('/api/debug', require('./server/routes/debug-status'));
 
+// Dashboard compatibility route that never 502s
+app.use('/api', require('./server/routes/dashboard-compat'));
+
 // V2 API Routes (isolated for new dashboard - read-only)
 console.log('🔍 NEW_DASH_ENABLED environment variable:', process.env.NEW_DASH_ENABLED);
 if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
   console.log('🚀 V2 API routes enabled for alpha dashboard');
   app.use('/api/v2/scan', require('./server/routes/v2/scan'));
   app.use('/api/v2/metrics', require('./server/routes/v2/metrics'));
+  
+  // Compatibility route: map legacy /api/alphastack/scan to fast cached route
+  app.get('/api/alphastack/scan', async (req, res) => {
+    console.log('🔄 Compatibility route: serving /api/alphastack/scan from fast cache');
+    try {
+      // Use the v2 cache directly (same as v2/scan/squeeze endpoint)
+      const cache = require('./src/screener/v2/cache');
+      const snap = cache.getSnapshot();
+      
+      if (snap.fresh && Array.isArray(snap.tickers) && snap.tickers.length > 0) {
+        // Transform cached data to legacy format expected by enhanced-dashboard.html
+        const candidates = snap.tickers.map(candidate => ({
+          symbol: candidate.symbol || candidate,
+          score: candidate.score || 50,
+          bucket: candidate.bucket || "trade-ready",
+          price: candidate.price || 0,
+          rel_vol: candidate.rel_vol_30m || 1.0,
+          rel_vol_30m: candidate.rel_vol_30m || 1.0,
+          short_interest: candidate.short_interest || null,
+          borrow_fee: candidate.borrow_fee || null,
+          utilization: candidate.utilization || null,
+          thesis: candidate.thesis || "Fast cached discovery",
+          target_price: candidate.target_price || 0,
+          upside_pct: candidate.upside_pct || 0,
+          risk_note: candidate.risk_note || "Cache data"
+        }));
+        
+        const legacyFormat = {
+          success: true,
+          candidates: candidates,
+          timestamp: new Date().toISOString(),
+          count: candidates.length
+        };
+        
+        res.json(legacyFormat);
+      } else {
+        // Cache empty or stale
+        res.status(503).json({ 
+          success: false, 
+          error: 'Discovery cache not ready, please try again in a moment',
+          cache_status: { fresh: snap.fresh, count: snap.tickers?.length || 0 }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Compatibility route error:', error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
 }
 
 // Main dashboard data - moved before 404 handler
@@ -2362,6 +2439,36 @@ app.listen(port, () => {
   
   // VIGL capture job removed - using AlphaStack universe scanning instead
   console.log('📡 Background jobs: VIGL capture disabled, AlphaStack on-demand scanning enabled');
+  
+  // Cache prewarming for fast discovery endpoints
+  if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
+    console.log('🔥 Prewarming discovery cache on startup...');
+    setTimeout(async () => {
+      try {
+        console.log('🔥 Attempting cache prewarm (may take 30-60s for first run)...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 70000); // 70 second timeout
+        
+        const response = await fetch(`http://localhost:${port}/api/v2/scan/squeeze?engine=optimized`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`✅ Cache prewarmed: ${data.results?.length || 0} discoveries ready`);
+        } else {
+          console.log(`⚠️ Cache prewarming failed: ${response.status} ${response.statusText}`);
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log('⚠️ Cache prewarming timeout (70s) - will be available on next request');
+        } else {
+          console.log('⚠️ Cache prewarming error:', error.message);
+        }
+      }
+    }, 3000); // 3 second delay to ensure server is fully ready
+  }
 });
 
 process.on('SIGTERM', () => {

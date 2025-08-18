@@ -141,5 +141,16 @@
     "high_confidence_vigl": 0,
     "alerts_count": 3,
     "high_priority_alerts": 1
+  },
+  {
+    "timestamp": "2025-08-18T04:51:31.227Z",
+    "date": "2025-08-18",
+    "portfolio_value": "100265.1",
+    "daily_pnl": 0,
+    "position_count": 7,
+    "vigl_discoveries": 0,
+    "high_confidence_vigl": 0,
+    "alerts_count": 3,
+    "high_priority_alerts": 1
   }
 ]
