@@ -5,12 +5,10 @@ const state = {
   error: null,
 };
 
-const TTL_MS = Number(process.env.V2_CACHE_TTL_MS || 1_000); // 1s default to force invalidation
+const TTL_MS = Number(process.env.V2_CACHE_TTL_MS || 60_000); // 60s TTL cache
 
 function isFresh() {
-  // Temporarily disable cache to force fallback with real data
-  return false;
-  // return state.tickers && (Date.now() - state.updatedAt) < TTL_MS;
+  return state.tickers && (Date.now() - state.updatedAt) < TTL_MS;
 }
 
 module.exports = {

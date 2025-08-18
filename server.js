@@ -105,6 +105,7 @@ app.use('/api/portfolio', require('./server/routes/portfolio'));
 app.use('/api/pm', require('./server/routes/pm'));
 app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
+app.use('/api/discoveries', require('./server/routes/discoveries'));
 
 // V2 API Routes (isolated for new dashboard - read-only)
 console.log('🔍 NEW_DASH_ENABLED environment variable:', process.env.NEW_DASH_ENABLED);
@@ -560,7 +561,24 @@ app.post('/api/trade', async (req, res) => {
 app.get('/api/health', createHealthCheck());
 
 // Health check aliases for Render compatibility
-app.get('/healthz', (req, res) => res.send('ok'));
+app.get('/healthz', (req, res) => {
+  try {
+    const { getEngineInfo } = require('./server/services/discovery_service');
+    const engineInfo = getEngineInfo();
+    res.json({ 
+      ok: true, 
+      version: process.env.npm_package_version || '1.0.0',
+      engine: engineInfo.active_engine
+    });
+  } catch (error) {
+    res.json({ 
+      ok: true, 
+      version: process.env.npm_package_version || '1.0.0',
+      engine: process.env.SELECT_ENGINE || 'v1'
+    });
+  }
+});
+
 app.get('/health', (req, res) => res.send('ok'));
 
 // hard JSON 404 so /api/* never falls into SPA

@@ -11,6 +11,12 @@ const registry = {
 };
 
 function pickEngine() {
+  // Force fallback to v1 if FORCE_V2_FALLBACK is enabled
+  if (process.env.FORCE_V2_FALLBACK === 'true') {
+    const EngineClass = registry.v1;
+    return { key: 'v1', EngineClass };
+  }
+  
   const key = (process.env.SELECT_ENGINE || 'v1').toLowerCase();
   const EngineClass = registry[key] || registry.v1;
   return { key, EngineClass };

@@ -110,7 +110,13 @@ async function executeBracketOrder(orderData) {
 // Debug endpoint to prove which engine is actually active
 router.get('/_debug/engine', (req, res) => {
   try {
-    const activeEngine = (req.query.engine || process.env.SELECT_ENGINE || 'v1').toString();
+    // Respect FORCE_V2_FALLBACK for rollback capability
+    let activeEngine;
+    if (process.env.FORCE_V2_FALLBACK === 'true') {
+      activeEngine = 'v1';
+    } else {
+      activeEngine = (req.query.engine || process.env.SELECT_ENGINE || 'v1').toString();
+    }
     const engineInfo = getEngineInfo();
     
     res.json({ 
