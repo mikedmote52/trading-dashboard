@@ -303,30 +303,27 @@
             status.className = 'status loading';
             
             try {
-                const response = await fetch('/api/dashboard');
+                // Fetch REAL AlphaStack discoveries (NEW opportunities, not portfolio positions)
+                const response = await fetch('/api/alphastack/scan');
                 const data = await response.json();
                 
-                if (data && data.portfolio && data.portfolio.positions && data.portfolio.positions.length > 0) {
-                    console.log('✅ Loaded real portfolio positions for discovery view:', data.portfolio.positions.length);
+                if (data && data.success && data.candidates && data.candidates.length > 0) {
+                    console.log('✅ Loaded real AlphaStack discoveries:', data.candidates.length);
                     
-                    // Use portfolio positions as "discoveries" for now - show most volatile/interesting positions
-                    const sortedPositions = data.portfolio.positions
-                        .sort((a, b) => Math.abs(b.unrealizedPnLPercent) - Math.abs(a.unrealizedPnLPercent))
-                        .slice(0, 10);
-                    
-                    tbody.innerHTML = sortedPositions.map((position, index) => `
-                        <tr class="discovery-row" data-symbol="${position.symbol}">
-                            <td class="symbol">${position.symbol}</td>
-                            <td><span class="action ${position.thesis?.recommendation?.toLowerCase() || 'hold'}">${position.thesis?.recommendation || 'HOLD'}</span></td>
-                            <td class="price">$${position.currentPrice?.toFixed(2) || 'N/A'}</td>
-                            <td class="score">${position.thesis?.confidence ? (position.thesis.confidence * 100).toFixed(0) : 'N/A'}</td>
-                            <td>${Math.abs(position.unrealizedPnLPercent).toFixed(1)}%</td>
+                    // Show NEW opportunities from AlphaStack discovery engine
+                    tbody.innerHTML = data.candidates.slice(0, 10).map((candidate, index) => `
+                        <tr class="discovery-row" data-symbol="${candidate.symbol}">
+                            <td class="symbol">${candidate.symbol}</td>
+                            <td><span class="action buy">BUY</span></td>
+                            <td class="price">$${candidate.price?.toFixed(2) || 'N/A'}</td>
+                            <td class="score">${candidate.score || 'N/A'}</td>
+                            <td>${candidate.rel_vol?.toFixed(1) || '1.0'}x</td>
                             <td class="risk-reward-cell">📊</td>
                             <td class="trading-cell">💰</td>
                         </tr>
                     `).join('');
                     
-                    status.textContent = `✅ ${sortedPositions.length} positions analyzed (sorted by performance)`;
+                    status.textContent = `✅ ${data.candidates.length} new opportunities discovered`;
                     status.className = 'status success';
                     
                     // Initialize trading components
@@ -340,7 +337,7 @@
                     }, 500);
                     
                 } else {
-                    throw new Error('No real discoveries available');
+                    throw new Error('No new discovery opportunities available');
                 }
                 
             } catch (error) {
