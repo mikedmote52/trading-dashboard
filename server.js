@@ -152,6 +152,9 @@ app.use('/api/research', require('./server/routes/research'));
 // Portfolio intelligence endpoints (available when portfolio intelligence is enabled)
 app.use('/api/portfolio-intelligence', require('./server/routes/portfolio-intelligence'));
 
+// Debug status endpoints for cache visibility
+app.use('/api/debug', require('./server/routes/debug-status'));
+
 // V2 API Routes (isolated for new dashboard - read-only)
 console.log('🔍 NEW_DASH_ENABLED environment variable:', process.env.NEW_DASH_ENABLED);
 if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
@@ -635,11 +638,11 @@ app.use('/api', (req, res) => {
 if (process.env.SERVE_STATIC === 'true' || process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
   app.use(require('express').static('public'));
   
-  // Add alpha route when feature flag is enabled
+  // Add alpha route when feature flag is enabled - serve enhanced dashboard
   if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
     console.log('🚀 Alpha route enabled at /alpha');
     app.get('/alpha', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public', 'alpha.html'));
+      res.sendFile(path.resolve(__dirname, 'public/enhanced-dashboard.html'));
     });
   }
 }

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Trading Dashboard - AlphaStack Intelligence</title>
+    <link rel="stylesheet" href="/styles/one-click-trading.css">
+    <link rel="stylesheet" href="/styles/risk-reward-overlay.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+            padding: 24px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 32px;
+            font-weight: 800;
+        }
+        
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .panel {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #334155;
+        }
+        
+        .panel h2 {
+            margin: 0 0 20px 0;
+            color: #f1f5f9;
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .discoveries-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .discoveries-table th,
+        .discoveries-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .discoveries-table th {
+            background: #0f172a;
+            font-weight: 600;
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .discoveries-table tr:hover {
+            background: #334155;
+        }
+        
+        .symbol {
+            font-weight: 700;
+            color: #f1f5f9;
+            font-size: 16px;
+        }
+        
+        .price {
+            font-weight: 600;
+            color: #10b981;
+        }
+        
+        .action {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .action.buy {
+            background: #10b981;
+            color: white;
+        }
+        
+        .action.watchlist {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .action.monitor {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .score {
+            font-weight: 600;
+            color: #a78bfa;
+        }
+        
+        .portfolio-item {
+            background: #334155;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid transparent;
+        }
+        
+        .portfolio-item.profit {
+            border-left-color: #10b981;
+        }
+        
+        .portfolio-item.loss {
+            border-left-color: #ef4444;
+        }
+        
+        .portfolio-symbol {
+            font-weight: 700;
+            font-size: 18px;
+            color: #f1f5f9;
+        }
+        
+        .portfolio-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        
+        .portfolio-pnl {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .portfolio-pnl.positive {
+            color: #10b981;
+        }
+        
+        .portfolio-pnl.negative {
+            color: #ef4444;
+        }
+        
+        .recommendation {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 8px;
+        }
+        
+        .recommendation.take_profits {
+            background: #10b981;
+            color: white;
+        }
+        
+        .recommendation.hold {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .recommendation.monitor {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .recommendation.consider_exit {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .refresh-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+        
+        .refresh-btn:hover {
+            background: #2563eb;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 16px;
+        }
+        
+        .loading {
+            color: #f59e0b;
+        }
+        
+        .error {
+            color: #ef4444;
+        }
+        
+        .success {
+            color: #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Enhanced Trading Dashboard</h1>
+        <p>Real AlphaStack Discoveries + Portfolio Intelligence with Trading Power-ups</p>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="panel">
+            <h2>🔍 Live AlphaStack Discoveries</h2>
+            <button class="refresh-btn" onclick="loadLiveDiscoveries()">Refresh Discoveries</button>
+            <div class="status" id="discoveryStatus">Loading real discovery data...</div>
+            
+            <table class="discoveries-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Action</th>
+                        <th>Price</th>
+                        <th>Score</th>
+                        <th>RVOL</th>
+                        <th>R:R</th>
+                        <th>Trade</th>
+                    </tr>
+                </thead>
+                <tbody id="discoveryTableBody">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #64748b;">
+                            Loading real AlphaStack discovery data...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel">
+            <h2>📊 Live Portfolio Intelligence</h2>
+            <button class="refresh-btn" onclick="loadPortfolioIntelligence()">Refresh Portfolio</button>
+            <div class="status" id="portfolioStatus">Loading real portfolio data...</div>
+            
+            <div id="portfolioContainer">
+                <div style="text-align: center; padding: 40px; color: #64748b;">
+                    Loading real portfolio positions...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load trading components -->
+    <script src="/components/one-click-trading.js"></script>
+    <script src="/components/risk-reward-overlay.js"></script>
+
+    <script>
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLiveDiscoveries();
+            loadPortfolioIntelligence();
+            
+            // Auto-refresh every 60 seconds
+            setInterval(() => {
+                loadLiveDiscoveries();
+                loadPortfolioIntelligence();
+            }, 60000);
+        });
+
+        async function loadLiveDiscoveries() {
+            const tbody = document.getElementById('discoveryTableBody');
+            const status = document.getElementById('discoveryStatus');
+            
+            status.textContent = 'Fetching real AlphaStack discoveries...';
+            status.className = 'status loading';
+            
+            try {
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                if (data.success && data.discoveries && data.discoveries.length > 0) {
+                    console.log('✅ Loaded real AlphaStack discoveries:', data.discoveries.length);
+                    
+                    tbody.innerHTML = data.discoveries.slice(0, 10).map((discovery, index) => `
+                        <tr class="discovery-row" data-symbol="${discovery.symbol}">
+                            <td class="symbol">${discovery.symbol}</td>
+                            <td><span class="action ${discovery.action?.toLowerCase() || 'monitor'}">${discovery.action || 'MONITOR'}</span></td>
+                            <td class="price">${discovery.price ? '$' + discovery.price.toFixed(2) : 'N/A'}</td>
+                            <td class="score">${discovery.score || discovery.vigl_score || 'N/A'}</td>
+                            <td>${discovery.rvol ? discovery.rvol.toFixed(1) + 'x' : 'N/A'}</td>
+                            <td class="risk-reward-cell">📊</td>
+                            <td class="trading-cell">💰</td>
+                        </tr>
+                    `).join('');
+                    
+                    status.textContent = `✅ ${data.discoveries.length} real discoveries loaded`;
+                    status.className = 'status success';
+                    
+                    // Initialize trading components
+                    setTimeout(() => {
+                        if (window.oneClickTrading) {
+                            window.oneClickTrading.addTradingButtons();
+                        }
+                        if (window.riskRewardOverlay) {
+                            window.riskRewardOverlay.addRiskRewardColumns();
+                        }
+                    }, 500);
+                    
+                } else {
+                    throw new Error('No real discoveries available');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading discoveries:', error);
+                status.textContent = `❌ Error: ${error.message}`;
+                status.className = 'status error';
+                
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #ef4444;">
+                            Failed to load real discovery data. Check API connection.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        async function loadPortfolioIntelligence() {
+            const container = document.getElementById('portfolioContainer');
+            const status = document.getElementById('portfolioStatus');
+            
+            status.textContent = 'Fetching real portfolio positions...';
+            status.className = 'status loading';
+            
+            try {
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                if (data.success && data.portfolio && data.portfolio.length > 0) {
+                    console.log('✅ Loaded real portfolio positions:', data.portfolio.length);
+                    
+                    container.innerHTML = data.portfolio.map(position => {
+                        const pnlClass = parseFloat(position.unrealized_pl) >= 0 ? 'profit' : 'loss';
+                        const pnlPctClass = parseFloat(position.unrealized_pl) >= 0 ? 'positive' : 'negative';
+                        const pnlPct = (parseFloat(position.unrealized_plpc) * 100).toFixed(1);
+                        
+                        // Generate recommendation based on P&L
+                        let recommendation = 'MONITOR';
+                        let recClass = 'monitor';
+                        
+                        if (parseFloat(pnlPct) > 50) {
+                            recommendation = 'TAKE_PROFITS';
+                            recClass = 'take_profits';
+                        } else if (parseFloat(pnlPct) < -20) {
+                            recommendation = 'CONSIDER_EXIT';
+                            recClass = 'consider_exit';
+                        } else if (parseFloat(pnlPct) > 10) {
+                            recommendation = 'HOLD';
+                            recClass = 'hold';
+                        }
+                        
+                        return `
+                            <div class="portfolio-item ${pnlClass}">
+                                <div class="portfolio-symbol">${position.symbol}</div>
+                                <div class="portfolio-details">
+                                    <div>
+                                        <strong>${position.qty}</strong> shares<br>
+                                        <span style="color: #94a3b8;">@ $${parseFloat(position.avg_entry_price || position.avg_cost).toFixed(2)}</span>
+                                    </div>
+                                    <div>
+                                        <strong>$${parseFloat(position.market_value).toFixed(2)}</strong><br>
+                                        <span style="color: #94a3b8;">Current: $${parseFloat(position.current_price).toFixed(2)}</span>
+                                    </div>
+                                    <div>
+                                        <div class="portfolio-pnl ${pnlPctClass}">
+                                            ${parseFloat(position.unrealized_pl) >= 0 ? '+' : ''}$${parseFloat(position.unrealized_pl).toFixed(2)}
+                                        </div>
+                                        <div class="portfolio-pnl ${pnlPctClass}">
+                                            ${pnlPct}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="recommendation ${recClass}">${recommendation}</div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    status.textContent = `✅ ${data.portfolio.length} real positions loaded`;
+                    status.className = 'status success';
+                    
+                } else {
+                    throw new Error('No real portfolio positions available');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading portfolio:', error);
+                status.textContent = `❌ Error: ${error.message}`;
+                status.className = 'status error';
+                
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #ef4444;">
+                        Failed to load real portfolio data. Check API connection.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

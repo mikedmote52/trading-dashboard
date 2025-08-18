@@ -685,60 +685,92 @@
             await testPortfolioIntelligence();
         }
 
-        function loadSampleDiscoveries() {
+        async function loadSampleDiscoveries() {
             const tbody = document.getElementById('discoveryTableBody');
-            tbody.innerHTML = `
-                <tr class="discovery-row" data-symbol="QUBT">
-                    <td>1</td>
-                    <td class="symbol">QUBT</td>
-                    <td><span class="action buy">BUY</span></td>
-                    <td class="price">$18.45</td>
-                    <td class="score">89</td>
-                    <td>12.4x</td>
-                    <td class="risk-reward-cell"></td>
-                    <td class="trading-cell"></td>
-                </tr>
-                <tr class="discovery-row" data-symbol="RGTI">
-                    <td>2</td>
-                    <td class="symbol">RGTI</td>
-                    <td><span class="action buy">BUY</span></td>
-                    <td class="price">$3.22</td>
-                    <td class="score">86</td>
-                    <td>8.7x</td>
-                    <td class="risk-reward-cell"></td>
-                    <td class="trading-cell"></td>
-                </tr>
-                <tr class="discovery-row" data-symbol="VIGL">
-                    <td>3</td>
-                    <td class="symbol">VIGL</td>
-                    <td><span class="action buy">BUY</span></td>
-                    <td class="price">$4.18</td>
-                    <td class="score">82</td>
-                    <td>15.2x</td>
-                    <td class="risk-reward-cell"></td>
-                    <td class="trading-cell"></td>
-                </tr>
-                <tr class="discovery-row" data-symbol="AEVA">
-                    <td>4</td>
-                    <td class="symbol">AEVA</td>
-                    <td><span class="action watchlist">WATCHLIST</span></td>
-                    <td class="price">$2.94</td>
-                    <td class="score">74</td>
-                    <td>6.3x</td>
-                    <td class="risk-reward-cell"></td>
-                    <td class="trading-cell"></td>
-                </tr>
-                <tr class="discovery-row" data-symbol="WOLF">
-                    <td>5</td>
-                    <td class="symbol">WOLF</td>
-                    <td><span class="action buy">BUY</span></td>
-                    <td class="price">$7.89</td>
-                    <td class="score">78</td>
-                    <td>5.9x</td>
-                    <td class="risk-reward-cell"></td>
-                    <td class="trading-cell"></td>
-                </tr>
-            `;
+            
+            try {
+                // Try to fetch real AlphaStack discovery data first
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                if (data.success && data.discoveries && data.discoveries.length > 0) {
+                    // Use real AlphaStack discoveries
+                    console.log('📊 Loading real AlphaStack discoveries:', data.discoveries.length);
+                    
+                    tbody.innerHTML = data.discoveries.slice(0, 5).map((discovery, index) => `
+                        <tr class="discovery-row" data-symbol="${discovery.symbol}">
+                            <td>${index + 1}</td>
+                            <td class="symbol">${discovery.symbol}</td>
+                            <td><span class="action ${discovery.action.toLowerCase()}">${discovery.action}</span></td>
+                            <td class="price">$${discovery.price?.toFixed(2) || 'N/A'}</td>
+                            <td class="score">${discovery.score || discovery.vigl_score || 'N/A'}</td>
+                            <td>${discovery.rvol ? discovery.rvol + 'x' : 'N/A'}</td>
+                            <td class="risk-reward-cell"></td>
+                            <td class="trading-cell"></td>
+                        </tr>
+                    `).join('');
+                    
+                } else {
+                    throw new Error('No discoveries found');
+                }
+                
+            } catch (error) {
+                console.log('📊 Using sample discoveries (real data not available):', error.message);
+                
+                // Fallback to sample data for testing
+                tbody.innerHTML = `
+                    <tr class="discovery-row" data-symbol="QUBT">
+                        <td>1</td>
+                        <td class="symbol">QUBT</td>
+                        <td><span class="action buy">BUY</span></td>
+                        <td class="price">$18.45</td>
+                        <td class="score">89</td>
+                        <td>12.4x</td>
+                        <td class="risk-reward-cell"></td>
+                        <td class="trading-cell"></td>
+                    </tr>
+                    <tr class="discovery-row" data-symbol="RGTI">
+                        <td>2</td>
+                        <td class="symbol">RGTI</td>
+                        <td><span class="action buy">BUY</span></td>
+                        <td class="price">$3.22</td>
+                        <td class="score">86</td>
+                        <td>8.7x</td>
+                        <td class="risk-reward-cell"></td>
+                        <td class="trading-cell"></td>
+                    </tr>
+                    <tr class="discovery-row" data-symbol="VIGL">
+                        <td>3</td>
+                        <td class="symbol">VIGL</td>
+                        <td><span class="action buy">BUY</span></td>
+                        <td class="price">$4.18</td>
+                        <td class="score">82</td>
+                        <td>15.2x</td>
+                        <td class="risk-reward-cell"></td>
+                        <td class="trading-cell"></td>
+                    </tr>
+                    <tr class="discovery-row" data-symbol="AEVA">
+                        <td>4</td>
+                        <td class="symbol">AEVA</td>
+                        <td><span class="action watchlist">WATCHLIST</span></td>
+                        <td class="price">$2.94</td>
+                        <td class="score">74</td>
+                        <td>6.3x</td>
+                        <td class="risk-reward-cell"></td>
+                        <td class="trading-cell"></td>
+                    </tr>
+                    <tr class="discovery-row" data-symbol="WOLF">
+                        <td>5</td>
+                        <td class="symbol">WOLF</td>
+                        <td><span class="action buy">BUY</span></td>
+                        <td class="price">$7.89</td>
+                        <td class="score">78</td>
+                        <td>5.9x</td>
+                        <td class="risk-reward-cell"></td>
+                        <td class="trading-cell"></td>
+                    </tr>
+                `;
+            }
         }
     </script>
 </body>
