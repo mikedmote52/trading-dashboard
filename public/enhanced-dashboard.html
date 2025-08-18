@@ -306,22 +306,27 @@
                 const response = await fetch('/api/dashboard');
                 const data = await response.json();
                 
-                if (data.success && data.discoveries && data.discoveries.length > 0) {
-                    console.log('✅ Loaded real AlphaStack discoveries:', data.discoveries.length);
+                if (data && data.portfolio && data.portfolio.positions && data.portfolio.positions.length > 0) {
+                    console.log('✅ Loaded real portfolio positions for discovery view:', data.portfolio.positions.length);
                     
-                    tbody.innerHTML = data.discoveries.slice(0, 10).map((discovery, index) => `
-                        <tr class="discovery-row" data-symbol="${discovery.symbol}">
-                            <td class="symbol">${discovery.symbol}</td>
-                            <td><span class="action ${discovery.action?.toLowerCase() || 'monitor'}">${discovery.action || 'MONITOR'}</span></td>
-                            <td class="price">${discovery.price ? '$' + discovery.price.toFixed(2) : 'N/A'}</td>
-                            <td class="score">${discovery.score || discovery.vigl_score || 'N/A'}</td>
-                            <td>${discovery.rvol ? discovery.rvol.toFixed(1) + 'x' : 'N/A'}</td>
+                    // Use portfolio positions as "discoveries" for now - show most volatile/interesting positions
+                    const sortedPositions = data.portfolio.positions
+                        .sort((a, b) => Math.abs(b.unrealizedPnLPercent) - Math.abs(a.unrealizedPnLPercent))
+                        .slice(0, 10);
+                    
+                    tbody.innerHTML = sortedPositions.map((position, index) => `
+                        <tr class="discovery-row" data-symbol="${position.symbol}">
+                            <td class="symbol">${position.symbol}</td>
+                            <td><span class="action ${position.thesis?.recommendation?.toLowerCase() || 'hold'}">${position.thesis?.recommendation || 'HOLD'}</span></td>
+                            <td class="price">$${position.currentPrice?.toFixed(2) || 'N/A'}</td>
+                            <td class="score">${position.thesis?.confidence ? (position.thesis.confidence * 100).toFixed(0) : 'N/A'}</td>
+                            <td>${Math.abs(position.unrealizedPnLPercent).toFixed(1)}%</td>
                             <td class="risk-reward-cell">📊</td>
                             <td class="trading-cell">💰</td>
                         </tr>
                     `).join('');
                     
-                    status.textContent = `✅ ${data.discoveries.length} real discoveries loaded`;
+                    status.textContent = `✅ ${sortedPositions.length} positions analyzed (sorted by performance)`;
                     status.className = 'status success';
                     
                     // Initialize trading components
@@ -364,17 +369,17 @@
                 const response = await fetch('/api/dashboard');
                 const data = await response.json();
                 
-                if (data.success && data.portfolio && data.portfolio.length > 0) {
-                    console.log('✅ Loaded real portfolio positions:', data.portfolio.length);
+                if (data && data.portfolio && data.portfolio.positions && data.portfolio.positions.length > 0) {
+                    console.log('✅ Loaded real portfolio positions:', data.portfolio.positions.length);
                     
-                    container.innerHTML = data.portfolio.map(position => {
-                        const pnlClass = parseFloat(position.unrealized_pl) >= 0 ? 'profit' : 'loss';
-                        const pnlPctClass = parseFloat(position.unrealized_pl) >= 0 ? 'positive' : 'negative';
-                        const pnlPct = (parseFloat(position.unrealized_plpc) * 100).toFixed(1);
+                    container.innerHTML = data.portfolio.positions.map(position => {
+                        const pnlClass = parseFloat(position.unrealizedPnL) >= 0 ? 'profit' : 'loss';
+                        const pnlPctClass = parseFloat(position.unrealizedPnL) >= 0 ? 'positive' : 'negative';
+                        const pnlPct = parseFloat(position.unrealizedPnLPercent).toFixed(1);
                         
-                        // Generate recommendation based on P&L
-                        let recommendation = 'MONITOR';
-                        let recClass = 'monitor';
+                        // Use actual recommendation from thesis, or generate based on P&L
+                        let recommendation = position.thesis?.recommendation || 'MONITOR';
+                        let recClass = recommendation.toLowerCase().replace('_', '_');
                         
                         if (parseFloat(pnlPct) > 50) {
                             recommendation = 'TAKE_PROFITS';
@@ -382,9 +387,6 @@
                         } else if (parseFloat(pnlPct) < -20) {
                             recommendation = 'CONSIDER_EXIT';
                             recClass = 'consider_exit';
-                        } else if (parseFloat(pnlPct) > 10) {
-                            recommendation = 'HOLD';
-                            recClass = 'hold';
                         }
                         
                         return `
@@ -393,15 +395,15 @@
                                 <div class="portfolio-details">
                                     <div>
                                         <strong>${position.qty}</strong> shares<br>
-                                        <span style="color: #94a3b8;">@ $${parseFloat(position.avg_entry_price || position.avg_cost).toFixed(2)}</span>
+                                        <span style="color: #94a3b8;">@ $${parseFloat(position.avgEntryPrice).toFixed(2)}</span>
                                     </div>
                                     <div>
-                                        <strong>$${parseFloat(position.market_value).toFixed(2)}</strong><br>
-                                        <span style="color: #94a3b8;">Current: $${parseFloat(position.current_price).toFixed(2)}</span>
+                                        <strong>$${parseFloat(position.marketValue).toFixed(2)}</strong><br>
+                                        <span style="color: #94a3b8;">Current: $${parseFloat(position.currentPrice).toFixed(2)}</span>
                                     </div>
                                     <div>
                                         <div class="portfolio-pnl ${pnlPctClass}">
-                                            ${parseFloat(position.unrealized_pl) >= 0 ? '+' : ''}$${parseFloat(position.unrealized_pl).toFixed(2)}
+                                            ${parseFloat(position.unrealizedPnL) >= 0 ? '+' : ''}$${parseFloat(position.unrealizedPnL).toFixed(2)}
                                         </div>
                                         <div class="portfolio-pnl ${pnlPctClass}">
                                             ${pnlPct}%
@@ -413,7 +415,7 @@
                         `;
                     }).join('');
                     
-                    status.textContent = `✅ ${data.portfolio.length} real positions loaded`;
+                    status.textContent = `✅ ${data.portfolio.positions.length} real positions loaded`;
                     status.className = 'status success';
                     
                 } else {
