@@ -75,9 +75,45 @@ const errorHandler = require('./server/middleware/errorHandler');
 const rateLimiter = require('./server/middleware/rateLimiter');
 const createHealthCheck = require('./server/middleware/healthCheck');
 
+// Initialize Prometheus metrics service if enabled
+let metricsService = null;
+if (process.env.PROMETHEUS_MONITORING === 'true') {
+  console.log('📊 Initializing Prometheus metrics service...');
+  const MetricsService = require('./server/services/metrics-service');
+  metricsService = new MetricsService();
+  app.locals.metricsService = metricsService;
+  console.log('✅ Prometheus metrics service ready');
+}
+
+// Initialize Discovery Research Logger if enabled
+let discoveryLogger = null;
+if (process.env.DISCOVERY_LOGGING === 'true') {
+  console.log('🔬 Initializing Discovery Research Logger...');
+  const DiscoveryLogger = require('./server/services/discovery-logger-simple');
+  discoveryLogger = new DiscoveryLogger();
+  app.locals.discoveryLogger = discoveryLogger;
+  console.log('✅ Discovery research logging ready');
+}
+
+// Initialize Portfolio Intelligence if enabled
+let portfolioIntelligence = null;
+if (process.env.PORTFOLIO_INTELLIGENCE === 'true') {
+  console.log('🧠 Initializing Portfolio Intelligence...');
+  const PortfolioIntelligence = require('./server/services/portfolio-intelligence');
+  portfolioIntelligence = new PortfolioIntelligence();
+  app.locals.portfolioIntelligence = portfolioIntelligence;
+  console.log('✅ Portfolio intelligence ready');
+}
+
 // Apply middleware
 app.use(cors());
 app.use(express.json());
+
+// Add metrics middleware if enabled
+if (metricsService) {
+  app.use(metricsService.getExpressMiddleware());
+  console.log('📊 Prometheus HTTP metrics middleware enabled');
+}
 
 // Request timing and engine tracing
 app.use((req, res, next) => {
@@ -106,6 +142,15 @@ app.use('/api/pm', require('./server/routes/pm'));
 app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
 app.use('/api/discoveries', require('./server/routes/discoveries'));
+
+// Prometheus metrics endpoints (always available, but only functional when metrics service is enabled)
+app.use('/metrics', require('./server/routes/metrics'));
+
+// Discovery research endpoints (available when research logging is enabled)
+app.use('/api/research', require('./server/routes/research'));
+
+// Portfolio intelligence endpoints (available when portfolio intelligence is enabled)
+app.use('/api/portfolio-intelligence', require('./server/routes/portfolio-intelligence'));
 
 // V2 API Routes (isolated for new dashboard - read-only)
 console.log('🔍 NEW_DASH_ENABLED environment variable:', process.env.NEW_DASH_ENABLED);

@@ -1,0 +1,44 @@
+# Prometheus Configuration - Feature 3: Trading Dashboard Monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  # Trading Dashboard Application
+  - job_name: 'trading-dashboard'
+    static_configs:
+      - targets: ['host.docker.internal:3003']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # Node Exporter (System Metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 15s
+
+  # Additional endpoints for detailed monitoring
+  - job_name: 'trading-health'
+    static_configs:
+      - targets: ['host.docker.internal:3003']
+    metrics_path: '/metrics/health'
+    scrape_interval: 30s
+    scrape_timeout: 10s

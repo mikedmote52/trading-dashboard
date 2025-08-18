@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discovery Research Test - Feature 4</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+        
+        .header {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            margin: 0 0 8px 0;
+            color: #0f172a;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            margin: 0;
+            color: #64748b;
+            font-size: 16px;
+        }
+        
+        .status {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-icon {
+            color: #16a34a;
+            font-size: 16px;
+        }
+        
+        .status-text {
+            color: #15803d;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .test-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .test-section h3 {
+            margin: 0 0 16px 0;
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .test-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: background 0.2s;
+        }
+        
+        .test-btn:hover {
+            background: #2563eb;
+        }
+        
+        .test-btn.secondary {
+            background: #6b7280;
+        }
+        
+        .test-btn.secondary:hover {
+            background: #4b5563;
+        }
+        
+        .output {
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 6px;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 12px;
+            display: none;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .session-info {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 12px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .stat-item {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+        
+        .discovery-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .discovery-symbol {
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 14px;
+        }
+        
+        .discovery-details {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔬 Discovery Research Logging Test</h1>
+        <p>Feature 4: PostgreSQL-compatible research discovery logging with performance tracking</p>
+    </div>
+
+    <div class="status">
+        <span class="status-icon">✅</span>
+        <span class="status-text" id="statusText">Loading research logging status...</span>
+    </div>
+
+    <div class="grid">
+        <div class="test-section">
+            <h3>🎯 Research Session Management</h3>
+            <p>Start research sessions to track discovery performance over time:</p>
+            
+            <button class="test-btn" onclick="startResearchSession()">Start New Session</button>
+            <button class="test-btn secondary" onclick="getSessionStats()">Get Session Stats</button>
+            
+            <div class="session-info" id="sessionInfo" style="display: none;">
+                No active session
+            </div>
+            
+            <div class="output" id="sessionOutput"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 Discovery Logging</h3>
+            <p>Log discovery data for research and performance analysis:</p>
+            
+            <button class="test-btn" onclick="logSampleDiscovery()">Log Sample Discovery</button>
+            <button class="test-btn" onclick="logMultipleDiscoveries()">Log Multiple Discoveries</button>
+            <button class="test-btn secondary" onclick="getDiscoveries()">View All Discoveries</button>
+            
+            <div class="output" id="discoveryOutput"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📈 Performance Tracking</h3>
+            <p>Track discovery performance and create alerts:</p>
+            
+            <button class="test-btn" onclick="updatePerformance()">Update Performance</button>
+            <button class="test-btn" onclick="createAlert()">Create Alert</button>
+            <button class="test-btn secondary" onclick="getTopPerformers()">Top Performers</button>
+            
+            <div class="output" id="performanceOutput"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📄 Export & Analytics</h3>
+            <p>Export research data and view analytics:</p>
+            
+            <button class="test-btn" onclick="exportData('json')">Export JSON</button>
+            <button class="test-btn" onclick="exportData('csv')">Export CSV</button>
+            <button class="test-btn secondary" onclick="getAnalytics()">View Analytics</button>
+            
+            <div class="output" id="exportOutput"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Research Statistics</h3>
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-item">
+                <div class="stat-value" id="totalDiscoveries">--</div>
+                <div class="stat-label">Total Discoveries</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgScore">--</div>
+                <div class="stat-label">Avg VIGL Score</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="buySignals">--</div>
+                <div class="stat-label">Buy Signals</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="highQuality">--</div>
+                <div class="stat-label">High Quality Data</div>
+            </div>
+        </div>
+        
+        <div id="discoveriesList" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+        let lastDiscoveryId = null;
+        
+        // Check research logging status on load
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/research/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('statusText').textContent = 
+                        'Discovery research logging active | Ready to track discoveries';
+                    updateStats(data.stats);
+                } else {
+                    document.getElementById('statusText').textContent = 
+                        data.error + ' | Enable with DISCOVERY_LOGGING=true';
+                }
+            } catch (error) {
+                document.getElementById('statusText').textContent = 
+                    'Error connecting to research API: ' + error.message;
+            }
+        }
+        
+        async function startResearchSession() {
+            const output = document.getElementById('sessionOutput');
+            output.style.display = 'block';
+            output.textContent = 'Starting new research session...';
+            
+            try {
+                const response = await fetch('/api/research/session/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        engine_version: 'optimized',
+                        scan_parameters: {
+                            min_score: 60,
+                            max_results: 50,
+                            include_sentiment: true
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentSessionId = data.session_id;
+                    document.getElementById('sessionInfo').style.display = 'block';
+                    document.getElementById('sessionInfo').innerHTML = 
+                        `Active Session: ${data.session_id}<br>Engine: ${data.engine_version}<br>Started: ${data.started_at}`;
+                    output.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    output.textContent = 'Error: ' + data.error;
+                }
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function logSampleDiscovery() {
+            if (!currentSessionId) {
+                alert('Please start a research session first');
+                return;
+            }
+            
+            const output = document.getElementById('discoveryOutput');
+            output.style.display = 'block';
+            output.textContent = 'Logging sample discovery...';
+            
+            const sampleDiscovery = {
+                symbol: 'QUBT',
+                price: 18.45,
+                vigl_score: 89,
+                vigl_confidence: 0.85,
+                volume_factor: 12.4,
+                recommended_action: 'BUY',
+                discovery_method: 'vigl_pattern',
+                short_interest_pct: 15.2,
+                research_notes: 'Strong VIGL pattern with high volume spike'
+            };
+            
+            try {
+                const response = await fetch('/api/research/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        discovery: sampleDiscovery
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    lastDiscoveryId = data.discovery_id;
+                    output.textContent = JSON.stringify(data, null, 2);
+                    refreshStats();
+                } else {
+                    output.textContent = 'Error: ' + data.error;
+                }
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function logMultipleDiscoveries() {
+            if (!currentSessionId) {
+                alert('Please start a research session first');
+                return;
+            }
+            
+            const output = document.getElementById('discoveryOutput');
+            output.style.display = 'block';
+            output.textContent = 'Logging multiple discoveries...';
+            
+            const discoveries = [
+                { symbol: 'RGTI', price: 3.22, vigl_score: 86, volume_factor: 8.7, recommended_action: 'BUY' },
+                { symbol: 'VIGL', price: 4.18, vigl_score: 82, volume_factor: 15.2, recommended_action: 'BUY' },
+                { symbol: 'AEVA', price: 2.94, vigl_score: 74, volume_factor: 6.3, recommended_action: 'WATCHLIST' },
+                { symbol: 'WOLF', price: 7.89, vigl_score: 78, volume_factor: 5.9, recommended_action: 'BUY' }
+            ];
+            
+            let results = [];
+            
+            for (const discovery of discoveries) {
+                try {
+                    const response = await fetch('/api/research/log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: currentSessionId,
+                            discovery: {
+                                ...discovery,
+                                discovery_method: 'vigl_pattern',
+                                research_notes: `VIGL discovery: ${discovery.symbol}`
+                            }
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    results.push(data);
+                } catch (error) {
+                    results.push({ error: error.message });
+                }
+            }
+            
+            output.textContent = JSON.stringify(results, null, 2);
+            refreshStats();
+        }
+        
+        async function updatePerformance() {
+            if (!lastDiscoveryId) {
+                alert('Please log a discovery first');
+                return;
+            }
+            
+            const output = document.getElementById('performanceOutput');
+            output.style.display = 'block';
+            output.textContent = 'Updating performance data...';
+            
+            const performanceData = {
+                current_price: 19.75,
+                price_change_1d: 7.0,
+                price_change_7d: 15.5,
+                volume_change: 2.3,
+                pattern_confirmation: true,
+                breakout_confirmed: true,
+                unrealized_pnl_pct: 7.0,
+                current_status: 'active'
+            };
+            
+            try {
+                const response = await fetch('/api/research/performance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        discovery_id: lastDiscoveryId,
+                        performance_data: performanceData
+                    })
+                });
+                
+                const data = await response.json();
+                output.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function createAlert() {
+            if (!lastDiscoveryId) {
+                alert('Please log a discovery first');
+                return;
+            }
+            
+            const output = document.getElementById('performanceOutput');
+            output.style.display = 'block';
+            output.textContent = 'Creating alert...';
+            
+            try {
+                const response = await fetch('/api/research/alert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        discovery_id: lastDiscoveryId,
+                        alert_type: 'price_target',
+                        message: 'Price target reached for VIGL discovery',
+                        priority: 2,
+                        threshold_value: 20.0,
+                        current_value: 19.75
+                    })
+                });
+                
+                const data = await response.json();
+                output.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function getDiscoveries() {
+            const output = document.getElementById('discoveryOutput');
+            output.style.display = 'block';
+            output.textContent = 'Loading discoveries...';
+            
+            try {
+                const response = await fetch('/api/research/discoveries?limit=10');
+                const data = await response.json();
+                
+                if (data.success) {
+                    output.textContent = JSON.stringify(data, null, 2);
+                    displayDiscoveries(data.discoveries);
+                } else {
+                    output.textContent = 'Error: ' + data.error;
+                }
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function getTopPerformers() {
+            const output = document.getElementById('performanceOutput');
+            output.style.display = 'block';
+            output.textContent = 'Loading top performers...';
+            
+            try {
+                const response = await fetch('/api/research/stats');
+                const data = await response.json();
+                
+                if (data.success && data.top_performers) {
+                    output.textContent = JSON.stringify(data.top_performers, null, 2);
+                } else {
+                    output.textContent = 'No performance data available yet';
+                }
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function exportData(format) {
+            const output = document.getElementById('exportOutput');
+            output.style.display = 'block';
+            output.textContent = `Exporting data in ${format} format...`;
+            
+            try {
+                const url = `/api/research/export?format=${format}${currentSessionId ? '&session_id=' + currentSessionId : ''}`;
+                
+                if (format === 'csv') {
+                    window.open(url);
+                    output.textContent = 'CSV download initiated';
+                } else {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    output.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function getAnalytics() {
+            const output = document.getElementById('exportOutput');
+            output.style.display = 'block';
+            output.textContent = 'Loading analytics...';
+            
+            try {
+                const response = await fetch('/api/research/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    output.textContent = JSON.stringify({
+                        stats: data.stats,
+                        patterns: data.patterns,
+                        top_performers: data.top_performers
+                    }, null, 2);
+                } else {
+                    output.textContent = 'Error: ' + data.error;
+                }
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        async function getSessionStats() {
+            if (!currentSessionId) {
+                alert('No active session');
+                return;
+            }
+            
+            const output = document.getElementById('sessionOutput');
+            output.style.display = 'block';
+            output.textContent = 'Loading session statistics...';
+            
+            try {
+                const response = await fetch(`/api/research/stats?session_id=${currentSessionId}`);
+                const data = await response.json();
+                output.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Network error: ' + error.message;
+            }
+        }
+        
+        function updateStats(stats) {
+            if (stats) {
+                document.getElementById('totalDiscoveries').textContent = stats.total_discoveries || 0;
+                document.getElementById('avgScore').textContent = stats.avg_vigl_score ? stats.avg_vigl_score.toFixed(1) : '--';
+                document.getElementById('buySignals').textContent = stats.buy_signals || 0;
+                document.getElementById('highQuality').textContent = stats.high_quality_data || 0;
+            }
+        }
+        
+        function displayDiscoveries(discoveries) {
+            const container = document.getElementById('discoveriesList');
+            container.innerHTML = '<h4>Recent Discoveries:</h4>';
+            
+            discoveries.slice(0, 5).forEach(discovery => {
+                const item = document.createElement('div');
+                item.className = 'discovery-item';
+                item.innerHTML = `
+                    <div class="discovery-symbol">${discovery.symbol}</div>
+                    <div class="discovery-details">
+                        Score: ${discovery.vigl_score} | Action: ${discovery.recommended_action} | 
+                        Price: $${discovery.price} | Volume: ${discovery.volume_factor}x
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+        
+        async function refreshStats() {
+            try {
+                const response = await fetch('/api/research/stats');
+                const data = await response.json();
+                if (data.success) {
+                    updateStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Error refreshing stats:', error);
+            }
+        }
+        
+        // Initialize on page load
+        checkStatus();
+    </script>
+</body>
+</html>
