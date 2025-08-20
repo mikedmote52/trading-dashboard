@@ -668,8 +668,8 @@
                 const ticker = card.querySelector('[data-buy]')?.dataset.buy;
                 if (!ticker) return;
 
-                // Check if this is an owned position (has portfolio context)
-                const isOwned = card.innerHTML.includes('OWNED') || card.innerHTML.includes('Position Analysis');
+                // Check if this is an owned position (has shares held info)
+                const isOwned = card.innerHTML.includes('@ $') || card.innerHTML.includes('Days Held') || card.innerHTML.includes('shares @');
                 
                 if (isOwned) {
                     const controlsDiv = card.querySelector('.lpi-controls');

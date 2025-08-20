@@ -184,7 +184,7 @@ app.use('/api/portfolio', require('./server/routes/rules'));
 app.use('/api/learn', require('./server/routes/learn'));
 
 // Trading Orders Routes (feature-gated)
-app.use('/api', require('./server/routes/orders'));
+app.use('/api/orders', require('./server/routes/orders'));
 
 // Prometheus metrics endpoints (always available, but only functional when metrics service is enabled)
 app.use('/metrics', require('./server/routes/metrics'));
@@ -199,7 +199,7 @@ app.use('/api/portfolio-intelligence', require('./server/routes/portfolio-intell
 app.use('/api/debug', require('./server/routes/debug-status'));
 
 // Dashboard compatibility route that never 502s
-app.use('/api', require('./server/routes/dashboard-compat'));
+app.use('/api/dashboard', require('./server/routes/dashboard-compat'));
 
 // V2 API Routes (isolated for new dashboard - read-only)
 console.log('🔍 NEW_DASH_ENABLED environment variable:', process.env.NEW_DASH_ENABLED);
