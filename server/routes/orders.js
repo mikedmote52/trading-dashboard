@@ -177,4 +177,41 @@ router.get('/orders/recent', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/alerts/test
+ * Test alerts functionality
+ */
+router.post('/alerts/test', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    
+    if (!phone || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'phone and message required'
+      });
+    }
+    
+    console.log(`📱 Alert test: ${phone} - ${message}`);
+    
+    // For now, just log and return success
+    // TODO: Implement actual SMS/alert service integration
+    
+    res.json({
+      success: true,
+      message: 'Test alert logged successfully',
+      phone,
+      alert_message: message
+    });
+    
+  } catch (error) {
+    console.error('❌ Alert test error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send test alert',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
