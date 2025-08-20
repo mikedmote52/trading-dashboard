@@ -44,6 +44,109 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
+
+        /* Enhanced Trading System Styles */
+        .trade-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .trade-status-success {
+            background: linear-gradient(90deg, #10b981, #34d399);
+            color: white;
+        }
+
+        .trade-status-error {
+            background: linear-gradient(90deg, #ef4444, #f87171);
+            color: white;
+        }
+
+        .trade-status-info {
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .btn-sell {
+            background: linear-gradient(90deg, #dc2626, #ef4444);
+            color: white;
+            border: 1px solid #dc2626;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sell:hover {
+            background: linear-gradient(90deg, #b91c1c, #dc2626);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-sell:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Enhanced action type colors */
+        .tier-buy { 
+            background: linear-gradient(90deg, #10b981, #34d399);
+            color: white; 
+            border: 1px solid #10b981;
+        }
+        
+        .tier-early-ready { 
+            background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+            color: white; 
+            border: 1px solid #0ea5e9;
+        }
+        
+        .tier-pre-breakout { 
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            color: white; 
+            border: 1px solid #f59e0b;
+        }
+        
+        .tier-watchlist { 
+            background: linear-gradient(90deg, #64748b, #94a3b8);
+            color: white; 
+            border: 1px solid #64748b;
+        }
+
+        /* Tape quality indicators */
+        .tape-strong { 
+            border-left: 4px solid #10b981;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.1);
+        }
+        
+        .tape-neutral { 
+            border-left: 4px solid #f59e0b;
+            box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);
+        }
+        
+        .tape-weak { 
+            border-left: 4px solid #ef4444;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -493,12 +596,175 @@
             });
         }
 
+        // Enhanced Trading Functions
+        async function executeTrade(ticker, side, qty, price) {
+            const loadingId = `trade-${ticker}-${side}-${Date.now()}`;
+            
+            try {
+                showTradeStatus(ticker, `${side === 'buy' ? '🟢' : '🔴'} Placing ${side} order...`, 'info');
+                
+                const response = await fetch('/api/orders/trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: ticker.toUpperCase(),
+                        side: side.toLowerCase(),
+                        qty: Math.floor(qty),
+                        type: 'market'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    if (result.dry_run) {
+                        showTradeStatus(ticker, `✅ DRY RUN: ${result.message}`, 'success');
+                    } else {
+                        showTradeStatus(ticker, `✅ ${result.message}`, 'success');
+                        // Refresh portfolio data after successful trade
+                        setTimeout(() => loadPortfolio(), 2000);
+                    }
+                } else {
+                    showTradeStatus(ticker, `❌ ${result.error}`, 'error');
+                }
+
+            } catch (error) {
+                console.error('Trade execution error:', error);
+                showTradeStatus(ticker, `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function showTradeStatus(ticker, message, type) {
+            // Remove any existing status messages
+            const existingStatus = document.getElementById('trade-status');
+            if (existingStatus) {
+                existingStatus.remove();
+            }
+
+            // Create new status message
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'trade-status';
+            statusDiv.className = `trade-status trade-status-${type}`;
+            statusDiv.innerHTML = `
+                <div class="trade-status-content">
+                    <strong>${ticker}</strong>: ${message}
+                </div>
+            `;
+
+            // Add to top of page
+            document.body.insertBefore(statusDiv, document.body.firstChild);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (statusDiv.parentNode) {
+                    statusDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Add sell button functionality to existing cards
+        function addSellButtons() {
+            document.querySelectorAll('.lpi-card').forEach(card => {
+                const ticker = card.querySelector('[data-buy]')?.dataset.buy;
+                if (!ticker) return;
+
+                // Check if this is an owned position (has portfolio context)
+                const isOwned = card.innerHTML.includes('OWNED') || card.innerHTML.includes('Position Analysis');
+                
+                if (isOwned) {
+                    const controlsDiv = card.querySelector('.lpi-controls');
+                    if (controlsDiv && !controlsDiv.querySelector('[data-sell]')) {
+                        const sellButton = document.createElement('button');
+                        sellButton.className = 'btn btn-sell';
+                        sellButton.setAttribute('data-sell', ticker);
+                        sellButton.textContent = 'Sell Position';
+                        sellButton.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';
+                        sellButton.style.marginLeft = '8px';
+                        
+                        controlsDiv.appendChild(sellButton);
+                    }
+                }
+            });
+
+            // Attach sell handlers
+            document.querySelectorAll('[data-sell]').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const ticker = e.currentTarget.dataset.sell;
+                    const confirmSell = confirm(`Are you sure you want to SELL your entire ${ticker} position?`);
+                    
+                    if (confirmSell) {
+                        // Get position size from Alpaca (we'll sell the full position)
+                        try {
+                            const portfolioResponse = await fetch('/api/orders/portfolio');
+                            const portfolioData = await portfolioResponse.json();
+                            
+                            if (portfolioData.success) {
+                                const position = portfolioData.positions.find(p => p.symbol === ticker);
+                                if (position && position.qty > 0) {
+                                    await executeTrade(ticker, 'sell', position.qty);
+                                } else {
+                                    showTradeStatus(ticker, '❌ No position found to sell', 'error');
+                                }
+                            } else {
+                                showTradeStatus(ticker, '❌ Could not fetch position data', 'error');
+                            }
+                        } catch (error) {
+                            showTradeStatus(ticker, '❌ Error fetching position data', 'error');
+                        }
+                    }
+                });
+            });
+        }
+
+        // Calculate position size for buy orders
+        function calculatePositionSize(price, targetUSD) {
+            return Math.floor(targetUSD / price);
+        }
+
+        // Enhanced buy button handler that uses simple trade API
+        function attachEnhancedBuyHandlers() {
+            document.querySelectorAll('[data-buy]').forEach(btn => {
+                // Only add if not already enhanced
+                if (btn.classList.contains('enhanced')) return;
+                btn.classList.add('enhanced');
+
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const ticker = e.currentTarget.dataset.buy;
+                    const usdAmount = Number(e.currentTarget.dataset.usd) || 1500;
+                    const price = Number(e.currentTarget.dataset.price) || 50;
+                    const qty = calculatePositionSize(price, usdAmount);
+
+                    const confirmBuy = confirm(`Buy ${qty} shares of ${ticker} for ~$${(qty * price).toFixed(2)}?`);
+                    
+                    if (confirmBuy) {
+                        await executeTrade(ticker, 'buy', qty, price);
+                    }
+                });
+            });
+        }
+
         // kick off
         document.addEventListener('DOMContentLoaded', () => {
             loadPortfolio();
             
+            // Attach enhanced trading handlers
+            setTimeout(() => {
+                attachEnhancedBuyHandlers();
+                addSellButtons();
+            }, 1000); // Wait for portfolio to load first
+            
             // Refresh every 60 seconds to reduce API load
-            setInterval(loadPortfolio, 60000);
+            setInterval(() => {
+                loadPortfolio();
+                // Reattach handlers after refresh
+                setTimeout(() => {
+                    attachEnhancedBuyHandlers();
+                    addSellButtons();
+                }, 500);
+            }, 60000);
         });
     </script>
 </body>

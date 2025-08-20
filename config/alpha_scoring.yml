@@ -4,27 +4,34 @@
 universe:
   include_otc: false
   exchanges: ["XNYS","XNAS","XASE"]   # NYSE, NASDAQ, AMEX
-  max_tickers: 6000                   # cap after reference listing
+  max_tickers: 8000                   # Increased from 6000 to capture more opportunities
   features_days: 30
-  price_min: 1.0
+  price_min: 0.10                     # EXPANDED: Include penny stocks (was 1.0)
   price_max: 100.0
   enrich_short_max: 800               # how many finalists to enrich w/ short data
   require_feature_coverage: 0.80      # failover if <80% symbols have features
   fail_if_under: false                # if true, stop; else continue with what we have
 
-# Prefilters (price band)
+# Prefilters (price band) - EXPANDED to include penny stocks
 prefilters:
-  price_min: 1.0
+  price_min: 0.10
   price_max: 100.0
 
 # Prefilter strategy with adaptive percentiles
 prefilter_strategy:
-  target_keep: 200
-  min_keep: 120
-  adv_pct_min: 40
-  dollar_pct_min: 40
-  atr_pct_min: 60
-  step_percentile: 5
+  target_keep: 1000  # Increased from 200 to 1000 (20% of universe)
+  min_keep: 500      # Increased from 120 to 500
+  adv_pct_min: 30    # Relaxed from 40 to 30 to find more opportunities  
+  dollar_pct_min: 30 # Relaxed from 40 to 30
+  atr_pct_min: 40    # Relaxed from 60 to 40
+  step_percentile: 3 # Smaller steps for more opportunities (was 5)
+
+# Full Universe Scanning (when normal scan returns few candidates)
+full_universe_mode:
+  enabled: true
+  target_keep: 2000     # Scan up to 2000 stocks (40% of universe)
+  min_keep: 1000        # Minimum to keep scanning
+  activate_when: 10     # Switch to full mode when regular scan finds <10 candidates
 
 # Monthly momentum detection
 monthly:

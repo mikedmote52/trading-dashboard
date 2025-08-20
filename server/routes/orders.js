@@ -1,6 +1,7 @@
 const express = require('express');
 const https = require('https');
 const router = express.Router();
+const AlpacaPaperTrading = require('../services/trading/alpaca-paper');
 
 const ORDERS_ENABLED = (process.env.ORDERS_ENABLED || '0') === '1';
 const ALPACA_KEY = process.env.APCA_API_KEY_ID;
@@ -265,6 +266,165 @@ router.post('/alerts/test', async (req, res) => {
       success: false,
       error: 'Failed to send test alert',
       message: error.message
+    });
+  }
+});
+
+// Enhanced Trading API with Alpaca Paper Integration
+const alpacaTrading = new AlpacaPaperTrading();
+
+/**
+ * POST /api/orders/trade - Simple trade execution
+ * For basic buy/sell orders from UI buttons
+ */
+router.post('/trade', async (req, res) => {
+  try {
+    const { ticker, side, qty, type = 'market' } = req.body;
+
+    if (!ticker || !side || !qty) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: ticker, side, qty'
+      });
+    }
+
+    if (!ORDERS_ENABLED) {
+      return res.json({
+        success: true,
+        dry_run: true,
+        message: `DRY RUN: Would ${side.toUpperCase()} ${qty} shares of ${ticker}`,
+        note: 'Set ORDERS_ENABLED=1 to enable live trading'
+      });
+    }
+
+    console.log(`🎯 Trade Request: ${side.toUpperCase()} ${qty} shares of ${ticker}`);
+
+    // Execute trade via Alpaca Paper API
+    const result = await alpacaTrading.createOrder(ticker, side, qty, type);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        order: result.order,
+        message: `${side.toUpperCase()} order for ${qty} shares of ${ticker} executed successfully`
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Trade execution error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * GET /api/orders/portfolio - Get current portfolio from Alpaca
+ */
+router.get('/portfolio', async (req, res) => {
+  try {
+    const [accountResult, positionsResult] = await Promise.all([
+      alpacaTrading.getAccount(),
+      alpacaTrading.getPositions()
+    ]);
+
+    if (!accountResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: `Account fetch failed: ${accountResult.error}`
+      });
+    }
+
+    if (!positionsResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: `Positions fetch failed: ${positionsResult.error}`
+      });
+    }
+
+    res.json({
+      success: true,
+      account: accountResult.account,
+      positions: positionsResult.positions,
+      summary: {
+        total_positions: positionsResult.positions.length,
+        total_value: accountResult.account.portfolio_value,
+        cash: accountResult.account.cash,
+        buying_power: accountResult.account.buying_power
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Portfolio fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/orders/history - Get recent orders
+ */
+router.get('/history', async (req, res) => {
+  try {
+    const { limit = 20, status = 'all' } = req.query;
+    
+    const result = await alpacaTrading.getOrders(status, parseInt(limit));
+
+    if (result.success) {
+      res.json({
+        success: true,
+        orders: result.orders
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Order history error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/orders/cancel/:orderId - Cancel an order
+ */
+router.delete('/cancel/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    const result = await alpacaTrading.cancelOrder(orderId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Order ${orderId} cancelled successfully`
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Order cancellation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

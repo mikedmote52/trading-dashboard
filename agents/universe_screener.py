@@ -124,11 +124,12 @@ class UniverseScreener:
     def __init__(self):
         self.polygon_api_key = os.getenv("POLYGON_API_KEY")
         
-        # Use config-driven defaults
+        # Use config-driven defaults - EXPANDED to include penny stocks
         astrat = CONF.get('prefilter_strategy', {})
+        prefilters = CONF.get('prefilters', {})
         self.criteria = {
-            "min_price": UCFG.get("price_min", 1.0),
-            "max_price": UCFG.get("price_max", 100.0),
+            "min_price": prefilters.get("price_min", 0.10),  # Include penny stocks
+            "max_price": prefilters.get("price_max", 100.0),
         }
         self.shortlist_target = astrat.get("target_keep", 200)
         self.shortlist_min = astrat.get("min_keep", 120)
@@ -136,8 +137,8 @@ class UniverseScreener:
         print(f"🌌 Universe Screener initialized", file=sys.stderr)
         print(f"📊 Config: price ${self.criteria['min_price']}-${self.criteria['max_price']}, target={self.shortlist_target}, min={self.shortlist_min}", file=sys.stderr)
     
-    def screen_universe(self, limit: int = 5, exclude_symbols: str = "") -> list:
-        """Screen the entire universe deterministically"""
+    def screen_universe(self, limit: int = 5, exclude_symbols: str = "", full_universe_mode: bool = False) -> list:
+        """Screen the universe deterministically with optional full universe mode"""
         
         # Parse exclude list (robust)
         exclude_list = [s.strip().upper() for s in exclude_symbols.split(',') if s.strip()] if exclude_symbols else []
@@ -155,14 +156,32 @@ class UniverseScreener:
             
         print(f"📊 Loaded features for {len(rows_df)} symbols (excluding {len(exclude_list)} holdings)", file=sys.stderr)
 
+        # Check for full universe mode activation
+        full_config = CONF.get("full_universe_mode", {})
+        if not full_universe_mode and full_config.get("enabled", False):
+            # Will check later if we need to activate full universe mode
+            pass
+
         # Adaptive narrowing (deterministic) - NO random, keep enough names
         astrat = CONF.get("prefilter_strategy", {})
-        adv_pct   = astrat.get("adv_pct_min", 40)
-        dol_pct   = astrat.get("dollar_pct_min", 40) 
-        atrp_pct  = astrat.get("atr_pct_min", 60)
-        step      = astrat.get("step_percentile", 5)
-        shortlist_target = astrat.get("target_keep", 200)
-        shortlist_min    = astrat.get("min_keep", 120)
+        full_config = CONF.get("full_universe_mode", {})
+        
+        # Use full universe parameters if in full mode
+        if full_universe_mode:
+            print("🚀 FULL UNIVERSE MODE: Scanning expanded universe for maximum opportunities", file=sys.stderr)
+            adv_pct   = 20  # Very relaxed for full universe
+            dol_pct   = 20
+            atrp_pct  = 30
+            step      = 2   # Smaller steps
+            shortlist_target = full_config.get("target_keep", 2000)
+            shortlist_min    = full_config.get("min_keep", 1000)
+        else:
+            adv_pct   = astrat.get("adv_pct_min", 40)
+            dol_pct   = astrat.get("dollar_pct_min", 40) 
+            atrp_pct  = astrat.get("atr_pct_min", 60)
+            step      = astrat.get("step_percentile", 5)
+            shortlist_target = astrat.get("target_keep", 200)
+            shortlist_min    = astrat.get("min_keep", 120)
 
         def pct(a, p): 
             a = np.array(a, dtype=float)
@@ -419,18 +438,25 @@ class UniverseScreener:
         final = candidates[:limit]
         
         print(f"Found {len(final)} universe candidates", file=sys.stderr)
+        
+        # Auto-activate full universe mode if too few candidates found
+        if not full_universe_mode and len(final) < full_config.get("activate_when", 10) and full_config.get("enabled", False):
+            print(f"🚀 AUTO-ACTIVATING FULL UNIVERSE MODE: Only {len(final)} candidates found, expanding search...", file=sys.stderr)
+            return self.screen_universe(limit, exclude_symbols, full_universe_mode=True)
+        
         return final
 
 def main():
     parser = argparse.ArgumentParser(description='Deterministic Universe Stock Screener')
     parser.add_argument('--limit', type=int, default=5, help='Number of candidates to return')
     parser.add_argument('--exclude-symbols', type=str, default='', help='Comma-separated symbols to exclude')
+    parser.add_argument('--full-universe', action='store_true', help='Force full universe scan (up to 2000 stocks)')
     
     args = parser.parse_args()
     
     # Create screener and run scan
     screener = UniverseScreener()
-    candidates = screener.screen_universe(args.limit, args.exclude_symbols)
+    candidates = screener.screen_universe(args.limit, args.exclude_symbols, full_universe_mode=args.full_universe)
     
     # Output as JSON for API consumption
     print(json.dumps(candidates))
