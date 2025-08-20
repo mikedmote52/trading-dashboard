@@ -2443,6 +2443,15 @@ app.listen(port, () => {
   console.log(`🔗 API: http://localhost:${port}/api/dashboard`);
   console.log(`🔑 Alpaca Connected: ${!!ALPACA_CONFIG.apiKey}`);
   
+  // Start real discovery scheduler for UI
+  try {
+    const { startRealDiscoveryScheduler } = require('./server/jobs/populate-ui-discoveries');
+    startRealDiscoveryScheduler();
+    console.log('🔄 Real discovery scheduler started');
+  } catch (schedulerError) {
+    console.warn('⚠️ Real discovery scheduler failed to start:', schedulerError.message);
+  }
+  
   // Show active discovery engine (PROOF of which engine is running)
   try {
     const { getEngineInfo } = require('./server/services/discovery_service');

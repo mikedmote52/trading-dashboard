@@ -96,6 +96,35 @@ router.get('/fix-discoveries', async (req, res) => {
 });
 
 /**
+ * Populate UI with REAL discoveries from AlphaStack engine
+ */
+router.get('/populate-real-discoveries', async (req, res) => {
+  try {
+    console.log('🔍 Admin: Populating UI with REAL discoveries...');
+    
+    const { populateUIWithRealDiscoveries } = require('../jobs/populate-ui-discoveries');
+    const realDiscoveries = await populateUIWithRealDiscoveries();
+    
+    res.json({
+      success: true,
+      message: `Populated ${realDiscoveries.length} REAL discoveries from AlphaStack engine`,
+      discoveries: realDiscoveries.map(d => ({
+        symbol: d.symbol,
+        score: d.score,
+        action: d.action
+      }))
+    });
+    
+  } catch (error) {
+    console.error('❌ Real discovery population failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Check discovery status
  */
 router.get('/check-discoveries', async (req, res) => {
