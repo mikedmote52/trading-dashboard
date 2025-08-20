@@ -35,6 +35,87 @@ class PolygonProvider {
     }
   }
 
+  async getCurrentPrice(symbol) {
+    if (!this.apiKey) return null;
+    
+    try {
+      const url = `${this.baseUrl}/v2/last/trade/${symbol}?apikey=${this.apiKey}`;
+      
+      const response = await axios.get(url, { timeout: 3000 });
+      
+      if (response.data?.results?.p) {
+        return {
+          price: response.data.results.p,
+          timestamp: response.data.results.t,
+          volume: response.data.results.s
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`⚠️ Failed to fetch current price for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
+  async getCurrentQuote(symbol) {
+    if (!this.apiKey) return null;
+    
+    try {
+      const url = `${this.baseUrl}/v2/last/nbbo/${symbol}?apikey=${this.apiKey}`;
+      
+      const response = await axios.get(url, { timeout: 3000 });
+      
+      if (response.data?.results) {
+        const quote = response.data.results;
+        return {
+          bid: quote.P,
+          ask: quote.p,
+          bidSize: quote.S,
+          askSize: quote.s,
+          timestamp: quote.t
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`⚠️ Failed to fetch quote for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
+  async getMarketSnapshot(symbol) {
+    if (!this.apiKey) return null;
+    
+    try {
+      const url = `${this.baseUrl}/v2/snapshot/locale/us/markets/stocks/tickers/${symbol}?apikey=${this.apiKey}`;
+      
+      const response = await axios.get(url, { timeout: 3000 });
+      
+      if (response.data?.results) {
+        const snapshot = response.data.results;
+        return {
+          symbol: snapshot.ticker,
+          price: snapshot.value,
+          change: snapshot.todaysChange,
+          changePercent: snapshot.todaysChangePerc,
+          volume: snapshot.day?.v,
+          open: snapshot.day?.o,
+          high: snapshot.day?.h,
+          low: snapshot.day?.l,
+          close: snapshot.prevDay?.c,
+          vwap: snapshot.day?.vw,
+          timestamp: snapshot.updated
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`⚠️ Failed to fetch market snapshot for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
   async adv30(symbol) {
     if (!this.apiKey) return null;
     

@@ -1179,6 +1179,10 @@ router.get('/latest-scores', async (req, res) => {
   try {
     console.log('📊 Latest Scores: Fetching recent discoveries...');
     
+    // Import real-time data provider
+    const { PolygonProvider } = require('../services/providers/polygon');
+    const polygon = new PolygonProvider();
+    
     let discoveries = [];
     let source = 'discoveries_vigl';
     
@@ -1224,7 +1228,7 @@ router.get('/latest-scores', async (req, res) => {
     }
     
     // Transform to unified engine format with enhanced data
-    const scores = discoveries.map(d => {
+    const scores = await Promise.all(discoveries.map(async (d) => {
       // Parse components if available
       let componentsData = {};
       try {
@@ -1233,21 +1237,56 @@ router.get('/latest-scores', async (req, res) => {
         // Use defaults if parsing fails
       }
       
-      // Generate thesis data from score
+      // Get real-time price and market data
+      let currentPrice = d.price || 50;
+      let realTimeData = {};
+      
+      try {
+        const snapshot = await polygon.getMarketSnapshot(d.ticker);
+        if (snapshot) {
+          currentPrice = snapshot.price || currentPrice;
+          realTimeData = {
+            price: snapshot.price,
+            change: snapshot.change,
+            changePercent: snapshot.changePercent,
+            volume: snapshot.volume,
+            vwap: snapshot.vwap,
+            high: snapshot.high,
+            low: snapshot.low,
+            timestamp: snapshot.timestamp
+          };
+        }
+      } catch (priceError) {
+        console.warn(`⚠️ Failed to get real-time data for ${d.ticker}:`, priceError.message);
+      }
+      
+      // Calculate real-time indicators
+      const relVol = realTimeData.volume && d.rvol ? 
+        realTimeData.volume / (d.rvol * 1000000) : (d.rvol || 1.0);
+      
+      const vwapReclaimed = realTimeData.vwap ? 
+        currentPrice > realTimeData.vwap : d.score > 70;
+      
+      // Generate thesis data from score and real-time data
       const thesisData = {
-        momentum: Math.round(d.score * 0.3),
+        momentum: Math.round(d.score * 0.3 + (realTimeData.changePercent > 0 ? 5 : 0)),
         squeeze: Math.round(d.score * 0.25),
         catalyst: Math.round(d.score * 0.25),
-        sentiment: Math.round(d.score * 0.15),
-        technical: Math.round(d.score * 0.05)
+        sentiment: Math.round(d.score * 0.15 + (realTimeData.changePercent > 2 ? 3 : 0)),
+        technical: Math.round(d.score * 0.05 + (vwapReclaimed ? 2 : 0))
       };
       
-      // Generate targets based on score and action
+      // Generate targets based on real price and volatility
+      const volatility = Math.abs(realTimeData.changePercent || 2) / 100;
+      const tp1Pct = Math.max(0.08, Math.min(0.25, volatility * 6));
+      const tp2Pct = Math.max(0.15, Math.min(0.50, volatility * 12));
+      const stopPct = Math.max(0.05, Math.min(0.15, volatility * 3));
+      
       const targetsData = {
-        entry: `Above $${((d.price || 50) * 1.01).toFixed(2)}`,
-        tp1: d.score >= 70 ? "+15%" : "+12%",
-        tp2: d.score >= 70 ? "+30%" : "+25%",
-        stop: d.score >= 70 ? "-8%" : "-10%"
+        entry: `Above $${(currentPrice * 1.01).toFixed(2)}`,
+        tp1: `+${(tp1Pct * 100).toFixed(0)}%`,
+        tp2: `+${(tp2Pct * 100).toFixed(0)}%`,
+        stop: `-${(stopPct * 100).toFixed(0)}%`
       };
       
       return {
@@ -1256,19 +1295,32 @@ router.get('/latest-scores', async (req, res) => {
         vigl_score: d.score,
         action: d.action || (d.score >= 70 ? 'BUY' : d.score >= 60 ? 'WATCHLIST' : 'MONITOR'),
         intraday: {
-          rvol: d.rvol || 1.0,
-          vwap_reclaimed: d.score > 70,
-          ema9_over_20: d.score > 65
+          rvol: relVol,
+          vwap_reclaimed: vwapReclaimed,
+          ema9_over_20: d.score > 65,
+          change_percent: realTimeData.changePercent || 0,
+          volume: realTimeData.volume || 0,
+          is_live_data: !!realTimeData.timestamp
         },
-        price: d.price,
+        price: currentPrice,
+        price_data: {
+          current: currentPrice,
+          change: realTimeData.change || 0,
+          change_percent: realTimeData.changePercent || 0,
+          high: realTimeData.high || currentPrice,
+          low: realTimeData.low || currentPrice,
+          vwap: realTimeData.vwap || currentPrice,
+          volume: realTimeData.volume || 0,
+          last_updated: realTimeData.timestamp || d.created_at
+        },
         thesis: thesisData,
         targets: targetsData,
         components: componentsData,
         timestamp: d.created_at
       };
-    });
+    }));
     
-    console.log(`📊 Latest Scores: Returning ${scores.length} score records from ${source}`);
+    console.log(`📊 Latest Scores: Returning ${scores.length} score records from ${source} with real-time data`);
     res.json({ 
       success: true, 
       source: source,
