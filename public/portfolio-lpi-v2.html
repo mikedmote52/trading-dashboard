@@ -88,20 +88,18 @@
             try {
                 console.log('🔄 LPI v2: Loading portfolio with unified engine...');
                 
-                // Load data in parallel
-                const [positions, scoresResponse, thesis, discoveries] = await Promise.all([
+                // Load data in parallel - use enhanced discoveries API
+                const [positions, scoresResponse, thesis] = await Promise.all([
                     fetch('/api/portfolio/positions').then(r=>r.json()),
                     fetch('/api/discoveries/latest-scores').then(r=>r.json()).catch(()=>({success:false,data:[]})),
-                    fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({})),
-                    fetch('/api/discoveries/latest').then(r=>r.json()).catch(()=>({discoveries:[]}))
+                    fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({}))
                 ]);
                 
                 // Handle new response format from latest-scores
                 const scores = scoresResponse.data || scoresResponse || [];
                 const scoresSource = scoresResponse.source || 'unknown';
                 
-                console.log(`📊 LPI v2: Loaded ${positions.length} positions, ${scores.length} scores`);
-                console.log(`🔍 LPI v2: Loaded ${discoveries.discoveries?.length || 0} discoveries`);
+                console.log(`📊 LPI v2: Loaded ${positions.length} positions, ${scores.length} enhanced scores with portfolio context`);
                 
                 // Call unified engine for consistent recommendations
                 const actions = await fetch('/api/engine/advise', {
@@ -117,7 +115,7 @@
                 console.log(`🎯 LPI v2: Generated ${actions.length} actions via unified engine`);
 
                 renderSummary(actions);
-                renderDiscoveryCards(discoveries.discoveries || []);
+                renderEnhancedDiscoveryCards(scores); // Use enhanced data with portfolio context
                 renderCards(positions, actions, thesis);
             } catch (error) {
                 console.error('Failed to load portfolio:', error);
@@ -141,68 +139,106 @@
         // P/L badge color classification  
         const plClass = (pct) => pct >= 20 ? 'pl-strong-pos' : pct > 0 ? 'pl-pos' : pct <= -10 ? 'pl-strong-neg' : 'pl-neg';
 
-        function renderDiscoveryCards(discoveries) {
+        function renderEnhancedDiscoveryCards(discoveries) {
             const el = document.getElementById('discovery-cards');
             
-            // Filter for BUY recommendations and remove AUDIT entries
-            const buyOpportunities = discoveries
-                .filter(d => d.action === 'BUY' && d.symbol !== 'OPTIMIZED_AUDIT' && d.score > 60)
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 6); // Show top 6 opportunities
+            // Filter and sort discoveries with portfolio context
+            const opportunities = discoveries
+                .filter(d => d.action === 'BUY' && d.ticker !== 'OPTIMIZED_AUDIT' && d.score > 60)
+                .sort((a, b) => {
+                    // Prioritize: new opportunities first, then owned positions with high scores
+                    if (a.portfolio_status === 'OPPORTUNITY' && b.portfolio_status === 'OWNED') return -1;
+                    if (a.portfolio_status === 'OWNED' && b.portfolio_status === 'OPPORTUNITY') return 1;
+                    return b.score - a.score;
+                })
+                .slice(0, 6); // Show top 6
             
-            if (buyOpportunities.length === 0) {
+            if (opportunities.length === 0) {
                 el.innerHTML = '<div class="loading">No high-confidence opportunities found</div>';
                 return;
             }
             
-            el.innerHTML = buyOpportunities.map(d => {
+            el.innerHTML = opportunities.map(d => {
+                const isOwned = d.portfolio_status === 'OWNED';
+                const ticker = d.ticker || d.symbol;
+                const price = d.price_data?.current || d.price;
                 const suggestedAmount = d.score > 75 ? 2500 : d.score > 65 ? 1500 : 1000;
                 const confidence = Math.min(95, Math.max(60, d.score));
                 
+                // Portfolio context
+                const portfolioIcon = isOwned ? '🏠' : '🎯';
+                const portfolioLabel = isOwned ? 'OWNED' : 'OPPORTUNITY';
+                const actionText = isOwned ? 'ADD MORE' : 'BUY';
+                const buttonText = isOwned ? `Add $${suggestedAmount}` : `Buy $${suggestedAmount}`;
+                const badgeClass = isOwned ? 'pl-pos' : 'pl-strong-pos';
+                
+                // Portfolio details for owned positions
+                let portfolioDetails = '';
+                if (isOwned && d.portfolio_context) {
+                    const pnl = d.portfolio_context.unrealized_pnl || 0;
+                    const pnlPct = d.portfolio_context.unrealized_pnl_pct || 0;
+                    const pnlColor = pnl >= 0 ? '#10b981' : '#ef4444';
+                    portfolioDetails = `
+                        <div class="lpi-stat"><div class="k">Position</div><div class="v">${d.portfolio_context.quantity} shares</div></div>
+                        <div class="lpi-stat"><div class="k">Avg Cost</div><div class="v">$${fmt(d.portfolio_context.avg_cost)}</div></div>
+                        <div class="lpi-stat"><div class="k">P&L</div><div class="v" style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct.toFixed(1)}%)</div></div>
+                    `;
+                }
+                
                 return `
-                    <div class="lpi-card">
+                    <div class="lpi-card" style="${isOwned ? 'border-left: 4px solid #3b82f6;' : 'border-left: 4px solid #10b981;'}">
                         <div class="lpi-action act-BUY_MORE">
                             <div>
                                 <div style="font-size:14px;opacity:.9">
-                                    ${d.symbol} • $${fmt(d.price)} • New Position
+                                    ${portfolioIcon} ${ticker} • $${fmt(price)} • ${portfolioLabel}
                                 </div>
-                                <div style="font-size:22px">BUY <span style="opacity:.8;font-size:14px">(${confidence}% conf)</span></div>
+                                <div style="font-size:22px">${actionText} <span style="opacity:.8;font-size:14px">(${confidence}% conf)</span></div>
                             </div>
-                            <div class="lpi-badge pl-pos">NEW</div>
+                            <div class="lpi-badge ${badgeClass}">${isOwned ? 'OWNED' : 'NEW'}</div>
                         </div>
 
                         <div class="lpi-stats">
                             <div class="lpi-stat"><div class="k">VIGL Score</div><div class="v">${Math.floor(d.score)}</div></div>
-                            <div class="lpi-stat"><div class="k">Target Size</div><div class="v">$${suggestedAmount}</div></div>
-                            <div class="lpi-stat"><div class="k">Discovery</div><div class="v">${formatDiscoveryTime(d.created_at)}</div></div>
+                            ${portfolioDetails}
+                            ${!isOwned ? `<div class="lpi-stat"><div class="k">Target Size</div><div class="v">$${suggestedAmount}</div></div>` : ''}
+                            <div class="lpi-stat"><div class="k">Live Data</div><div class="v">${d.price_data?.is_live_data ? '🔴 LIVE' : '📊 Data'}</div></div>
                         </div>
 
                         <div class="lpi-targets">
-                            <div class="lpi-chip">Entry: $${fmt(d.price)}</div>
-                            <div class="lpi-chip">TP1: +15%</div>
-                            <div class="lpi-chip">TP2: +50%</div>
-                            <div class="lpi-chip">Stop: −10%</div>
+                            <div class="lpi-chip">Entry: $${fmt(price)}</div>
+                            <div class="lpi-chip">TP1: ${d.targets?.tp1 || '+15%'}</div>
+                            <div class="lpi-chip">TP2: ${d.targets?.tp2 || '+30%'}</div>
+                            <div class="lpi-chip">Stop: ${d.targets?.stop || '-8%'}</div>
                         </div>
 
                         <div class="lpi-controls">
-                            ${controlGroup(d.symbol, 15, 50, 10)}
-                            <button class="btn btn-buy" data-buy="${d.symbol}" data-usd="${suggestedAmount}" 
-                                    data-price="${d.price}" style="margin-left: 8px;">
-                                Buy $${suggestedAmount}
+                            ${controlGroup(ticker, 15, 30, 8)}
+                            <button class="btn ${isOwned ? 'btn-secondary' : 'btn-buy'}" data-buy="${ticker}" data-usd="${suggestedAmount}" 
+                                    data-price="${price}" style="margin-left: 8px; ${isOwned ? 'background: #3b82f6; border-color: #3b82f6;' : ''}">
+                                ${buttonText}
                             </button>
                         </div>
 
                         <div class="lpi-thesis">
                             <div class="head">
-                                <div class="lpi-trend tr-Strengthening">Discovery</div>
+                                <div class="lpi-trend tr-Strengthening">${isOwned ? 'Position Analysis' : 'Discovery'}</div>
                                 <div style="font-size:12px;color:#9eb4ff">AlphaStack Score: ${Math.floor(d.score)}/100</div>
                             </div>
-                            <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
-                                <b>Pattern:</b> New opportunity identified by VIGL discovery engine with ${d.score}+ confidence score
-                            </div>
-                            <div style="color:#cdd7f3;font-size:13px">
-                                <b>Entry Strategy:</b> Fresh position with standard bracket targets (15%/50% TP, 10% SL)
-                            </div>
+                            ${isOwned && d.portfolio_context ? `
+                                <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
+                                    <b>Status:</b> Owned position with ${d.portfolio_context.last_vigl_action || 'HOLD'} recommendation
+                                </div>
+                                <div style="color:#cdd7f3;font-size:13px">
+                                    <b>Portfolio Risk:</b> ${d.portfolio_context.risk_assessment || 'medium'} • ${d.portfolio_context.recommendation?.reasoning || 'Monitoring position for signals'}
+                                </div>
+                            ` : `
+                                <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
+                                    <b>Pattern:</b> New opportunity identified by VIGL discovery engine with ${d.score}+ confidence score
+                                </div>
+                                <div style="color:#cdd7f3;font-size:13px">
+                                    <b>Entry Strategy:</b> Fresh position with bracket targets (${d.targets?.tp1 || '+15%'}/${d.targets?.tp2 || '+30%'} TP, ${d.targets?.stop || '-8%'} SL)
+                                </div>
+                            `}
                         </div>
                     </div>`;
             }).join('');
