@@ -21,6 +21,105 @@ FEAT_PATH = ROOT / "data" / "universe_features.parquet"
 sys.path.append(str(ROOT))
 from data.providers.alpha_providers import minute_bars, short_metrics
 
+def ramp(x, lo, hi, max_pts):
+    """Smooth ramp function for capped scoring"""
+    if x is None: return 0
+    if x <= lo: return 0
+    if x >= hi: return max_pts
+    return max_pts * (x - lo) / (hi - lo)
+
+def momentum_points(r5, r21):
+    """Capped momentum scoring to prevent double-counting"""
+    p5 = ramp(r5 * 100, 2.0, 25.0, 10) if r5 else 0     # 5-day: 0-10 points
+    p21 = ramp(r21 * 100, 8.0, 40.0, 15) if r21 else 0  # 21-day: 0-15 points
+    return min(25, p5 + p21)                              # Cap total momentum at 25
+
+def squeeze_synergy(float_shares, si_pct, borrow_fee):
+    """Float + short interest + borrow fee synergy scoring"""
+    pts = 0
+    if float_shares is not None and float_shares <= 20_000_000: 
+        pts += 10  # Micro-cap bonus
+    if borrow_fee is not None:
+        if borrow_fee >= 50: pts += 10
+        elif borrow_fee >= 30: pts += 6
+    # Synergy bonus for squeeze setup
+    if (si_pct or 0) >= 15 and (borrow_fee or 0) >= 30: 
+        pts += 6
+    return pts
+
+def live_penalties(price, vwap, rsi, ema9_ge_ema20, drawdown_from_hod):
+    """Real-time tape quality penalties"""
+    pts = 0
+    if price is not None and vwap is not None and price < vwap: 
+        pts -= 8  # Below VWAP penalty
+    if rsi is not None and rsi > 75: 
+        pts -= 6  # Exhaustion penalty
+    if drawdown_from_hod is not None and drawdown_from_hod >= 0.20: 
+        pts -= 8  # Large drawdown penalty
+    return pts
+
+def days_to_cover_bonus(short_shares, adv):
+    """Days to cover squeeze potential"""
+    if not short_shares or not adv or adv <= 0:
+        return 0
+    dtc = short_shares / adv
+    if dtc >= 4: return 8
+    if dtc >= 2: return 4
+    return 0
+
+def live_vs_cached_sanity_check(live_price, cached_price, score):
+    """Penalize stale data with large price drift"""
+    if not live_price or not cached_price:
+        return score
+    
+    drift = abs(live_price - cached_price) / cached_price
+    if drift >= 0.10:
+        return max(0, score - 8)  # 8 point penalty for stale data
+    
+    return score
+
+def detect_early_catalysts(row):
+    """Detect early catalyst signals"""
+    points = 0
+    
+    # PR keywords detection
+    pr_keywords = ['FDA', 'approval', 'partnership', 'licensing', 
+                   'contract', 'uplist', 'financing', 'acquisition']
+    
+    news_text = (row.get("recent_news") or "").lower()
+    if any(keyword.lower() in news_text for keyword in pr_keywords):
+        points += 15
+    
+    # Pre-market gap and volume
+    pm_gap = row.get("premarket_gap_pct") or 0
+    pm_relvol = row.get("relvol_pm") or 0
+    
+    if pm_gap >= 10 and pm_relvol >= 1.5:
+        points += 12
+    
+    return points
+
+def map_action(score):
+    """Map score to action"""
+    if score >= 85: return "BUY"
+    elif score >= 75: return "EARLY_READY"
+    elif score >= 65: return "PRE_BREAKOUT"
+    elif score >= 50: return "WATCHLIST"
+    else: return "MONITOR"
+
+def map_action_with_tape(score, live_price, live_vwap, ema9_ge_ema20):
+    """Action mapping with live tape validation"""
+    base_action = map_action(score)
+    
+    # Tape guard: cap weak setups at PRE_BREAKOUT
+    if score >= 65:
+        below_vwap = (live_price and live_vwap and live_price < live_vwap)
+        no_bullish_trend = not ema9_ge_ema20
+        if below_vwap or no_bullish_trend:
+            return "PRE_BREAKOUT"
+    
+    return base_action
+
 class UniverseScreener:
     def __init__(self):
         self.polygon_api_key = os.getenv("POLYGON_API_KEY")
@@ -101,18 +200,70 @@ class UniverseScreener:
 
         # Score every survivor (NO partial sampling), then slice at the end
         def score_row(row, relvol=0.0):
+            """Enhanced scoring with live tape validation"""
+            r5 = row.get("ret_5d")
+            r21 = row.get("ret_21d")
+
+            # Start with base score
             score = 50
-            if relvol > 2.0: score += 15
-            elif relvol > 1.5: score += 8
-            if row["atr_pct"] > 0.03: score += 10
-            elif row["atr_pct"] > 0.02: score += 5
-            if row["ret_5d"] >= 0.05: score += 10
-            elif row["ret_5d"] >= 0.02: score += 5
-            if row["ret_21d"] >= 0.15: score += 15
-            elif row["ret_21d"] >= 0.08: score += 8
-            if bool(row["breakout20"]): score += 12
-            if row["avg_dollar"] > 50_000_000: score += 8
-            elif row["avg_dollar"] > 20_000_000: score += 5
+
+            # Capped momentum points (max 25)
+            score += momentum_points(r5, r21)
+
+            # Volatility bonus
+            if (row.get("atr_pct") or 0) >= 0.03: 
+                score += 10
+            elif (row.get("atr_pct") or 0) >= 0.02: 
+                score += 5
+
+            # Volume bonus (use relative volume)
+            if relvol > 2.0: 
+                score += 15
+            elif relvol > 1.5: 
+                score += 8
+
+            # Dollar volume bonus
+            if (row.get("avg_dollar") or 0) >= 50_000_000: 
+                score += 8
+            elif (row.get("avg_dollar") or 0) >= 20_000_000: 
+                score += 5
+
+            # Breakout bonus
+            if bool(row.get("breakout20")): 
+                score += 12
+
+            # Early catalyst detection
+            score += detect_early_catalysts(row)
+
+            # Squeeze synergy (using mock data for now)
+            score += squeeze_synergy(
+                row.get("float"), 
+                row.get("short_interest_pct"), 
+                row.get("borrow_fee_pct")
+            )
+
+            # Days to cover bonus
+            score += days_to_cover_bonus(
+                row.get("short_shares"), 
+                row.get("adv")
+            )
+
+            # Live tape penalties (will be 0 for now since no live data yet)
+            score += live_penalties(
+                price=row.get("live_price"),
+                vwap=row.get("live_vwap"),
+                rsi=row.get("live_rsi"),
+                ema9_ge_ema20=row.get("ema9_ge_ema20"),
+                drawdown_from_hod=row.get("drawdown_from_hod")
+            )
+
+            # Live vs cached sanity check
+            score = live_vs_cached_sanity_check(
+                row.get("live_price"),
+                row.get("price"),  # cached price
+                score
+            )
+
             return max(30, min(100, score))
 
         def generate_thesis(symbol, row, score, relvol, short_info=None):
@@ -214,16 +365,26 @@ class UniverseScreener:
             # Generate thesis
             thesis_data = generate_thesis(sym, row, sc, relvol)
             
+            # Enhanced action mapping with tape validation
+            action = map_action_with_tape(
+                sc,
+                row.get("live_price"),
+                row.get("live_vwap"),
+                row.get("ema9_ge_ema20")
+            )
+            
             candidates.append({
                 "symbol": sym,
                 "score": int(round(sc)),
                 "price": round(row["price"], 2),
                 "rel_vol_30m": round(max(relvol, 1.0), 1),
+                "action": action,
                 "bucket": "trade-ready" if sc>=75 else ("watch" if sc>=60 else "monitor"),
                 "thesis": thesis_data["thesis"],
                 "target_price": thesis_data["target_price"],
                 "upside_pct": thesis_data["upside_pct"],
-                "risk_note": thesis_data["risk_note"]
+                "risk_note": thesis_data["risk_note"],
+                "tape_quality": "NEUTRAL"  # Will be enhanced with live data
             })
 
         # Late short-interest enrichment for squeeze bias (deterministic; top N)

@@ -142,16 +142,20 @@
         function renderEnhancedDiscoveryCards(discoveries) {
             const el = document.getElementById('discovery-cards');
             
-            // Filter and sort discoveries with portfolio context
+            // Filter and sort discoveries with enhanced action types and tape validation
             const opportunities = discoveries
-                .filter(d => d.action === 'BUY' && d.ticker !== 'OPTIMIZED_AUDIT' && d.score > 60)
+                .filter(d => ['BUY', 'EARLY_READY', 'PRE_BREAKOUT'].includes(d.action) && d.ticker !== 'OPTIMIZED_AUDIT' && d.score > 50)
                 .sort((a, b) => {
-                    // Prioritize: new opportunities first, then owned positions with high scores
+                    // Prioritize by action type first, then portfolio status, then score
+                    const actionPriority = { 'BUY': 3, 'EARLY_READY': 2, 'PRE_BREAKOUT': 1 };
+                    if (actionPriority[a.action] !== actionPriority[b.action]) {
+                        return actionPriority[b.action] - actionPriority[a.action];
+                    }
                     if (a.portfolio_status === 'OPPORTUNITY' && b.portfolio_status === 'OWNED') return -1;
                     if (a.portfolio_status === 'OWNED' && b.portfolio_status === 'OPPORTUNITY') return 1;
                     return b.score - a.score;
                 })
-                .slice(0, 6); // Show top 6
+                .slice(0, 8); // Show top 8 with new categories
             
             if (opportunities.length === 0) {
                 el.innerHTML = '<div class="loading">No high-confidence opportunities found</div>';
@@ -168,9 +172,23 @@
                 // Portfolio context
                 const portfolioIcon = isOwned ? '🏠' : '🎯';
                 const portfolioLabel = isOwned ? 'OWNED' : 'OPPORTUNITY';
-                const actionText = isOwned ? 'ADD MORE' : 'BUY';
-                const buttonText = isOwned ? `Add $${suggestedAmount}` : `Buy $${suggestedAmount}`;
+                const actionText = isOwned ? 'ADD MORE' : d.action || 'BUY';
+                const buttonText = isOwned ? `Add $${suggestedAmount}` : `${d.action} $${suggestedAmount}`;
                 const badgeClass = isOwned ? 'pl-pos' : 'pl-strong-pos';
+                
+                // Enhanced tape quality indicators
+                const tapeQuality = d.tape_quality || 'NEUTRAL';
+                const tapeIcon = tapeQuality === 'STRONG' ? '🟢' : tapeQuality === 'WEAK' ? '🔴' : '🟡';
+                const tapeColor = tapeQuality === 'STRONG' ? '#10b981' : tapeQuality === 'WEAK' ? '#ef4444' : '#f59e0b';
+                
+                // Action color coding
+                const actionColor = d.action === 'BUY' ? '#10b981' : d.action === 'EARLY_READY' ? '#3b82f6' : d.action === 'PRE_BREAKOUT' ? '#f59e0b' : '#6b7280';
+                
+                // Live data indicators
+                const liveRsi = d.intraday?.live_rsi;
+                const vwapStatus = d.intraday?.vwap_reclaimed;
+                const ema9Over20 = d.intraday?.ema9_over_20;
+                const drawdown = d.intraday?.drawdown_from_hod;
                 
                 // Portfolio details for owned positions
                 let portfolioDetails = '';
@@ -186,22 +204,28 @@
                 }
                 
                 return `
-                    <div class="lpi-card" style="${isOwned ? 'border-left: 4px solid #3b82f6;' : 'border-left: 4px solid #10b981;'}">
+                    <div class="lpi-card" style="border-left: 4px solid ${actionColor};">
                         <div class="lpi-action act-BUY_MORE">
                             <div>
-                                <div style="font-size:14px;opacity:.9">
-                                    ${portfolioIcon} ${ticker} • $${fmt(price)} • ${portfolioLabel}
+                                <div style="font-size:14px;opacity:.9;display:flex;align-items:center;gap:8px">
+                                    <span>${portfolioIcon} ${ticker} • $${fmt(price)} • ${portfolioLabel}</span>
+                                    <span style="color:${tapeColor};font-weight:bold">${tapeIcon} ${tapeQuality}</span>
                                 </div>
-                                <div style="font-size:22px">${actionText} <span style="opacity:.8;font-size:14px">(${confidence}% conf)</span></div>
+                                <div style="font-size:22px;color:${actionColor}">${actionText} <span style="opacity:.8;font-size:14px">(${confidence}% conf)</span></div>
+                                ${d.action_reason ? `<div style="font-size:12px;opacity:0.8;margin-top:4px;color:#666">${d.action_reason}</div>` : ''}
                             </div>
                             <div class="lpi-badge ${badgeClass}">${isOwned ? 'OWNED' : 'NEW'}</div>
                         </div>
 
                         <div class="lpi-stats">
                             <div class="lpi-stat"><div class="k">VIGL Score</div><div class="v">${Math.floor(d.score)}</div></div>
+                            <div class="lpi-stat"><div class="k">RSI</div><div class="v">${liveRsi ? liveRsi.toFixed(1) : 'N/A'}</div></div>
+                            <div class="lpi-stat"><div class="k">VWAP</div><div class="v">${vwapStatus ? '✅ Above' : '❌ Below'}</div></div>
+                            <div class="lpi-stat"><div class="k">EMA</div><div class="v">${ema9Over20 ? '✅ Bull' : '❌ Bear'}</div></div>
+                            ${drawdown ? `<div class="lpi-stat"><div class="k">HOD Draw</div><div class="v" style="color:${drawdown >= 0.15 ? '#ef4444' : '#10b981'}">${(drawdown * 100).toFixed(1)}%</div></div>` : ''}
                             ${portfolioDetails}
                             ${!isOwned ? `<div class="lpi-stat"><div class="k">Target Size</div><div class="v">$${suggestedAmount}</div></div>` : ''}
-                            <div class="lpi-stat"><div class="k">Live Data</div><div class="v">${d.price_data?.is_live_data ? '🔴 LIVE' : '📊 Data'}</div></div>
+                            <div class="lpi-stat"><div class="k">Live Data</div><div class="v">${d.price_data?.is_live_data ? '🔴 LIVE' : '📊 Cached'}</div></div>
                         </div>
 
                         <div class="lpi-targets">

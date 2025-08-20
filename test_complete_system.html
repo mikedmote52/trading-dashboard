@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complete System Verification</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { border: 1px solid #ddd; margin: 20px 0; padding: 15px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .data { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Complete Trading Intelligence System Verification</h1>
+    
+    <div class="section">
+        <h2>📊 Portfolio Management System</h2>
+        <div id="portfolio-status">Loading...</div>
+        <div id="portfolio-data" class="data"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🔍 AlphaStack VIGL Discovery System</h2>
+        <div id="discovery-status">Loading...</div>
+        <div id="discovery-data" class="data"></div>
+    </div>
+    
+    <div class="section">
+        <h2>💰 Order Execution System</h2>
+        <div id="orders-status">Loading...</div>
+        <div id="orders-data" class="data"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🖥️ UI Integration Test</h2>
+        <div id="ui-status">Loading...</div>
+        <div id="ui-data" class="data"></div>
+    </div>
+
+    <script>
+        async function testSystem() {
+            // Test Portfolio System
+            try {
+                const portfolioResponse = await fetch('/api/portfolio-intelligence/analyze');
+                const portfolioData = await portfolioResponse.json();
+                
+                document.getElementById('portfolio-status').innerHTML = '<span class="success">✅ Portfolio API Working</span>';
+                document.getElementById('portfolio-data').innerHTML = `
+                    <strong>Total Value:</strong> $${portfolioData.summary.total_value}<br>
+                    <strong>Total P&L:</strong> $${portfolioData.summary.total_pnl}<br>
+                    <strong>Positions:</strong> ${portfolioData.positions.length}<br>
+                    <strong>Sample Position:</strong> ${portfolioData.positions[0].symbol} - ${portfolioData.positions[0].recommendation.action}
+                `;
+            } catch (error) {
+                document.getElementById('portfolio-status').innerHTML = '<span class="error">❌ Portfolio API Failed</span>';
+                document.getElementById('portfolio-data').innerHTML = error.message;
+            }
+            
+            // Test AlphaStack Discovery
+            try {
+                const discoveryResponse = await fetch('/api/discoveries/latest-scores');
+                const discoveryData = await discoveryResponse.json();
+                
+                document.getElementById('discovery-status').innerHTML = '<span class="success">✅ AlphaStack API Working</span>';
+                const buyRecommendations = discoveryData.data.filter(d => d.action === 'BUY');
+                document.getElementById('discovery-data').innerHTML = `
+                    <strong>Total Discoveries:</strong> ${discoveryData.data.length}<br>
+                    <strong>BUY Recommendations:</strong> ${buyRecommendations.length}<br>
+                    <strong>Top Recommendation:</strong> ${buyRecommendations[0] ? `${buyRecommendations[0].ticker} (Score: ${buyRecommendations[0].score}, Status: ${buyRecommendations[0].portfolio_status})` : 'None'}
+                `;
+            } catch (error) {
+                document.getElementById('discovery-status').innerHTML = '<span class="error">❌ AlphaStack API Failed</span>';
+                document.getElementById('discovery-data').innerHTML = error.message;
+            }
+            
+            // Test Order System
+            try {
+                const orderResponse = await fetch('/api/orders/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: 'TEST',
+                        usd_amount: 100,
+                        current_price: 10.00,
+                        tp1_pct: 0.15,
+                        tp2_pct: 0.30,
+                        stop_pct: 0.08
+                    })
+                });
+                const orderData = await orderResponse.json();
+                
+                const ordersEnabled = !orderData.dry_run;
+                document.getElementById('orders-status').innerHTML = ordersEnabled ? 
+                    '<span class="success">✅ Live Trading Enabled</span>' : 
+                    '<span style="color: orange;">⚠️ Dry Run Mode (Safe Testing)</span>';
+                document.getElementById('orders-data').innerHTML = `
+                    <strong>Mode:</strong> ${orderData.dry_run ? 'Dry Run (Testing)' : 'Live Trading'}<br>
+                    <strong>Status:</strong> ${orderData.ok ? 'Working' : 'Failed'}<br>
+                    <strong>Orders:</strong> ${orderData.orders ? orderData.orders.length : 0} orders would be placed
+                `;
+            } catch (error) {
+                document.getElementById('orders-status').innerHTML = '<span class="error">❌ Order System Failed</span>';
+                document.getElementById('orders-data').innerHTML = error.message;
+            }
+            
+            // Test UI Integration
+            try {
+                const uiResponse = await fetch('/portfolio-lpi-v2.html');
+                const uiText = await uiResponse.text();
+                
+                const hasPortfolio = uiText.includes('portfolio-summary');
+                const hasDiscovery = uiText.includes('Discovery Opportunities');
+                const hasOrderButtons = uiText.includes('renderEnhancedDiscoveryCards');
+                
+                if (hasPortfolio && hasDiscovery && hasOrderButtons) {
+                    document.getElementById('ui-status').innerHTML = '<span class="success">✅ Complete UI Integration</span>';
+                    document.getElementById('ui-data').innerHTML = `
+                        <strong>Portfolio Section:</strong> ✅ Present<br>
+                        <strong>Discovery Section:</strong> ✅ Present<br>
+                        <strong>Order Buttons:</strong> ✅ Present<br>
+                        <strong>URL:</strong> <a href="/portfolio-lpi-v2.html" target="_blank">Open LPI v2 System</a>
+                    `;
+                } else {
+                    document.getElementById('ui-status').innerHTML = '<span class="error">❌ UI Missing Components</span>';
+                    document.getElementById('ui-data').innerHTML = `
+                        Portfolio: ${hasPortfolio ? '✅' : '❌'}<br>
+                        Discovery: ${hasDiscovery ? '✅' : '❌'}<br>
+                        Orders: ${hasOrderButtons ? '✅' : '❌'}
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('ui-status').innerHTML = '<span class="error">❌ UI Test Failed</span>';
+                document.getElementById('ui-data').innerHTML = error.message;
+            }
+        }
+        
+        testSystem();
+    </script>
+</body>
+</html>

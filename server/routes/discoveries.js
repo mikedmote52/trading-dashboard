@@ -6,6 +6,7 @@ const db = require('../db/sqlite');
 const { safeNum, formatPrice, formatPercent, formatMultiplier } = require('../services/squeeze/metrics_safety');
 const https = require('https');
 const fetch = require('node-fetch');
+const liveDataService = require('../services/market_data/live_feed');
 
 // New unified service and mapper
 const { scanOnce, topDiscoveries, getEngineInfo } = require('../services/discovery_service');
@@ -14,6 +15,82 @@ const { toUiDiscovery, mapDiscoveries } = require('./mappers/to_ui_discovery');
 // simple in-memory job registry
 const jobs = new Map();
 let lastJob = null;
+
+// Enhanced tape quality assessment functions
+function assessTapeQuality(liveData) {
+  if (!liveData) return 'UNKNOWN';
+  
+  const { live_price, live_vwap, live_rsi, ema9_ge_ema20, drawdown_from_hod } = liveData;
+  
+  // Strong tape conditions
+  if (live_price && live_vwap && live_price > live_vwap && 
+      ema9_ge_ema20 && live_rsi >= 45 && live_rsi <= 70 && 
+      (drawdown_from_hod || 0) < 0.15) {
+    return 'STRONG';
+  }
+  
+  // Weak tape conditions
+  if ((live_price && live_vwap && live_price < live_vwap) ||
+      (live_rsi && live_rsi > 75) ||
+      (drawdown_from_hod && drawdown_from_hod >= 0.20)) {
+    return 'WEAK';
+  }
+  
+  return 'NEUTRAL';
+}
+
+function generateActionReason(discovery, liveData, portfolioStatus) {
+  const reasons = [];
+  
+  if (liveData) {
+    if (liveData.live_price > liveData.live_vwap) {
+      reasons.push('Above VWAP ✅');
+    } else if (liveData.live_price < liveData.live_vwap) {
+      reasons.push('Below VWAP - wait for reclaim ⚠️');
+    }
+    
+    if (liveData.ema9_ge_ema20) {
+      reasons.push('Bullish EMA cross ✅');
+    } else {
+      reasons.push('EMA bearish ❌');
+    }
+    
+    if (liveData.live_rsi > 75) {
+      reasons.push('RSI overbought ⚠️');
+    } else if (liveData.live_rsi < 30) {
+      reasons.push('RSI oversold ✅');
+    }
+    
+    if (liveData.drawdown_from_hod >= 0.15) {
+      reasons.push('Large drawdown from HOD ❌');
+    }
+  }
+  
+  if (portfolioStatus === 'OWNED') {
+    reasons.push('Already owned - consider adding more 🏠');
+  }
+  
+  if (reasons.length === 0) {
+    reasons.push('Monitor for entry signals');
+  }
+  
+  return reasons.join('; ');
+}
+
+function enhanceActionWithTapeValidation(originalAction, tapeQuality, liveData) {
+  // If tape is weak, downgrade BUY to PRE_BREAKOUT
+  if (originalAction === 'BUY' && tapeQuality === 'WEAK') {
+    return 'PRE_BREAKOUT';
+  }
+  
+  // If tape is strong, upgrade PRE_BREAKOUT to EARLY_READY
+  if (originalAction === 'PRE_BREAKOUT' && tapeQuality === 'STRONG' && 
+      liveData && liveData.live_rsi < 70) {
+    return 'EARLY_READY';
+  }
+  
+  return originalAction;
+}
 
 // Alpaca configuration
 const ALPACA_CONFIG = {
@@ -1240,7 +1317,12 @@ router.get('/latest-scores', async (req, res) => {
       console.warn('⚠️ Could not fetch portfolio positions for context:', portfolioError.message);
     }
     
-    // Transform to unified engine format with enhanced data + portfolio context
+    // Get live data for all discovery symbols (enhanced scoring)
+    console.log('🔴 Fetching live tape data for enhanced scoring...');
+    const discoverySymbols = discoveries.slice(0, 20).map(d => d.ticker); // Limit to top 20 for performance
+    const liveDataMap = await liveDataService.getLiveMetricsForSymbols(discoverySymbols);
+    
+    // Transform to unified engine format with enhanced data + portfolio context + live tape
     const scores = await Promise.all(discoveries.map(async (d) => {
       // Parse components if available
       let componentsData = {};
@@ -1306,30 +1388,53 @@ router.get('/latest-scores', async (req, res) => {
       const portfolioPosition = portfolioPositions.find(p => p.symbol === d.ticker);
       const isOwned = !!portfolioPosition;
       
+      // Get live tape data for this symbol
+      const liveData = liveDataMap[d.ticker];
+      
+      // Assess tape quality
+      const tapeQuality = assessTapeQuality(liveData);
+      
+      // Enhance action with tape validation
+      const baseAction = d.action || (d.score >= 70 ? 'BUY' : d.score >= 60 ? 'WATCHLIST' : 'MONITOR');
+      const enhancedAction = enhanceActionWithTapeValidation(baseAction, tapeQuality, liveData);
+      
+      // Generate action reasoning
+      const actionReason = generateActionReason(d, liveData, isOwned ? 'OWNED' : 'OPPORTUNITY');
+      
       return {
         ticker: d.ticker,
         score: d.score,
         vigl_score: d.score,
-        action: d.action || (d.score >= 70 ? 'BUY' : d.score >= 60 ? 'WATCHLIST' : 'MONITOR'),
+        action: enhancedAction,
+        tape_quality: tapeQuality,
+        action_reason: actionReason,
         intraday: {
           rvol: relVol,
-          vwap_reclaimed: vwapReclaimed,
-          ema9_over_20: d.score > 65,
+          vwap_reclaimed: liveData ? (liveData.live_price > liveData.live_vwap) : vwapReclaimed,
+          ema9_over_20: liveData ? liveData.ema9_ge_ema20 : (d.score > 65),
           change_percent: realTimeData.changePercent || 0,
           volume: realTimeData.volume || 0,
-          is_live_data: !!realTimeData.timestamp
+          is_live_data: !!realTimeData.timestamp,
+          // Enhanced live tape metrics
+          live_rsi: liveData?.live_rsi || null,
+          drawdown_from_hod: liveData?.drawdown_from_hod || null,
+          relative_volume: liveData?.relative_volume || relVol
         },
         price: currentPrice,
         price_data: {
-          current: currentPrice,
+          current: liveData?.live_price || currentPrice,
           change: realTimeData.change || 0,
           change_percent: realTimeData.changePercent || 0,
-          high: realTimeData.high || currentPrice,
+          high: liveData?.hod || realTimeData.high || currentPrice,
           low: realTimeData.low || currentPrice,
-          vwap: realTimeData.vwap || currentPrice,
+          vwap: liveData?.live_vwap || realTimeData.vwap || currentPrice,
           volume: realTimeData.volume || 0,
           last_updated: realTimeData.timestamp || d.created_at,
-          is_live_data: !!realTimeData.timestamp
+          is_live_data: !!realTimeData.timestamp || !!liveData,
+          // Enhanced live price metrics
+          ema9: liveData?.ema9 || null,
+          ema20: liveData?.ema20 || null,
+          cached_price: currentPrice // Original cached price for comparison
         },
         thesis: thesisData,
         targets: targetsData,
