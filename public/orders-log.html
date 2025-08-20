@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders Log - Trading Dashboard</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .orders-log {
+            background: var(--bg-1);
+            border: 1px solid var(--bd-1);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .log-header {
+            background: linear-gradient(135deg, #1a1f3a, #0e1320);
+            padding: 16px;
+            border-bottom: 1px solid var(--bd-1);
+        }
+        
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .log-table th {
+            background: var(--bg-2);
+            color: var(--tx-md);
+            padding: 12px 8px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--bd-1);
+        }
+        
+        .log-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(27, 36, 64, 0.3);
+            font-size: 12px;
+        }
+        
+        .log-table tbody tr:hover {
+            background: rgba(27, 36, 64, 0.2);
+        }
+        
+        .status-new { color: #60a5fa; }
+        .status-filled { color: var(--act-buy); }
+        .status-cancelled { color: var(--tx-md); }
+        .status-rejected { color: var(--act-sell); }
+        
+        .order-id {
+            font-family: monospace;
+            font-size: 10px;
+            opacity: 0.8;
+        }
+        
+        .filter-bar {
+            padding: 16px;
+            background: var(--bg-2);
+            border-bottom: 1px solid var(--bd-1);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-input {
+            background: var(--bg-1);
+            border: 1px solid var(--bd-1);
+            color: var(--tx-hi);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="font-size: 28px; margin-bottom: 10px;">
+            📊 Orders Log - Trading Dashboard
+        </h1>
+        <p style="color: #8ea0c9;">Complete audit trail of all trading activity</p>
+    </div>
+
+    <div class="orders-log">
+        <div class="log-header">
+            <h2 style="margin: 0; font-size: 18px;">Recent Orders</h2>
+        </div>
+        
+        <div class="filter-bar">
+            <input type="date" id="dateFrom" class="filter-input" placeholder="From">
+            <input type="date" id="dateTo" class="filter-input" placeholder="To">
+            <input type="text" id="tickerFilter" class="filter-input" placeholder="Filter by ticker..." maxlength="10">
+            <select id="statusFilter" class="filter-input">
+                <option value="">All Status</option>
+                <option value="new">New</option>
+                <option value="filled">Filled</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="rejected">Rejected</option>
+            </select>
+            <button id="refreshBtn" class="lpi-chip" style="background: var(--act-buy); color: white; cursor: pointer;">Refresh</button>
+        </div>
+        
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Ticker</th>
+                    <th>Action</th>
+                    <th>USD Amount</th>
+                    <th>Qty</th>
+                    <th>Avg Fill</th>
+                    <th>TP1%</th>
+                    <th>TP2%</th>
+                    <th>Stop%</th>
+                    <th>Status</th>
+                    <th>Order ID</th>
+                </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                <tr>
+                    <td colspan="11" style="text-align: center; padding: 40px; color: var(--tx-md);">
+                        Loading orders...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let allOrders = [];
+        
+        async function loadOrders() {
+            try {
+                console.log('📊 Loading recent orders...');
+                const response = await fetch('/api/orders/recent');
+                const data = await response.json();
+                
+                allOrders = data.orders || [];
+                console.log(`📊 Loaded ${allOrders.length} orders`);
+                
+                renderOrdersTable();
+                
+            } catch (error) {
+                console.error('❌ Failed to load orders:', error);
+                document.getElementById('ordersTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 40px; color: var(--act-sell);">
+                            Error loading orders: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        function renderOrdersTable() {
+            const tbody = document.getElementById('ordersTableBody');
+            
+            if (allOrders.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 40px; color: var(--tx-md);">
+                            No orders found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Apply filters
+            let filteredOrders = allOrders.slice();
+            
+            const tickerFilter = document.getElementById('tickerFilter').value.toUpperCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (tickerFilter) {
+                filteredOrders = filteredOrders.filter(order => 
+                    order.symbol.includes(tickerFilter)
+                );
+            }
+            
+            if (statusFilter) {
+                filteredOrders = filteredOrders.filter(order => 
+                    order.status === statusFilter
+                );
+            }
+            
+            if (dateFrom) {
+                filteredOrders = filteredOrders.filter(order => 
+                    new Date(order.created_at) >= new Date(dateFrom)
+                );
+            }
+            
+            if (dateTo) {
+                filteredOrders = filteredOrders.filter(order => 
+                    new Date(order.created_at) <= new Date(dateTo + 'T23:59:59')
+                );
+            }
+            
+            // Render filtered orders
+            tbody.innerHTML = filteredOrders.map(order => `
+                <tr>
+                    <td>${formatTimestamp(order.created_at)}</td>
+                    <td><strong>${order.symbol}</strong></td>
+                    <td style="text-transform: uppercase; color: var(--act-buy);">${order.side}</td>
+                    <td>—</td>
+                    <td>${order.qty}</td>
+                    <td>${order.filled_avg_price || '—'}</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td><span class="status-${order.status}">${order.status.toUpperCase()}</span></td>
+                    <td><span class="order-id">${order.id.substring(0, 8)}...</span></td>
+                </tr>
+            `).join('');
+        }
+        
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffHours = (now - date) / (1000 * 60 * 60);
+            
+            if (diffHours < 24) {
+                return date.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } else {
+                return date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('refreshBtn').addEventListener('click', loadOrders);
+        document.getElementById('tickerFilter').addEventListener('input', renderOrdersTable);
+        document.getElementById('statusFilter').addEventListener('change', renderOrdersTable);
+        document.getElementById('dateFrom').addEventListener('change', renderOrdersTable);
+        document.getElementById('dateTo').addEventListener('change', renderOrdersTable);
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadOrders();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadOrders, 30000);
+        });
+    </script>
+</body>
+</html>
