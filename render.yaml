@@ -61,6 +61,12 @@ services:
       - key: SCAN_MAX_TICKERS
         value: 1200
         
+      # Risk Management (Conservative Go-Live)
+      - key: MAX_DAILY_NOTIONAL
+        value: "500"
+      - key: MAX_TICKER_EXPOSURE
+        value: "150"
+        
       # Scoring Configuration (keep as single line JSON)
       - key: SCORING_WEIGHTS_JSON
         value: '{"short_interest_weight":2.0,"borrow_fee_weight":1.5,"volume_weight":1.2,"momentum_weight":1.0,"catalyst_weight":0.8,"float_penalty_weight":-0.6}'
