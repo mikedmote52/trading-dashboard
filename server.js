@@ -173,6 +173,9 @@ app.use('/api/scan', require('./server/routes/scan'));
 // Unified Engine Routes
 app.use('/api/engine', require('./server/routes/engine'));
 
+// Admin Fix Routes (temporary)
+app.use('/api/admin', require('./server/routes/admin-fix'));
+
 // Enhanced Portfolio Routes  
 app.use('/api/portfolio', require('./server/routes/thesis'));
 app.use('/api/portfolio', require('./server/routes/rules'));
