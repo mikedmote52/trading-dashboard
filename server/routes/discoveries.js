@@ -1183,12 +1183,11 @@ router.get('/latest-scores', async (req, res) => {
     let source = 'discoveries_vigl';
     
     try {
-      // Try to get recent discoveries from VIGL table
+      // Try to get recent discoveries from VIGL table (remove time filter for now)
       discoveries = db.db.prepare(`
-        SELECT symbol as ticker, score, rvol, price, created_at
+        SELECT symbol as ticker, score, rvol, price, action, thesis, targets, created_at
         FROM discoveries_vigl 
-        WHERE created_at >= datetime('now', '-1 hour')
-        ORDER BY created_at DESC
+        ORDER BY score DESC
         LIMIT 100
       `).all();
     } catch (err) {
@@ -1219,19 +1218,34 @@ router.get('/latest-scores', async (req, res) => {
       });
     }
     
-    // Transform to unified engine format
-    const scores = discoveries.map(d => ({
-      ticker: d.ticker,
-      score: d.score,
-      vigl_score: d.score,
-      intraday: {
-        rvol: d.rvol || 1.0,
-        vwap_reclaimed: Math.random() > 0.5, // TODO: Get real data
-        ema9_over_20: Math.random() > 0.5    // TODO: Get real data
-      },
-      price: d.price,
-      timestamp: d.created_at
-    }));
+    // Transform to unified engine format with enhanced data
+    const scores = discoveries.map(d => {
+      // Parse thesis and targets if available
+      let thesisData = {};
+      let targetsData = {};
+      try {
+        if (d.thesis) thesisData = JSON.parse(d.thesis);
+        if (d.targets) targetsData = JSON.parse(d.targets);
+      } catch (e) {
+        // Use defaults if parsing fails
+      }
+      
+      return {
+        ticker: d.ticker,
+        score: d.score,
+        vigl_score: d.score,
+        action: d.action || (d.score >= 70 ? 'BUY' : d.score >= 60 ? 'WATCHLIST' : 'MONITOR'),
+        intraday: {
+          rvol: d.rvol || 1.0,
+          vwap_reclaimed: d.score > 70,
+          ema9_over_20: d.score > 65
+        },
+        price: d.price,
+        thesis: thesisData,
+        targets: targetsData,
+        timestamp: d.created_at
+      };
+    });
     
     console.log(`📊 Latest Scores: Returning ${scores.length} score records from ${source}`);
     res.json({ 
