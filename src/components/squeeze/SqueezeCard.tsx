@@ -35,6 +35,22 @@ interface SqueezeCardProps {
       vwap_reclaimed: boolean;
       change_percent: number;
     };
+    // Portfolio integration
+    portfolio_status?: string;
+    current_position?: any;
+    portfolio_context?: {
+      quantity: number;
+      avg_cost: number;
+      unrealized_pnl: number;
+      unrealized_pnl_pct: number;
+      last_vigl_action: string;
+      recommendation: {
+        action: string;
+        confidence: number;
+        reasoning: string;
+      };
+      risk_assessment: string;
+    };
   };
   onOrderExecuted?: () => void;
 }
@@ -45,7 +61,7 @@ export const SqueezeCard: React.FC<SqueezeCardProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   
-  const { ticker, score, action, thesis, targets, price_data, intraday } = recommendation;
+  const { ticker, score, action, thesis, targets, price_data, intraday, portfolio_status, portfolio_context } = recommendation;
   
   const getActionColor = (action: string) => {
     switch (action) {
@@ -56,6 +72,16 @@ export const SqueezeCard: React.FC<SqueezeCardProps> = ({
       default: return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
+  
+  const getPortfolioStatusColor = (status: string) => {
+    switch (status) {
+      case 'OWNED': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'OPPORTUNITY': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
+  
+  const isOwned = portfolio_status === 'OWNED';
   
   const formatPrice = (price: number) => {
     return price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(3)}`;
@@ -121,11 +147,16 @@ export const SqueezeCard: React.FC<SqueezeCardProps> = ({
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-shadow duration-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <h3 className="font-bold text-lg">{ticker}</h3>
           <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getActionColor(action)}`}>
             {action}
           </span>
+          {portfolio_status && (
+            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPortfolioStatusColor(portfolio_status)}`}>
+              {portfolio_status === 'OWNED' ? '🏠 OWNED' : '🎯 OPPORTUNITY'}
+            </span>
+          )}
           {price_data.is_live_data && (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
               LIVE
@@ -187,18 +218,63 @@ export const SqueezeCard: React.FC<SqueezeCardProps> = ({
         </div>
       </div>
 
-      {/* Expandable Thesis Details */}
+      {/* Expandable Details */}
       {expanded && (
-        <div className="bg-blue-50 rounded-lg p-3 mb-3">
-          <div className="text-xs font-medium text-blue-700 mb-2">Thesis Breakdown</div>
-          <div className="space-y-1 text-xs">
-            {Object.entries(thesis).map(([key, value]) => (
-              <div key={key} className="flex justify-between">
-                <span className="capitalize text-gray-600">{key}:</span>
-                <span className="font-semibold">{value} pts</span>
-              </div>
-            ))}
+        <div className="space-y-3 mb-3">
+          {/* Thesis Breakdown */}
+          <div className="bg-blue-50 rounded-lg p-3">
+            <div className="text-xs font-medium text-blue-700 mb-2">Thesis Breakdown</div>
+            <div className="space-y-1 text-xs">
+              {Object.entries(thesis).map(([key, value]) => (
+                <div key={key} className="flex justify-between">
+                  <span className="capitalize text-gray-600">{key}:</span>
+                  <span className="font-semibold">{value} pts</span>
+                </div>
+              ))}
+            </div>
           </div>
+          
+          {/* Portfolio Context */}
+          {isOwned && portfolio_context && (
+            <div className="bg-purple-50 rounded-lg p-3">
+              <div className="text-xs font-medium text-purple-700 mb-2">Portfolio Position</div>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Quantity:</span>
+                  <span className="font-semibold">{portfolio_context.quantity} shares</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Avg Cost:</span>
+                  <span className="font-semibold">{formatPrice(portfolio_context.avg_cost)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">P&L:</span>
+                  <span className={`font-semibold ${portfolio_context.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatPrice(portfolio_context.unrealized_pnl)} ({formatPercent(portfolio_context.unrealized_pnl_pct)})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Last Action:</span>
+                  <span className="font-semibold">{portfolio_context.last_vigl_action}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Risk:</span>
+                  <span className={`font-semibold capitalize ${
+                    portfolio_context.risk_assessment === 'high' ? 'text-red-600' : 
+                    portfolio_context.risk_assessment === 'medium' ? 'text-yellow-600' : 'text-green-600'
+                  }`}>
+                    {portfolio_context.risk_assessment}
+                  </span>
+                </div>
+                {portfolio_context.recommendation && (
+                  <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                    <div className="font-medium">Recommendation: {portfolio_context.recommendation.action}</div>
+                    <div className="text-gray-600 mt-1">{portfolio_context.recommendation.reasoning}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -215,6 +291,7 @@ export const SqueezeCard: React.FC<SqueezeCardProps> = ({
           ticker={ticker}
           price={price_data.current}
           action={action}
+          portfolio_status={portfolio_status}
           onOrderExecuted={onOrderExecuted}
         />
       </div>

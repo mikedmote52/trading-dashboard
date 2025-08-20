@@ -4,6 +4,7 @@ interface OrderButtonsProps {
   ticker: string;
   price: number;
   action: string;
+  portfolio_status?: string;
   onOrderExecuted?: () => void;
 }
 
@@ -11,6 +12,7 @@ export const OrderButtons: React.FC<OrderButtonsProps> = ({
   ticker, 
   price, 
   action, 
+  portfolio_status,
   onOrderExecuted 
 }) => {
   const [loading, setLoading] = useState(false);
@@ -66,7 +68,8 @@ export const OrderButtons: React.FC<OrderButtonsProps> = ({
     if (status === 'error') return 'Failed ❌';
     
     const shares = Math.floor(100 / price);
-    return `Buy ${shares} shares`;
+    const isOwned = portfolio_status === 'OWNED';
+    return isOwned ? `Add ${shares} shares` : `Buy ${shares} shares`;
   };
 
   const getSellButtonText = () => {
@@ -78,6 +81,7 @@ export const OrderButtons: React.FC<OrderButtonsProps> = ({
 
   const getButtonStyle = (buttonAction: 'BUY' | 'SELL') => {
     const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50";
+    const isOwned = portfolio_status === 'OWNED';
     
     if (status === 'success') {
       return `${baseStyle} bg-green-500 text-white`;
@@ -87,12 +91,15 @@ export const OrderButtons: React.FC<OrderButtonsProps> = ({
     }
     
     if (buttonAction === 'BUY') {
-      const isPrimary = action === 'BUY';
+      const isPrimary = action === 'BUY' && !isOwned;
       return isPrimary ? 
         `${baseStyle} bg-green-600 hover:bg-green-700 text-white shadow-lg` :
         `${baseStyle} bg-green-100 hover:bg-green-200 text-green-800 border border-green-300`;
     } else {
-      return `${baseStyle} bg-red-100 hover:bg-red-200 text-red-800 border border-red-300`;
+      // Emphasize sell button for owned positions
+      return isOwned ? 
+        `${baseStyle} bg-red-600 hover:bg-red-700 text-white shadow-lg` :
+        `${baseStyle} bg-red-100 hover:bg-red-200 text-red-800 border border-red-300`;
     }
   };
 

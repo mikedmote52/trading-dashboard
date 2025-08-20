@@ -5,6 +5,7 @@ const EngineOptimized = require('../services/squeeze/engine_optimized');
 const db = require('../db/sqlite');
 const { safeNum, formatPrice, formatPercent, formatMultiplier } = require('../services/squeeze/metrics_safety');
 const https = require('https');
+const fetch = require('node-fetch');
 
 // New unified service and mapper
 const { scanOnce, topDiscoveries, getEngineInfo } = require('../services/discovery_service');
@@ -1227,7 +1228,19 @@ router.get('/latest-scores', async (req, res) => {
       });
     }
     
-    // Transform to unified engine format with enhanced data
+    // Get portfolio positions for context
+    let portfolioPositions = [];
+    try {
+      const portfolioResponse = await fetch(`http://localhost:${process.env.PORT || 3003}/api/portfolio-intelligence/analyze`);
+      if (portfolioResponse.ok) {
+        const portfolioData = await portfolioResponse.json();
+        portfolioPositions = portfolioData.positions || [];
+      }
+    } catch (portfolioError) {
+      console.warn('⚠️ Could not fetch portfolio positions for context:', portfolioError.message);
+    }
+    
+    // Transform to unified engine format with enhanced data + portfolio context
     const scores = await Promise.all(discoveries.map(async (d) => {
       // Parse components if available
       let componentsData = {};
@@ -1289,6 +1302,10 @@ router.get('/latest-scores', async (req, res) => {
         stop: `-${(stopPct * 100).toFixed(0)}%`
       };
       
+      // Check if this discovery is already in portfolio
+      const portfolioPosition = portfolioPositions.find(p => p.symbol === d.ticker);
+      const isOwned = !!portfolioPosition;
+      
       return {
         ticker: d.ticker,
         score: d.score,
@@ -1311,12 +1328,25 @@ router.get('/latest-scores', async (req, res) => {
           low: realTimeData.low || currentPrice,
           vwap: realTimeData.vwap || currentPrice,
           volume: realTimeData.volume || 0,
-          last_updated: realTimeData.timestamp || d.created_at
+          last_updated: realTimeData.timestamp || d.created_at,
+          is_live_data: !!realTimeData.timestamp
         },
         thesis: thesisData,
         targets: targetsData,
         components: componentsData,
-        timestamp: d.created_at
+        timestamp: d.created_at,
+        // Portfolio integration
+        portfolio_status: isOwned ? 'OWNED' : 'OPPORTUNITY',
+        current_position: portfolioPosition || null,
+        portfolio_context: isOwned ? {
+          quantity: portfolioPosition.qty,
+          avg_cost: portfolioPosition.avgCost,
+          unrealized_pnl: portfolioPosition.unrealizedPnL,
+          unrealized_pnl_pct: portfolioPosition.unrealizedPnLPercent,
+          last_vigl_action: portfolioPosition.last_vigl_action,
+          recommendation: portfolioPosition.recommendation,
+          risk_assessment: portfolioPosition.risk_assessment
+        } : null
       };
     }));
     
