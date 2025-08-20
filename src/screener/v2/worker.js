@@ -2,7 +2,7 @@ const { spawn } = require("child_process");
 const path = require("path");
 const cache = require("./cache");
 
-const REFRESH_MS = Number(process.env.V2_REFRESH_MS || 30_000);
+const REFRESH_MS = Number(process.env.V2_REFRESH_MS || 120_000); // Increased to 2 minutes for full universe scans
 const PY = process.env.PYTHON_BIN || "python3";
 const SCRIPT = process.env.SCREENER_V2_SCRIPT || path.resolve("agents/universe_screener.py");
 const CWD = process.env.SCREENER_CWD || process.cwd();
@@ -11,7 +11,7 @@ let timer = null;
 
 function runOnce() {
   return new Promise((resolve, reject) => {
-    const args = [SCRIPT, "--limit", "10", "--exclude-symbols", "BTAI,KSS,UP,TNXP"];
+    const args = [SCRIPT, "--limit", "50", "--full-universe", "--exclude-symbols", "BTAI,KSS,UP,TNXP"];
     console.log(`🔄 V2 Worker: Starting background refresh...`);
     
     const proc = spawn(PY, args, {

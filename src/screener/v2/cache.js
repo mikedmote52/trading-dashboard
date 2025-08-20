@@ -5,7 +5,7 @@ const state = {
   error: null,
 };
 
-const TTL_MS = Number(process.env.V2_CACHE_TTL_MS || 60_000); // 60s TTL cache
+const TTL_MS = Number(process.env.V2_CACHE_TTL_MS || 180_000); // 3 minute TTL cache for full universe scans
 
 function isFresh() {
   return state.tickers && (Date.now() - state.updatedAt) < TTL_MS;

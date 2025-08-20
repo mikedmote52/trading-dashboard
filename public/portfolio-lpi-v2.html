@@ -85,6 +85,31 @@
             }
         }
 
+        /* Professional Semantic Color System */
+        .action-buy, .btn-buy {
+            background: linear-gradient(90deg, #10b981, #22c55e) !important;
+            color: white;
+            border: 1px solid #10b981;
+        }
+        
+        .action-early-ready {
+            background: linear-gradient(90deg, #0ea5e9, #38bdf8) !important;
+            color: white;
+            border: 1px solid #0ea5e9;
+        }
+        
+        .action-pre-breakout {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24) !important;
+            color: white;
+            border: 1px solid #f59e0b;
+        }
+        
+        .action-watchlist {
+            background: linear-gradient(90deg, #64748b, #94a3b8) !important;
+            color: white;
+            border: 1px solid #64748b;
+        }
+
         .btn-sell {
             background: linear-gradient(90deg, #dc2626, #ef4444);
             color: white;
@@ -101,6 +126,50 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
         }
+        
+        /* Position Status Colors */
+        .position-strengthening {
+            border-left: 4px solid #10b981 !important;
+        }
+        
+        .position-stable {
+            border-left: 4px solid #0ea5e9 !important;
+        }
+        
+        .position-weakening {
+            border-left: 4px solid #f59e0b !important;
+        }
+        
+        .position-broken {
+            border-left: 4px solid #ef4444 !important;
+        }
+        
+        /* Portfolio Health Bar */
+        .portfolio-health {
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .health-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        
+        .health-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .health-healthy { background: linear-gradient(90deg, #10b981, #22c55e); }
+        .health-okay { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+        .health-caution { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .health-risk { background: linear-gradient(90deg, #ef4444, #f87171); }
 
         .btn-sell:disabled {
             opacity: 0.6;
@@ -179,6 +248,21 @@
             💼 Current Portfolio
         </h2>
         <p style="color: #8ea0c9;">Position management and recommendations</p>
+    </div>
+
+    <!-- Portfolio Health Bar -->
+    <div id="portfolio-health" class="portfolio-health" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: #e2e8f0;">Portfolio Health</span>
+            <span id="health-label" style="font-size: 14px; font-weight: 600;"></span>
+        </div>
+        <div class="health-bar">
+            <div id="health-fill" class="health-fill" style="width: 0%;"></div>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between;">
+            <span id="health-details"></span>
+            <span id="health-score"></span>
+        </div>
     </div>
 
     <div id="portfolio-cards" class="lpi-grid">
@@ -457,6 +541,71 @@
             // Attach event handlers
             attachSaveHandlers();
             attachBuyHandlers();
+            
+            // Calculate and display portfolio health
+            calculatePortfolioHealth(positions, actions);
+        }
+        
+        function calculatePortfolioHealth(positions, actions) {
+            if (!positions || positions.length === 0) {
+                document.getElementById('portfolio-health').style.display = 'none';
+                return;
+            }
+            
+            // Calculate total P&L percentage
+            const totalPL = positions.reduce((sum, p) => sum + (Number(p.unrealized_pnl_pct) || 0), 0) / positions.length;
+            
+            // Calculate average VIGL score from actions
+            const actionsMap = new Map(actions.map(a => [a.ticker, a]));
+            const viglScores = positions.map(p => {
+                const action = actionsMap.get(p.ticker);
+                return action ? (action.vigl_score || 50) : 50;
+            });
+            const avgVigl = viglScores.reduce((sum, score) => sum + score, 0) / viglScores.length;
+            
+            // Normalize P&L (-20% to +20% maps to 0-1)
+            const normalizedPL = Math.max(0, Math.min(1, (totalPL + 20) / 40));
+            
+            // Normalize VIGL (0-100 to 0-1)
+            const normalizedVigl = Math.max(0, Math.min(1, avgVigl / 100));
+            
+            // Combined health score (60% P&L, 40% VIGL)
+            const healthScore = 0.6 * normalizedPL + 0.4 * normalizedVigl;
+            
+            // Determine health level and color
+            let healthLevel, healthColor, healthClass;
+            if (healthScore >= 0.7) {
+                healthLevel = 'Healthy';
+                healthColor = '#10b981';
+                healthClass = 'health-healthy';
+            } else if (healthScore >= 0.55) {
+                healthLevel = 'Okay';
+                healthColor = '#0ea5e9';
+                healthClass = 'health-okay';
+            } else if (healthScore >= 0.4) {
+                healthLevel = 'Caution';
+                healthColor = '#f59e0b';
+                healthClass = 'health-caution';
+            } else {
+                healthLevel = 'At Risk';
+                healthColor = '#ef4444';
+                healthClass = 'health-risk';
+            }
+            
+            // Update UI
+            const healthBar = document.getElementById('portfolio-health');
+            const healthFill = document.getElementById('health-fill');
+            const healthLabel = document.getElementById('health-label');
+            const healthDetails = document.getElementById('health-details');
+            const healthScoreEl = document.getElementById('health-score');
+            
+            healthBar.style.display = 'block';
+            healthFill.style.width = `${healthScore * 100}%`;
+            healthFill.className = `health-fill ${healthClass}`;
+            healthLabel.textContent = healthLevel;
+            healthLabel.style.color = healthColor;
+            healthDetails.textContent = `Avg P&L: ${totalPL.toFixed(1)}% • Avg VIGL: ${avgVigl.toFixed(0)}`;
+            healthScoreEl.textContent = `${Math.round(healthScore * 100)}/100`;
         }
 
         function controlGroup(ticker,tp1,tp2,stop){

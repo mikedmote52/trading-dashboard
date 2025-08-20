@@ -444,6 +444,32 @@ class UniverseScreener:
             print(f"🚀 AUTO-ACTIVATING FULL UNIVERSE MODE: Only {len(final)} candidates found, expanding search...", file=sys.stderr)
             return self.screen_universe(limit, exclude_symbols, full_universe_mode=True)
         
+        # Cold tape recovery: Create PRE_BREAKOUT tier when markets are quiet
+        if len(final) < limit and full_universe_mode:
+            print(f"🥶 COLD TAPE RECOVERY: Markets quiet, creating PRE_BREAKOUT opportunities...", file=sys.stderr)
+            
+            # Find lower-scoring candidates that could be pre-breakout setups
+            prebreakout_candidates = []
+            for c in candidates[len(final):min(len(candidates), limit * 3)]:
+                if c["score"] >= 40 and c["score"] < 75:  # Lower threshold for cold tape
+                    # Enhance with PRE_BREAKOUT classification
+                    c["action"] = "PRE_BREAKOUT"
+                    c["cold_tape_enhanced"] = True
+                    c["confidence"] = max(50, c["score"] - 15)  # Reduced confidence for pre-breakout
+                    
+                    # Add cold tape thesis enhancement
+                    if "thesis" in c:
+                        c["thesis"] += " [COLD TAPE: Early setup, monitor for momentum development]"
+                    
+                    prebreakout_candidates.append(c)
+                    
+                    if len(final) + len(prebreakout_candidates) >= limit:
+                        break
+            
+            final.extend(prebreakout_candidates)
+            if prebreakout_candidates:
+                print(f"✅ Cold tape recovery added {len(prebreakout_candidates)} PRE_BREAKOUT opportunities", file=sys.stderr)
+        
         return final
 
 def main():
