@@ -42,14 +42,14 @@ echo "📊 Current discoveries_vigl count: $COUNT"
 if [ "$COUNT" -eq "0" ]; then
     echo "🌱 Seeding discoveries_vigl from main discoveries table..."
     
-    # First try to copy from discoveries table
+    # First try to copy from discoveries table (rvol may not exist)
     sqlite3 "$DB_PATH" << 'EOF'
 INSERT OR IGNORE INTO discoveries_vigl (symbol, price, score, rvol, action, created_at)
 SELECT 
     symbol,
     price,
     score,
-    COALESCE(rvol, 1.0) as rvol,
+    1.0 as rvol,
     CASE 
         WHEN score >= 70 THEN 'BUY'
         WHEN score >= 60 THEN 'WATCHLIST'
