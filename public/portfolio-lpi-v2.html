@@ -58,7 +58,26 @@
     <!-- Summary -->
     <div id="portfolio-summary"></div>
 
-    <!-- Portfolio Cards Grid -->
+    <!-- Discovery Opportunities Section -->
+    <div class="header" style="margin-top: 30px;">
+        <h2 style="font-size: 24px; margin-bottom: 8px;">
+            🔍 Discovery Opportunities
+        </h2>
+        <p style="color: #8ea0c9;">New positions recommended by AlphaStack</p>
+    </div>
+    
+    <div id="discovery-cards" class="lpi-grid">
+        <div class="loading">Loading discovery opportunities...</div>
+    </div>
+
+    <!-- Current Portfolio Section -->
+    <div class="header" style="margin-top: 30px;">
+        <h2 style="font-size: 24px; margin-bottom: 8px;">
+            💼 Current Portfolio
+        </h2>
+        <p style="color: #8ea0c9;">Position management and recommendations</p>
+    </div>
+
     <div id="portfolio-cards" class="lpi-grid">
         <div class="loading">Loading portfolio positions...</div>
     </div>
@@ -70,13 +89,15 @@
                 console.log('🔄 LPI v2: Loading portfolio with unified engine...');
                 
                 // Load data in parallel
-                const [positions, scores, thesis] = await Promise.all([
+                const [positions, scores, thesis, discoveries] = await Promise.all([
                     fetch('/api/portfolio/positions').then(r=>r.json()),
                     fetch('/api/discoveries/latest-scores').then(r=>r.json()).catch(()=>[]),
-                    fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({}))
+                    fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({})),
+                    fetch('/api/discoveries/latest').then(r=>r.json()).catch(()=>({discoveries:[]}))
                 ]);
                 
                 console.log(`📊 LPI v2: Loaded ${positions.length} positions, ${scores.length} scores`);
+                console.log(`🔍 LPI v2: Loaded ${discoveries.discoveries?.length || 0} discoveries`);
                 
                 // Call unified engine for consistent recommendations
                 const actions = await fetch('/api/engine/advise', {
@@ -92,6 +113,7 @@
                 console.log(`🎯 LPI v2: Generated ${actions.length} actions via unified engine`);
 
                 renderSummary(actions);
+                renderDiscoveryCards(discoveries.discoveries || []);
                 renderCards(positions, actions, thesis);
             } catch (error) {
                 console.error('Failed to load portfolio:', error);
@@ -114,6 +136,87 @@
 
         // P/L badge color classification  
         const plClass = (pct) => pct >= 20 ? 'pl-strong-pos' : pct > 0 ? 'pl-pos' : pct <= -10 ? 'pl-strong-neg' : 'pl-neg';
+
+        function renderDiscoveryCards(discoveries) {
+            const el = document.getElementById('discovery-cards');
+            
+            // Filter for BUY recommendations and remove AUDIT entries
+            const buyOpportunities = discoveries
+                .filter(d => d.action === 'BUY' && d.symbol !== 'OPTIMIZED_AUDIT' && d.score > 60)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 6); // Show top 6 opportunities
+            
+            if (buyOpportunities.length === 0) {
+                el.innerHTML = '<div class="loading">No high-confidence opportunities found</div>';
+                return;
+            }
+            
+            el.innerHTML = buyOpportunities.map(d => {
+                const suggestedAmount = d.score > 75 ? 2500 : d.score > 65 ? 1500 : 1000;
+                const confidence = Math.min(95, Math.max(60, d.score));
+                
+                return `
+                    <div class="lpi-card">
+                        <div class="lpi-action act-BUY_MORE">
+                            <div>
+                                <div style="font-size:14px;opacity:.9">
+                                    ${d.symbol} • $${fmt(d.price)} • New Position
+                                </div>
+                                <div style="font-size:22px">BUY <span style="opacity:.8;font-size:14px">(${confidence}% conf)</span></div>
+                            </div>
+                            <div class="lpi-badge pl-pos">NEW</div>
+                        </div>
+
+                        <div class="lpi-stats">
+                            <div class="lpi-stat"><div class="k">VIGL Score</div><div class="v">${Math.floor(d.score)}</div></div>
+                            <div class="lpi-stat"><div class="k">Target Size</div><div class="v">$${suggestedAmount}</div></div>
+                            <div class="lpi-stat"><div class="k">Discovery</div><div class="v">${formatDiscoveryTime(d.created_at)}</div></div>
+                        </div>
+
+                        <div class="lpi-targets">
+                            <div class="lpi-chip">Entry: $${fmt(d.price)}</div>
+                            <div class="lpi-chip">TP1: +15%</div>
+                            <div class="lpi-chip">TP2: +50%</div>
+                            <div class="lpi-chip">Stop: −10%</div>
+                        </div>
+
+                        <div class="lpi-controls">
+                            ${controlGroup(d.symbol, 15, 50, 10)}
+                            <button class="btn btn-buy" data-buy="${d.symbol}" data-usd="${suggestedAmount}" 
+                                    data-price="${d.price}" style="margin-left: 8px;">
+                                Buy $${suggestedAmount}
+                            </button>
+                        </div>
+
+                        <div class="lpi-thesis">
+                            <div class="head">
+                                <div class="lpi-trend tr-Strengthening">Discovery</div>
+                                <div style="font-size:12px;color:#9eb4ff">AlphaStack Score: ${Math.floor(d.score)}/100</div>
+                            </div>
+                            <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
+                                <b>Pattern:</b> New opportunity identified by VIGL discovery engine with ${d.score}+ confidence score
+                            </div>
+                            <div style="color:#cdd7f3;font-size:13px">
+                                <b>Entry Strategy:</b> Fresh position with standard bracket targets (15%/50% TP, 10% SL)
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+            
+            // Re-attach event listeners for discovery cards
+            attachBuyHandlers();
+            attachSaveHandlers();
+        }
+
+        function formatDiscoveryTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffHours = (now - date) / (1000 * 60 * 60);
+            
+            if (diffHours < 1) return 'Recent';
+            if (diffHours < 24) return `${Math.floor(diffHours)}h ago`;
+            return `${Math.floor(diffHours/24)}d ago`;
+        }
 
         function renderCards(positions, actions, thesisMap){
             const A = new Map(actions.map(a=>[a.ticker,a]));
@@ -184,8 +287,48 @@
                     </div>`;
             }).join('');
 
-            // attach handlers for TP/SL saves
-            el.querySelectorAll('[data-save]').forEach(btn=>{
+            // Attach event handlers
+            attachSaveHandlers();
+            attachBuyHandlers();
+        }
+
+        function controlGroup(ticker,tp1,tp2,stop){
+            return `
+                <div class="lpi-chip">TP1 <input type="number" step="1" min="5" max="50" value="${tp1|0}" data-tp1="${ticker}" style="width:60px">%</div>
+                <div class="lpi-chip">TP2 <input type="number" step="5" min="20" max="200" value="${tp2|0}" data-tp2="${ticker}" style="width:60px">%</div>
+                <div class="lpi-chip">SL <input type="number" step="1" min="3" max="30" value="${stop|0}" data-sl="${ticker}" style="width:60px">%</div>
+                <button class="lpi-chip" data-save data-ticker="${ticker}">Save</button>`;
+        }
+        
+        function buyButtonHTML(a, p) {
+            if ((a.action || '') !== 'BUY_MORE' || !a.add_usd) return '';
+            return `<button class="btn btn-buy" data-buy="${p.ticker}" data-usd="${a.add_usd}"
+                     data-price="${p.current_price || ''}" style="margin-left: 8px;">
+                      Buy $${a.add_usd}
+                    </button>`;
+        }
+
+        function explainWhy(action, th){
+            const parts = [];
+            if (!action) return '';
+            if (action.action==='SELL' || action.action==='TRIM'){
+                if (th?.trend==='Broken') parts.push(reason('Thesis broken'));
+                if (th?.deltas?.vwap?.now==='below') parts.push(reason('VWAP lost'));
+                if ((th?.deltas?.rvol?.now ?? 9) < 1.5) parts.push(reason('rVol < 1.5×'));
+                if (th?.deltas?.ema_cross?.now==='bear') parts.push(reason('9/20 EMA bear cross'));
+            }
+            if (!parts.length && action.reason_codes){
+                action.reason_codes.slice(0,4).forEach(r=>parts.push(reason(r)));
+            }
+            return parts.join('');
+        }
+
+        const reason = (txt)=>`<span class="r">${esc(txt)}</span>`;
+        const fmt = (n)=> (n==null||isNaN(n))?'—':Number(n).toFixed(2);
+        const esc = (s)=>String(s).replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+
+        function attachSaveHandlers() {
+            document.querySelectorAll('[data-save]').forEach(btn=>{
                 btn.addEventListener('click', async (e)=>{
                     const t = e.currentTarget.dataset.ticker;
                     const root = e.currentTarget.closest('.lpi-card');
@@ -215,9 +358,10 @@
                     }
                 });
             });
-            
-            // Attach Buy button handlers
-            el.querySelectorAll('[data-buy]').forEach(btn => {
+        }
+
+        function attachBuyHandlers() {
+            document.querySelectorAll('[data-buy]').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const b = e.currentTarget;
                     b.disabled = true;
@@ -284,41 +428,6 @@
                 });
             });
         }
-
-        function controlGroup(ticker,tp1,tp2,stop){
-            return `
-                <div class="lpi-chip">TP1 <input type="number" step="1" min="5" max="50" value="${tp1|0}" data-tp1="${ticker}" style="width:60px">%</div>
-                <div class="lpi-chip">TP2 <input type="number" step="5" min="20" max="200" value="${tp2|0}" data-tp2="${ticker}" style="width:60px">%</div>
-                <div class="lpi-chip">SL <input type="number" step="1" min="3" max="30" value="${stop|0}" data-sl="${ticker}" style="width:60px">%</div>
-                <button class="lpi-chip" data-save data-ticker="${ticker}">Save</button>`;
-        }
-        
-        function buyButtonHTML(a, p) {
-            if ((a.action || '') !== 'BUY_MORE' || !a.add_usd) return '';
-            return `<button class="btn btn-buy" data-buy="${p.ticker}" data-usd="${a.add_usd}"
-                     data-price="${p.current_price || ''}" style="margin-left: 8px;">
-                      Buy $${a.add_usd}
-                    </button>`;
-        }
-
-        function explainWhy(action, th){
-            const parts = [];
-            if (!action) return '';
-            if (action.action==='SELL' || action.action==='TRIM'){
-                if (th?.trend==='Broken') parts.push(reason('Thesis broken'));
-                if (th?.deltas?.vwap?.now==='below') parts.push(reason('VWAP lost'));
-                if ((th?.deltas?.rvol?.now ?? 9) < 1.5) parts.push(reason('rVol < 1.5×'));
-                if (th?.deltas?.ema_cross?.now==='bear') parts.push(reason('9/20 EMA bear cross'));
-            }
-            if (!parts.length && action.reason_codes){
-                action.reason_codes.slice(0,4).forEach(r=>parts.push(reason(r)));
-            }
-            return parts.join('');
-        }
-
-        const reason = (txt)=>`<span class="r">${esc(txt)}</span>`;
-        const fmt = (n)=> (n==null||isNaN(n))?'—':Number(n).toFixed(2);
-        const esc = (s)=>String(s).replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
 
         // kick off
         document.addEventListener('DOMContentLoaded', () => {
