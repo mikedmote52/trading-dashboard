@@ -1196,14 +1196,27 @@ router.get('/latest-scores', async (req, res) => {
       console.warn('⚠️ Latest scores fallback -> discoveries:', err.message);
       source = 'discoveries';
       
+      // Try different time windows if recent data is empty
       discoveries = db.db.prepare(`
         SELECT symbol as ticker, score, rvol, price, created_at
         FROM discoveries 
         WHERE score IS NOT NULL 
-          AND created_at >= datetime('now', '-1 hour')
         ORDER BY created_at DESC
         LIMIT 100
       `).all();
+      
+      console.log(`⚠️ Fallback loaded ${discoveries.length} discoveries from main table`);
+    }
+    
+    // Handle empty results gracefully
+    if (!discoveries || discoveries.length === 0) {
+      console.log('📊 Latest Scores: No discoveries found, returning empty array');
+      return res.json({ 
+        success: true, 
+        source: source,
+        count: 0,
+        data: [] 
+      });
     }
     
     // Transform to unified engine format
