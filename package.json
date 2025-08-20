@@ -23,7 +23,8 @@
     "watchdog": "node scripts/engine_watchdog.js",
     "verify": "node scripts/verify_getcompanyprofile.js",
     "universe:build2": "python3 scripts/build_universe_v2.py --days 30",
-    "debug:compare": "ts-node scripts/compare-screeners.ts"
+    "debug:compare": "ts-node scripts/compare-screeners.ts",
+    "smoke:scan": "curl \"http://localhost:3003/api/scan/today?refresh=1\" && sleep 2 && curl -s http://localhost:3003/api/scan/status | jq '{relaxation_active, gateCounts, current_thresholds, polygon}' && curl -s http://localhost:3003/api/scan/results | jq '.[0]'"
   },
   "dependencies": {
     "axios": "^1.11.0",

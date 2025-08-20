@@ -168,6 +168,20 @@ app.use('/api/pm', require('./server/routes/pm'));
 app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
 app.use('/api/discoveries', require('./server/routes/discoveries'));
+app.use('/api/scan', require('./server/routes/scan'));
+
+// Unified Engine Routes
+app.use('/api/engine', require('./server/routes/engine'));
+
+// Enhanced Portfolio Routes  
+app.use('/api/portfolio', require('./server/routes/thesis'));
+app.use('/api/portfolio', require('./server/routes/rules'));
+
+// Learning Hooks Routes
+app.use('/api/learn', require('./server/routes/learn'));
+
+// Trading Orders Routes (feature-gated)
+app.use('/api', require('./server/routes/orders'));
 
 // Prometheus metrics endpoints (always available, but only functional when metrics service is enabled)
 app.use('/metrics', require('./server/routes/metrics'));
@@ -719,7 +733,7 @@ if (process.env.SERVE_STATIC === 'true' || process.env.NEW_DASH_ENABLED === 'tru
   if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
     console.log('🚀 Alpha route enabled at /alpha');
     app.get('/alpha', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'public/enhanced-dashboard.html'));
+      res.sendFile(path.resolve(__dirname, 'public/thesis-first.html'));
     });
   }
 }

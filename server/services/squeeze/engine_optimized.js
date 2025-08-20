@@ -12,6 +12,13 @@ const {
   squeezePotentialScore 
 } = require('./metrics_safety');
 const { PolygonProvider, ema, rsi, vwap } = require('../providers/polygon');
+const { 
+  DISCOVERY, 
+  calculateCatalystScore, 
+  calculateSocialVelocityScore,
+  getAppliedBumps,
+  checkColdTape
+} = require('../../../config/discovery');
 
 /**
  * Optimized Engine - Progressive Filtering Approach
@@ -63,10 +70,16 @@ module.exports = class EngineOptimized {
       console.log(`🔍 Enriched ${enriched.length} promising stocks with detailed market data`);
       
       // Stage 4: Progressive filtering with optimized gates
-      const { passed, drops } = this.gates.apply(enriched);
+      const { passed, drops, gateCounts } = this.gates.apply(enriched);
+      
+      // Check if cold tape should be activated
+      const isColdTape = checkColdTape(gateCounts);
       
       console.log(`✅ ${passed.length} stocks passed progressive filtering`);
       console.log(`❌ ${Object.keys(drops).length} stocks eliminated by safety filters`);
+      if (isColdTape) {
+        console.log(`❄️ Cold tape active - using relaxed thresholds`);
+      }
       
       // Stage 5: Enhanced scoring with gate bonuses
       const candidates = [];
@@ -122,10 +135,10 @@ module.exports = class EngineOptimized {
           squeezeProxy: siData.value ?? null
         };
         
-        const finalScore = this._computeScore(parts);
+        const finalScore = this._computeScore(parts, stock);
         
-        // Action mapping based on enhanced score
-        const action = this._mapActionOptimized(finalScore, stock, 0.8); // Default confidence
+        // Action mapping based on enhanced score and readiness tiers
+        const { action, readinessTier } = this._mapActionOptimized(finalScore, stock, isColdTape);
         
         // Track quality metrics and score distribution
         if (finalScore >= 70) highScoreCount++;
@@ -134,17 +147,51 @@ module.exports = class EngineOptimized {
         else scoreDistribution.high++;
         
         // Store for analysis
-        allScores.push({ ticker: stock.ticker, score: finalScore, action });
+        allScores.push({ ticker: stock.ticker, score: finalScore, action, readinessTier });
         
-        if (action === 'BUY' || action === 'WATCHLIST' || action === 'MONITOR') {
-          const audit = this._createAuditData(stock, scoreComponents, {}, gateBonus, siData);
-          const row = this._formatRowResilient(stock, finalScore, this.cfg.preset, action, audit, siData);
+        // Include all tier candidates
+        if (action === 'TRADE_READY' || action === 'EARLY_READY' || action === 'WATCHLIST' || action === 'MONITOR') {
+          // Create row with all new fields
+          const row = {
+            ticker: stock.ticker,
+            symbol: stock.ticker,
+            price: price,
+            score: finalScore,
+            action: action,
+            readiness_tier: readinessTier,
+            high_priority: stock.high_priority,
+            relaxationActive: stock.relaxationActive,
+            score_breakdown: stock.score_breakdown,
+            bumps: stock.bumps,
+            relVolume: relVolume,
+            shortInterest: siData.value,
+            shortInterestMethod: siData.method,
+            shortInterestConfidence: siData.confidence,
+            daysToCover: daysToCover,
+            borrowFee: borrowFee,
+            utilization: utilization,
+            catalyst: stock.catalyst,
+            technicals: stock.technicals,
+            options: stock.options,
+            sentiment: stock.sentiment,
+            volumeX: relVolume,
+            aboveVWAP: stock.price > (stock.technicals?.vwap || 0),
+            rsi14: stock.technicals?.rsi,
+            atrPct: stock.technicals?.atrPct || stock.technicals?.atr_pct,
+            entryPlan: {
+              entryPrice: price * 1.02,
+              stopLoss: price * 0.92,
+              tp1: price * 1.15,
+              tp2: price * 1.30
+            },
+            sharesToBuy: readinessTier === 'TRADE_READY' ? 
+              Math.floor(tiers.tradeReady.defaultSize / price) :
+              readinessTier === 'EARLY_READY' ?
+              Math.floor(tiers.earlyReady.defaultSize / price) :
+              Math.floor(100 / price)
+          };
           
-          // Only process valid rows (price > 0)
-          if (row && row.db && row.emit) {
-            await db.insertDiscovery(row.db);
-            candidates.push(row.emit);
-          }
+          candidates.push(row);
         }
       }
       
@@ -168,6 +215,11 @@ module.exports = class EngineOptimized {
         passed_progressive_filter: passed.length,
         high_quality_count: highScoreCount,
         candidates,
+        gateCounts,
+        
+        // Cold tape status
+        relaxation_active: isColdTape,
+        relaxation_since: isColdTape ? new Date(Date.now() - DISCOVERY.coldTape.windowSec * 1000).toISOString() : null,
         
         // Enhanced diagnostics
         discovery_metrics: {
@@ -175,7 +227,10 @@ module.exports = class EngineOptimized {
           prefilter_efficiency: (prefiltered.length / universe.length * 100).toFixed(1) + '%',
           pass_rate: (passed.length / enriched.length * 100).toFixed(1) + '%',
           action_rate: (candidates.length / passed.length * 100).toFixed(1) + '%',
-          quality_rate: (highScoreCount / Math.max(candidates.length, 1) * 100).toFixed(1) + '%'
+          quality_rate: (highScoreCount / Math.max(candidates.length, 1) * 100).toFixed(1) + '%',
+          trade_ready_count: candidates.filter(c => c.readiness_tier === 'TRADE_READY').length,
+          early_ready_count: candidates.filter(c => c.readiness_tier === 'EARLY_READY').length,
+          watch_count: candidates.filter(c => c.readiness_tier === 'WATCH').length
         },
         
         progressive_drops: drops
@@ -184,6 +239,53 @@ module.exports = class EngineOptimized {
       console.error('❌ Optimized engine error:', e.stack || e.message);
       throw e;
     }
+  }
+
+  _mapActionOptimized(score, stock, isColdTape = false) {
+    const tiers = DISCOVERY.tiers;
+    let action = 'MONITOR';
+    let readinessTier = 'WATCH';
+    
+    // Apply cold tape score ceiling if active
+    if (isColdTape && score > DISCOVERY.coldTape.scoreCeiling) {
+      score = DISCOVERY.coldTape.scoreCeiling;
+    }
+    
+    // Get momentum tier info from gates
+    const passTradeReadyMomentum = stock._passTradeReadyMomentum || false;
+    const passEarlyMomentum = stock._passEarlyMomentum || false;
+    const aboveVWAP = stock.price > (stock.technicals?.vwap || 0) && stock.technicals?.vwap > 0;
+    const hasCatalyst = !!(stock.catalyst?.type);
+    
+    // Determine readiness tier and action
+    if (score >= tiers.tradeReady.scoreMin && 
+        aboveVWAP === tiers.tradeReady.aboveVWAP && 
+        passTradeReadyMomentum &&
+        !isColdTape) { // No TRADE_READY during cold tape
+      action = 'TRADE_READY';
+      readinessTier = 'TRADE_READY';
+    } else if (score >= tiers.earlyReady.scoreMin && 
+               score <= tiers.earlyReady.scoreMax &&
+               passEarlyMomentum &&
+               (!tiers.earlyReady.requireCatalyst || hasCatalyst)) {
+      action = 'EARLY_READY';
+      readinessTier = 'EARLY_READY';
+    } else if (score >= tiers.watch.scoreMin) {
+      action = 'WATCHLIST';
+      readinessTier = 'WATCH';
+    } else {
+      action = 'MONITOR';
+      readinessTier = 'MONITOR';
+    }
+    
+    // Add metadata to stock
+    stock.readiness_tier = readinessTier;
+    stock.high_priority = (stock.technicals?.rel_volume || 0) >= DISCOVERY.base.highPriorityRelVol;
+    stock.relaxationActive = isColdTape;
+    stock.score_breakdown = stock._scoreBreakdown || {};
+    stock.bumps = stock._bumps || {};
+    
+    return { action, readinessTier };
   }
 
   async _efficientPreFilter(tickers) {
@@ -359,31 +461,154 @@ module.exports = class EngineOptimized {
     }
   }
 
-  _computeScore(parts) {
+  _computeScore(parts, stock = {}) {
     const clamp = (x, l = 0, h = 100) => Math.max(l, Math.min(h, x));
-    const comps = [];
-
-    if (parts.relVol != null) comps.push({w: .25, v: clamp(Math.round(100 * Math.min(1, parts.relVol / 10)))});
-    if (parts.priceVsVWAP != null) comps.push({w: .10, v: clamp(Math.round(50 + 50 * Math.tanh(parts.priceVsVWAP)))});
-    if (parts.emaTrend != null) comps.push({w: .10, v: clamp(parts.emaTrend)});
-    if (parts.atrPct != null) {
-      const a = parts.atrPct; 
-      const sweet = a >= 3 && a <= 8 ? 100 : a < 3 ? a * 33 : Math.max(0, 100 - (a - 8) * 25);
-      comps.push({w: .10, v: clamp(Math.round(sweet))});
+    const weights = DISCOVERY.weights;
+    const comps = {};
+    
+    // Momentum component (25% weight)
+    let momentumScore = 0;
+    let momentumParts = 0;
+    
+    if (parts.relVol != null) {
+      let relVolScore = clamp(Math.round(100 * Math.min(1, parts.relVol / 10)));
+      // Apply bump for high relative volume
+      if (parts.relVol >= DISCOVERY.base.highPriorityRelVol) {
+        relVolScore = Math.min(100, relVolScore + DISCOVERY.technicalBumps.relVol3x);
+      }
+      momentumScore += relVolScore;
+      momentumParts++;
     }
+    
+    if (parts.priceVsVWAP != null) {
+      const vwapScore = clamp(Math.round(50 + 50 * Math.tanh(parts.priceVsVWAP)));
+      // Apply bump for holding above VWAP
+      if (parts.priceVsVWAP > 0) {
+        momentumScore += vwapScore + DISCOVERY.technicalBumps.vwapHold;
+      } else {
+        momentumScore += vwapScore;
+      }
+      momentumParts++;
+    }
+    
+    if (parts.emaTrend != null) {
+      let emaScore = clamp(parts.emaTrend);
+      // Apply bump for EMA cross
+      if (stock.technicals?.emaCross) {
+        emaScore = Math.min(100, emaScore + DISCOVERY.technicalBumps.emaCross);
+      }
+      momentumScore += emaScore;
+      momentumParts++;
+    }
+    
+    if (momentumParts > 0) {
+      comps.momentum = { weight: weights.momentum, score: momentumScore / momentumParts };
+    }
+    
+    // Squeeze component (20% weight) 
+    let squeezeScore = 0;
+    let squeezeParts = 0;
+    
+    if (parts.squeezeProxy != null) {
+      squeezeScore += clamp(parts.squeezeProxy);
+      squeezeParts++;
+    }
+    
+    if (stock.days_to_cover != null) {
+      const dtcScore = stock.days_to_cover >= 3 ? 80 : stock.days_to_cover * 25;
+      squeezeScore += clamp(dtcScore);
+      squeezeParts++;
+    }
+    
+    if (stock.borrow_fee_pct != null) {
+      const borrowScore = Math.min(100, stock.borrow_fee_pct * 10);
+      squeezeScore += clamp(borrowScore);
+      squeezeParts++;
+    }
+    
+    if (squeezeParts > 0) {
+      comps.squeeze = { weight: weights.squeeze, score: squeezeScore / squeezeParts };
+    }
+    
+    // Catalyst component (30% weight) - Enhanced with type and recency
+    if (parts.catalyst != null || stock.catalyst) {
+      const baseScore = parts.catalyst || 0;
+      const enhancedScore = calculateCatalystScore(stock.catalyst);
+      comps.catalyst = { weight: weights.catalyst, score: clamp(Math.max(baseScore, enhancedScore)) };
+    }
+    
+    // Sentiment component (15% weight) - Enhanced with social velocity
+    let sentimentScore = 0;
+    let sentimentParts = 0;
+    
+    if (parts.sentiment != null) {
+      sentimentScore += clamp(parts.sentiment);
+      sentimentParts++;
+    }
+    
+    // Add social velocity if available
+    if (stock.social?.mentionsToday && stock.social?.avgMentions7d) {
+      const socialVelocityScore = calculateSocialVelocityScore(
+        stock.social.mentionsToday,
+        stock.social.avgMentions7d
+      );
+      sentimentScore += socialVelocityScore;
+      sentimentParts++;
+    }
+    
+    if (sentimentParts > 0) {
+      comps.sentiment = { weight: weights.sentiment, score: sentimentScore / sentimentParts };
+    }
+    
+    // Technical component (10% weight)
+    let technicalScore = 0;
+    let technicalParts = 0;
+    
     if (parts.rsi != null) {
-      const r = parts.rsi; 
+      const r = parts.rsi;
       const sweet = r >= 55 && r <= 70 ? 100 : r < 55 ? (r / 55) * 80 : Math.max(0, 100 - (r - 70) * 6);
-      comps.push({w: .10, v: clamp(Math.round(sweet))});
+      technicalScore += clamp(Math.round(sweet));
+      technicalParts++;
     }
-    if (parts.optionsSignal != null) comps.push({w: .10, v: clamp(parts.optionsSignal)});
-    if (parts.sentiment != null) comps.push({w: .10, v: clamp(parts.sentiment)});
-    if (parts.catalyst != null) comps.push({w: .15, v: clamp(parts.catalyst)});
-    if (parts.squeezeProxy != null) comps.push({w: .10, v: clamp(parts.squeezeProxy)});
-
-    const W = comps.reduce((a, c) => a + c.w, 0) || 1;
-    const score = comps.reduce((a, c) => a + c.v * (c.w / W), 0);
-    return Math.round(score);
+    
+    if (parts.atrPct != null) {
+      const a = parts.atrPct;
+      let atrScore = a >= 3 && a <= 8 ? 100 : a < 3 ? a * 33 : Math.max(0, 100 - (a - 8) * 25);
+      // Apply bump for high ATR%
+      if (a >= 8) {
+        atrScore = Math.min(100, atrScore + DISCOVERY.technicalBumps.atrPct8);
+      }
+      technicalScore += clamp(Math.round(atrScore));
+      technicalParts++;
+    }
+    
+    if (parts.optionsSignal != null) {
+      let optionsScore = clamp(parts.optionsSignal);
+      // Apply bump for strong call/put ratio
+      if (stock.options?.callPutRatio >= 2.0) {
+        optionsScore = Math.min(100, optionsScore + DISCOVERY.technicalBumps.callPutRatio2x);
+      }
+      technicalScore += optionsScore;
+      technicalParts++;
+    }
+    
+    if (technicalParts > 0) {
+      comps.technical = { weight: weights.technical, score: technicalScore / technicalParts };
+    }
+    
+    // Calculate final weighted score
+    const totalWeight = Object.values(comps).reduce((sum, c) => sum + c.weight, 0);
+    const finalScore = Object.values(comps).reduce((sum, c) => sum + (c.score * c.weight), 0) / (totalWeight || 1);
+    
+    // Store score breakdown for transparency
+    stock._scoreBreakdown = Object.fromEntries(
+      Object.entries(comps).map(([key, val]) => [key, Math.round(val.score)])
+    );
+    
+    // Store applied bumps
+    stock._bumps = getAppliedBumps(stock);
+    
+    return Math.round(finalScore);
   }
 
   async _enrich(tickers, holdings) {

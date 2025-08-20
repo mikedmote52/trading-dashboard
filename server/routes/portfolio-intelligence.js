@@ -1,6 +1,8 @@
 // Portfolio Intelligence API Routes - Feature 5: Portfolio analysis with discovery scores
 const express = require('express');
 const router = express.Router();
+const { evaluatePosition } = require('../../src/portfolio/position-health');
+const fetch = require('node-fetch');
 
 // GET /api/portfolio-intelligence/analyze - Analyze current portfolio
 router.get('/analyze', async (req, res) => {
@@ -28,6 +30,61 @@ router.get('/analyze', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// GET /api/enhanced-portfolio/enhanced - Get enhanced portfolio for UI
+router.get('/enhanced', async (req, res) => {
+  try {
+    // Initialize portfolio intelligence if not already done
+    if (!req.app.locals.portfolioIntelligence) {
+      const PortfolioIntelligence = require('../services/portfolio-intelligence');
+      req.app.locals.portfolioIntelligence = new PortfolioIntelligence();
+    }
+    
+    const intelligence = req.app.locals.portfolioIntelligence;
+    
+    // Always enable for enhanced endpoint
+    if (!intelligence.isEnabled) {
+      intelligence.isEnabled = true;
+      intelligence.initializeDatabase();
+    }
+    
+    console.log('💎 Getting enhanced portfolio with thesis and recommendations...');
+    const analysis = await intelligence.analyzePortfolio();
+    
+    // Format for UI with proper structure
+    const enhancedPortfolio = {
+      success: true,
+      portfolio: {
+        positions: analysis.positions || [],
+        analysis: {
+          totalValue: analysis.summary?.total_value || 0,
+          totalPnL: analysis.summary?.total_pnl || 0,
+          totalPnLPercent: analysis.summary?.total_pnl_pct || 0,
+          avgViglScore: analysis.summary?.avg_vigl_score || 0,
+          riskDistribution: analysis.summary?.risk_distribution || {}
+        },
+        insights: analysis.insights || [],
+        recommendations: analysis.recommendations || [],
+        lastUpdated: new Date().toISOString()
+      }
+    };
+    
+    res.json(enhancedPortfolio);
+    
+  } catch (error) {
+    console.error('❌ Enhanced portfolio error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      portfolio: {
+        positions: [],
+        analysis: {},
+        insights: [],
+        recommendations: []
+      }
     });
   }
 });
@@ -300,5 +357,261 @@ router.post('/test', async (req, res) => {
     });
   }
 });
+
+// GET /api/portfolio-intelligence/positions/health - Enhanced position health analysis
+router.get('/positions/health', async (req, res) => {
+  try {
+    console.log('🔍 Starting enhanced position health analysis...');
+    
+    // Get positions using direct HTTP call to Alpaca
+    const positions = await getAlpacaPositions();
+    console.log(`📊 Found ${positions.length} positions to analyze`);
+    
+    if (positions.length === 0) {
+      return res.json({
+        success: true,
+        positions: [],
+        message: 'No open positions found'
+      });
+    }
+    
+    // Evaluate each position using screener logic
+    const healthAnalysis = await Promise.all(
+      positions.map(async (position) => {
+        try {
+          // Pass P&L data to position evaluator
+          const health = await evaluatePosition(position.symbol, parseFloat(position.market_price), {
+              unrealizedPLPercent: parseFloat(position.unrealized_plpc) * 100
+          });
+          
+          // Merge position data with health analysis
+          return {
+            // Core position data (fixed field mapping)
+            symbol: position.symbol,
+            shares: parseFloat(position.qty),
+            avgCost: parseFloat(position.avg_entry_price),
+            lastPrice: parseFloat(position.market_price),
+            marketValue: parseFloat(position.market_value),
+            unrealizedPL: parseFloat(position.unrealized_pl),
+            unrealizedPLPercent: parseFloat(position.unrealized_plpc) * 100,
+            
+            // Health analysis
+            score: health.score,
+            action: health.action,
+            thesis: health.thesis,
+            
+            // Technical signals
+            signals: {
+              relVol: health.metrics.relVol,
+              aboveVWAP: health.metrics.aboveVWAP,
+              vwapReclaim: health.metrics.vwapReclaim,
+              emaCross: health.metrics.emaCross,
+              rsi: health.metrics.rsi,
+              atrPct: health.metrics.atrPct
+            },
+            
+            // Catalyst information
+            catalyst: health.catalyst,
+            
+            // Risk management
+            risk: health.risk,
+            
+            // Options sentiment
+            options: health.options,
+            
+            timestamp: health.timestamp,
+            error: health.error
+          };
+        } catch (error) {
+          console.error(`❌ Error analyzing ${position.symbol}:`, error);
+          return {
+            symbol: position.symbol,
+            shares: parseFloat(position.qty),
+            avgCost: parseFloat(position.avg_entry_price),
+            lastPrice: parseFloat(position.market_price),
+            marketValue: parseFloat(position.market_value),
+            unrealizedPL: parseFloat(position.unrealized_pl),
+            unrealizedPLPercent: parseFloat(position.unrealized_plpc) * 100,
+            score: 50,
+            action: 'MONITOR',
+            thesis: 'Analysis failed',
+            error: error.message
+          };
+        }
+      })
+    );
+    
+    res.json({
+      success: true,
+      positions: healthAnalysis,
+      count: healthAnalysis.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Position health analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/portfolio-intelligence/portfolio/health - Portfolio-level health summary
+router.get('/portfolio/health', async (req, res) => {
+  try {
+    console.log('📊 Calculating portfolio-level health metrics...');
+    
+    // Get positions and account info using direct HTTP calls
+    const [positions, account] = await Promise.all([
+      getAlpacaPositions(),
+      getAlpacaAccount()
+    ]);
+    
+    if (positions.length === 0) {
+      return res.json({
+        success: true,
+        totalValue: parseFloat(account.portfolio_value),
+        cash: parseFloat(account.cash),
+        positions: 0,
+        weightedScore: 0,
+        status: 'NO_POSITIONS'
+      });
+    }
+    
+    // Calculate portfolio metrics
+    const totalPortfolioValue = parseFloat(account.portfolio_value);
+    const totalPositionValue = positions.reduce((sum, pos) => sum + parseFloat(pos.market_value), 0);
+    const cashAmount = parseFloat(account.cash);
+    
+    // Get position health scores
+    const healthResults = await Promise.all(
+      positions.map(async (pos) => {
+        try {
+          const health = await evaluatePosition(pos.symbol, parseFloat(pos.market_price));
+          return {
+            symbol: pos.symbol,
+            value: parseFloat(pos.market_value),
+            score: health.score,
+            action: health.action
+          };
+        } catch (error) {
+          return {
+            symbol: pos.symbol,
+            value: parseFloat(pos.market_value),
+            score: 50,
+            action: 'MONITOR'
+          };
+        }
+      })
+    );
+    
+    // Calculate weighted average score
+    const weightedScore = healthResults.reduce((sum, pos) => {
+      return sum + (pos.score * pos.value);
+    }, 0) / Math.max(1, totalPositionValue);
+    
+    // Count position actions
+    const actionCounts = healthResults.reduce((counts, pos) => {
+      counts[pos.action] = (counts[pos.action] || 0) + 1;
+      return counts;
+    }, {});
+    
+    // Calculate concentration (largest position %)
+    const largestPosition = Math.max(...healthResults.map(pos => pos.value));
+    const concentration = (largestPosition / totalPositionValue) * 100;
+    
+    // Determine overall portfolio status
+    let portfolioStatus = 'HEALTHY';
+    if (weightedScore < 60) portfolioStatus = 'NEEDS_ATTENTION';
+    else if (weightedScore < 70) portfolioStatus = 'MONITOR';
+    else if (weightedScore >= 80) portfolioStatus = 'STRONG';
+    
+    // Risk flags
+    const riskFlags = [];
+    if (concentration > 25) riskFlags.push('HIGH_CONCENTRATION');
+    if (actionCounts.TRIM_OR_EXIT > 0) riskFlags.push('EXIT_SIGNALS');
+    if (weightedScore < 60) riskFlags.push('LOW_HEALTH_SCORE');
+    if (cashAmount / totalPortfolioValue < 0.05) riskFlags.push('LOW_CASH');
+    
+    res.json({
+      success: true,
+      totalValue: totalPortfolioValue,
+      positionValue: totalPositionValue,
+      cash: cashAmount,
+      cashPercent: (cashAmount / totalPortfolioValue) * 100,
+      positionCount: positions.length,
+      weightedScore: Math.round(weightedScore),
+      concentration: Math.round(concentration * 100) / 100,
+      status: portfolioStatus,
+      actionCounts,
+      riskFlags,
+      topPositions: healthResults
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5)
+        .map(pos => ({
+          symbol: pos.symbol,
+          value: pos.value,
+          percent: Math.round((pos.value / totalPositionValue) * 100 * 100) / 100,
+          score: pos.score,
+          action: pos.action
+        })),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Portfolio health calculation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Helper functions for Alpaca API calls
+async function getAlpacaPositions() {
+  try {
+    const baseUrl = process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets';
+    const response = await fetch(`${baseUrl}/v2/positions`, {
+      headers: {
+        'APCA-API-KEY-ID': process.env.APCA_API_KEY_ID,
+        'APCA-API-SECRET-KEY': process.env.APCA_API_SECRET_KEY
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Alpaca API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('❌ Error fetching Alpaca positions:', error);
+    return [];
+  }
+}
+
+async function getAlpacaAccount() {
+  try {
+    const baseUrl = process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets';
+    const response = await fetch(`${baseUrl}/v2/account`, {
+      headers: {
+        'APCA-API-KEY-ID': process.env.APCA_API_KEY_ID,
+        'APCA-API-SECRET-KEY': process.env.APCA_API_SECRET_KEY
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Alpaca API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('❌ Error fetching Alpaca account:', error);
+    return {
+      portfolio_value: '0',
+      cash: '0'
+    };
+  }
+}
 
 module.exports = router;

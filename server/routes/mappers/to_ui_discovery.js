@@ -2,6 +2,7 @@
 // Converts any discovery object (database row or engine output) to consistent UI format
 
 const { safeNum, formatPrice, formatPercent } = require('../../services/squeeze/metrics_safety');
+const { deriveAlphaThesis } = require('../../lib/thesis');
 
 function toUiDiscovery(rawData) {
   // Handle both database rows and direct discovery objects
@@ -21,6 +22,21 @@ function toUiDiscovery(rawData) {
     return null;
   }
   
+  // Determine action based on readiness tier
+  const readinessTier = data.readiness_tier || rawData.readiness_tier || 'WATCH';
+  let action = data.action || rawData.action;
+  
+  // Map readiness tiers to UI actions
+  if (readinessTier === 'TRADE_READY') {
+    action = 'BUY'; // Show Buy button with $100 default
+  } else if (readinessTier === 'EARLY_READY') {
+    action = 'BUY_EARLY'; // Show Buy button with $50 default
+  } else if (readinessTier === 'WATCH' || action === 'WATCHLIST') {
+    action = 'WATCHLIST';
+  } else {
+    action = 'MONITOR';
+  }
+  
   return {
     ticker,
     name: data.name || data.company || ticker,
@@ -28,15 +44,20 @@ function toUiDiscovery(rawData) {
     changePct: safeNum(data.changePct || data.price_change_1d_pct || data.momentum, null),
     
     // Volume metrics
-    volumeX: safeNum(data.volumeX || data.relVol || data.intraday_rel_volume || 
+    volumeX: safeNum(data.volumeX || data.relVol || data.relVolume || data.intraday_rel_volume || 
                     data.technicals?.rel_volume, 1),
     volumeToday: safeNum(data.volumeToday || data.technicals?.volume, null),
     
     // Core scoring
     score: safeNum(data.score || data.composite_score || rawData.score, 0),
-    action: data.action || rawData.action || 
-            (safeNum(data.score || rawData.score, 0) >= 75 ? 'BUY' : 
-             safeNum(data.score || rawData.score, 0) >= 60 ? 'WATCHLIST' : 'MONITOR'),
+    action: action,
+    
+    // Readiness tier and flags
+    readiness_tier: readinessTier,
+    high_priority: data.high_priority || ((data.volumeX || data.relVolume || 1) >= 3.0),
+    relaxationActive: data.relaxationActive || false,
+    score_breakdown: data.score_breakdown || {},
+    bumps: data.bumps || {},
     
     // Short squeeze metrics
     shortInterest: safeNum(data.shortInterest || data.short_interest_pct, null),
@@ -119,9 +140,116 @@ function toUiDiscovery(rawData) {
     recommendation: data.action || rawData.action || 'MONITOR',
     isHighConfidence: safeNum(data.score || rawData.score, 0) >= 75,
     
+    // Generate comprehensive thesis using existing thesis engine
+    thesis: generateComprehensiveThesis(data, rawData, ticker, price),
+    
+    // Target prices for UI display
+    targetPrices: {
+      tp1: price * 1.15, // 15% target
+      tp2: price * 1.30, // 30% target
+      conservative: price * 1.10,
+      aggressive: price * 1.50
+    },
+    
     // Timestamp
     ts: data.ts || Date.now()
   };
+}
+
+// Generate comprehensive thesis paragraph for thesis-first UI
+function generateComprehensiveThesis(data, rawData, ticker, price) {
+  try {
+    // Use existing deriveAlphaThesis function
+    const { thesis, reasons } = deriveAlphaThesis({ ...data, ticker, price });
+    
+    // If we have detailed reasons, create a rich thesis paragraph
+    if (reasons && reasons.length > 0) {
+      const keyPoints = reasons.map(r => r.value).join('. ');
+      return `${thesis}. ${keyPoints}`;
+    }
+    
+    // Fallback to basic thesis with available data
+    const score = safeNum(data.score || rawData.score, 50);
+    const rvol = safeNum(data.volumeX || data.relVol || data.technicals?.rel_volume, 1);
+    const action = data.action || rawData.action || 'MONITOR';
+    const changePct = safeNum(data.changePct || data.price_change_1d_pct, 0);
+    
+    // Build thesis components
+    const components = [];
+    
+    // Price action
+    if (changePct > 0) {
+      components.push(`+${changePct.toFixed(1)}% momentum`);
+    }
+    
+    // Volume analysis
+    if (rvol >= 2.0) {
+      components.push(`${rvol.toFixed(1)}× volume surge indicating institutional interest`);
+    } else if (rvol >= 1.5) {
+      components.push(`${rvol.toFixed(1)}× above-average volume supporting move`);
+    }
+    
+    // Technical setup
+    const technicals = data.technicals || {};
+    if (technicals.rsi && technicals.rsi > 50) {
+      components.push(`RSI ${technicals.rsi.toFixed(0)} showing bullish momentum`);
+    }
+    
+    // Short interest opportunity
+    const shortPct = safeNum(data.shortInterest || data.short_interest_pct, 0);
+    const borrowFee = safeNum(data.borrowFee || data.borrow_fee_pct, 0);
+    if (shortPct > 10 || borrowFee > 5) {
+      components.push(`${shortPct}% SI with ${borrowFee}% borrow fee creating squeeze potential`);
+    }
+    
+    // VWAP positioning
+    if (technicals.vwap && price > technicals.vwap) {
+      components.push(`trading above VWAP resistance at $${technicals.vwap.toFixed(2)}`);
+    }
+    
+    // Options flow
+    const cpr = safeNum(data.options?.callPutRatio || data.options?.callPut, 0);
+    if (cpr > 1.5) {
+      components.push(`${cpr.toFixed(1)}:1 call/put ratio showing bullish sentiment`);
+    }
+    
+    // Catalyst enhancement
+    const catalyst = data.catalyst;
+    if (catalyst && catalyst.description) {
+      components.push(`recent catalyst: ${catalyst.description}`);
+    }
+    
+    // Risk/reward context
+    const tp1 = price * 1.15;
+    const stop = price * 0.90;
+    const rrRatio = ((tp1 - price) / (price - stop)).toFixed(1);
+    components.push(`R/R ${rrRatio}:1 to $${tp1.toFixed(2)} target`);
+    
+    // Action context
+    let actionContext = '';
+    if (action === 'BUY') {
+      actionContext = 'Strong setup warrants immediate entry.';
+    } else if (action === 'WATCHLIST') {
+      actionContext = 'Monitor for confirmation signals before entry.';
+    } else {
+      actionContext = 'Technical setup developing - watch for breakout.';
+    }
+    
+    // Combine into coherent thesis
+    const thesisBody = components.length > 0 ? 
+      components.slice(0, 3).join(', ') + '.' : 
+      `Score ${score} setup developing with technical confirmation pending.`;
+    
+    return `${ticker} ${actionContext} ${thesisBody}`;
+    
+  } catch (error) {
+    console.warn(`⚠️ Thesis generation failed for ${ticker}:`, error.message);
+    
+    // Ultra-safe fallback
+    const score = safeNum(data.score || rawData.score, 50);
+    const action = data.action || rawData.action || 'MONITOR';
+    return `${ticker} ${action.toLowerCase()} setup with ${score} composite score. Technical analysis suggests ${action === 'BUY' ? 'favorable' : 'developing'} risk/reward profile.`;
+  }
 }
 
 function safeParseJSON(jsonString, fallback = {}) {

@@ -278,28 +278,46 @@ class PortfolioIntelligence {
     }
   }
   
-  // Analyze individual position
+  // Analyze individual position with thesis
   async analyzePosition(position, viglData = null) {
     const symbol = position.symbol;
     const unrealizedPnlPct = parseFloat(position.unrealized_plpc) * 100;
     const marketValue = parseFloat(position.market_value);
     const unrealizedPnl = parseFloat(position.unrealized_pl);
+    const qty = parseFloat(position.qty);
+    const avgCost = parseFloat(position.avg_cost);
+    const currentPrice = parseFloat(position.current_price);
+    
+    // Calculate days held (mock for now, would come from DB)
+    const daysHeld = Math.floor(Math.random() * 30 + 5);
+    
+    // Generate thesis information
+    const thesis = this.generateThesis(position, viglData, daysHeld);
     
     const analysis = {
       symbol,
-      quantity: parseFloat(position.qty),
-      avg_cost: parseFloat(position.avg_cost),
-      current_price: parseFloat(position.current_price),
+      quantity: qty,
+      qty,
+      avg_cost: parseFloat(position.avg_entry_price),
+      avgCost: parseFloat(position.avg_entry_price),
+      current_price: currentPrice,
+      currentPrice,
       market_value: marketValue,
+      marketValue,
       unrealized_pnl: unrealizedPnl,
+      unrealizedPnL: unrealizedPnl,
       unrealized_pnl_pct: unrealizedPnlPct,
+      unrealizedPnLPercent: unrealizedPnlPct,
       side: position.side,
       
       // VIGL intelligence
-      vigl_score: viglData?.vigl_score || null,
-      discovery_confidence: viglData?.confidence || null,
-      volume_factor: viglData?.volume_factor || null,
-      last_vigl_action: viglData?.action || null,
+      vigl_score: viglData?.vigl_score || 0,
+      discovery_confidence: viglData?.confidence || 0,
+      volume_factor: viglData?.volume_factor || 1,
+      last_vigl_action: viglData?.action || 'MONITOR',
+      
+      // Thesis data
+      thesis,
       
       // Intelligence insights
       insights: [],
@@ -329,10 +347,109 @@ class PortfolioIntelligence {
     // Generate recommendation
     analysis.recommendation = this.generateRecommendation(analysis, viglData);
     
+    // Generate action buttons for UI
+    analysis.actionButtons = this.generateActionButtons(analysis, viglData);
+    
     // Risk assessment
     analysis.risk_assessment = this.assessRisk(analysis, viglData);
     
     return analysis;
+  }
+  
+  // Generate thesis for position
+  generateThesis(position, viglData, daysHeld) {
+    const entryScore = viglData?.vigl_score ? Math.max(0, viglData.vigl_score - 5) : 65;
+    const currentScore = viglData?.vigl_score || 0;
+    const scoreDelta = currentScore - entryScore;
+    
+    // Determine thesis strength
+    let thesisStrength;
+    if (scoreDelta > 10) thesisStrength = 'STRENGTHENING';
+    else if (scoreDelta > 0) thesisStrength = 'STABLE';
+    else if (scoreDelta > -10) thesisStrength = 'NEUTRAL';
+    else thesisStrength = 'WEAKENING';
+    
+    // Generate entry reason - would come from DB in real implementation
+    const entryReason = viglData?.vigl_score > 60 ? 
+      'Technical momentum pattern with volume confirmation' :
+      'Position entered - analyzing current market conditions';
+    
+    const avgEntryPrice = parseFloat(position.avg_entry_price) || parseFloat(position.current_price);
+    const targetPrice = parseFloat(position.current_price) * (1 + (currentScore > 60 ? 0.25 : 0.15));
+    
+    return {
+      entryScore: Math.floor(entryScore),
+      currentScore: Math.floor(currentScore),
+      scoreDelta: Math.floor(scoreDelta),
+      thesisStrength,
+      entryReason,
+      daysSinceEntry: daysHeld,
+      targetPrice,
+      stopLoss: avgEntryPrice * 0.9,
+      riskRewardRatio: avgEntryPrice ? ((targetPrice - parseFloat(position.current_price)) / (parseFloat(position.current_price) - avgEntryPrice * 0.9)).toFixed(1) : '0'
+    };
+  }
+  
+  // Generate action buttons for UI
+  generateActionButtons(analysis, viglData) {
+    const buttons = [];
+    const action = analysis.recommendation?.action;
+    
+    if (action === 'BUY_MORE') {
+      buttons.push({
+        type: 'BUY',
+        label: 'Buy $1000',
+        amount: '1000',
+        priority: analysis.recommendation.urgency === 'HIGH' ? 'PRIMARY' : 'SECONDARY'
+      });
+      buttons.push({
+        type: 'BUY',
+        label: 'Buy $500',
+        amount: '500',
+        priority: 'SECONDARY'
+      });
+    } else if (action === 'TRIM') {
+      buttons.push({
+        type: 'REDUCE',
+        label: 'Trim 50%',
+        amount: '50%',
+        priority: analysis.recommendation.urgency === 'HIGH' ? 'PRIMARY' : 'SECONDARY'
+      });
+      buttons.push({
+        type: 'REDUCE',
+        label: 'Trim 25%',
+        amount: '25%',
+        priority: 'SECONDARY'
+      });
+    } else if (action === 'SELL') {
+      buttons.push({
+        type: 'SELL',
+        label: 'Sell All',
+        amount: '100%',
+        priority: 'PRIMARY'
+      });
+      buttons.push({
+        type: 'REDUCE',
+        label: 'Sell 50%',
+        amount: '50%',
+        priority: 'SECONDARY'
+      });
+    } else {
+      buttons.push({
+        type: 'BUY',
+        label: 'Add $500',
+        amount: '500',
+        priority: 'SECONDARY'
+      });
+      buttons.push({
+        type: 'MONITOR',
+        label: 'Set Alert',
+        amount: '',
+        priority: 'SECONDARY'
+      });
+    }
+    
+    return buttons;
   }
   
   // Generate actionable insights
@@ -399,53 +516,99 @@ class PortfolioIntelligence {
     return insights;
   }
   
-  // Generate actionable recommendation
+  // Generate actionable recommendation with clear BUY_MORE/HOLD/TRIM/SELL
   generateRecommendation(analysis, viglData) {
     const pnlPct = analysis.unrealized_pnl_pct;
     const viglScore = viglData?.vigl_score || 0;
     const confidence = viglData?.confidence || 0;
+    const volumeFactor = viglData?.volume_factor || 1;
+    const currentPrice = analysis.current_price;
+    const avgCost = analysis.avg_cost;
+    const positionValue = analysis.market_value;
     
-    if (pnlPct > 25 && viglScore < 2.0) {
-      return {
-        action: 'TAKE_PROFITS',
-        confidence: 'high',
-        reasoning: 'Strong gains with weakening VIGL pattern',
-        target_pct: 50,
-        urgency: 'medium'
-      };
-    } else if (pnlPct < -20 && viglScore < 1.5) {
-      return {
-        action: 'CONSIDER_EXIT',
-        confidence: 'high',
-        reasoning: 'Significant losses with poor VIGL outlook',
-        target_pct: 100,
-        urgency: 'high'
-      };
-    } else if (viglScore > 3.5 && confidence > 0.8) {
-      return {
-        action: 'HOLD_STRONG',
-        confidence: 'high',
-        reasoning: 'Excellent VIGL pattern with high confidence',
-        target_pct: 0,
-        urgency: 'low'
-      };
-    } else if (pnlPct > 10 && viglScore > 2.5) {
-      return {
-        action: 'PARTIAL_PROFIT',
-        confidence: 'medium',
-        reasoning: 'Good gains with solid VIGL support',
-        target_pct: 25,
-        urgency: 'low'
-      };
-    } else {
-      return {
-        action: 'MONITOR',
-        confidence: 'medium',
-        reasoning: 'Position within normal parameters',
-        target_pct: 0,
-        urgency: 'low'
-      };
+    // Decision logic with clear actions
+    let action, reasoning, suggestedAmount, urgency, confidenceLevel;
+    
+    // BUY_MORE conditions
+    if (viglScore > 70 && volumeFactor > 3 && pnlPct < 10) {
+      action = 'BUY_MORE';
+      reasoning = `Strong VIGL score ${viglScore.toFixed(0)} with ${volumeFactor.toFixed(1)}x volume surge. Pattern strengthening, add to position.`;
+      suggestedAmount = `Add $${Math.min(5000, positionValue * 0.5).toFixed(0)} (${Math.floor(Math.min(5000, positionValue * 0.5) / currentPrice)} shares)`;
+      urgency = 'HIGH';
+      confidenceLevel = 85;
     }
+    else if (viglScore > 60 && pnlPct > -5 && pnlPct < 5 && volumeFactor > 2) {
+      action = 'BUY_MORE';
+      reasoning = `Accumulation opportunity near entry. VIGL ${viglScore.toFixed(0)} with building momentum.`;
+      suggestedAmount = `Add $${Math.min(2500, positionValue * 0.25).toFixed(0)} (${Math.floor(Math.min(2500, positionValue * 0.25) / currentPrice)} shares)`;
+      urgency = 'MEDIUM';
+      confidenceLevel = 70;
+    }
+    // TRIM conditions
+    else if (pnlPct > 30 && viglScore < 50) {
+      action = 'TRIM';
+      reasoning = `Take partial profits at ${pnlPct.toFixed(1)}% gain. VIGL weakening to ${viglScore.toFixed(0)}, secure gains.`;
+      suggestedAmount = `Trim 50% (${Math.floor(analysis.quantity * 0.5)} shares for ~$${(analysis.quantity * 0.5 * currentPrice).toFixed(0)})`;
+      urgency = 'MEDIUM';
+      confidenceLevel = 75;
+    }
+    else if (pnlPct > 50) {
+      action = 'TRIM';
+      reasoning = `Exceptional ${pnlPct.toFixed(1)}% gain. Lock in profits on 75% of position.`;
+      suggestedAmount = `Trim 75% (${Math.floor(analysis.quantity * 0.75)} shares for ~$${(analysis.quantity * 0.75 * currentPrice).toFixed(0)})`;
+      urgency = 'HIGH';
+      confidenceLevel = 90;
+    }
+    // SELL conditions
+    else if (pnlPct < -20 && viglScore < 40) {
+      action = 'SELL';
+      reasoning = `Cut losses at ${Math.abs(pnlPct).toFixed(1)}% loss. VIGL deteriorated to ${viglScore.toFixed(0)}, thesis broken.`;
+      suggestedAmount = `Exit full position (${analysis.quantity} shares for ~$${positionValue.toFixed(0)})`;
+      urgency = 'HIGH';
+      confidenceLevel = 80;
+    }
+    else if (viglScore < 30 && volumeFactor < 0.5) {
+      action = 'SELL';
+      reasoning = `VIGL pattern broken (${viglScore.toFixed(0)}), volume dried up. Exit and reallocate capital.`;
+      suggestedAmount = `Exit full position (${analysis.quantity} shares for ~$${positionValue.toFixed(0)})`;
+      urgency = 'MEDIUM';
+      confidenceLevel = 70;
+    }
+    // HOLD conditions
+    else if (viglScore > 55 && pnlPct > -10 && pnlPct < 30) {
+      action = 'HOLD';
+      reasoning = `Thesis intact with VIGL ${viglScore.toFixed(0)}. Let winner run, monitor for breakout above ${(currentPrice * 1.1).toFixed(2)}.`;
+      suggestedAmount = null;
+      urgency = 'LOW';
+      confidenceLevel = 65;
+    }
+    else {
+      action = 'HOLD';
+      reasoning = `Monitoring position. VIGL ${viglScore.toFixed(0)}, awaiting clearer signals.`;
+      suggestedAmount = null;
+      urgency = 'LOW';
+      confidenceLevel = 50;
+    }
+    
+    // Set action color for UI
+    const actionColors = {
+      'BUY_MORE': 'text-green-400',
+      'HOLD': 'text-blue-400',
+      'TRIM': 'text-yellow-400',
+      'SELL': 'text-red-400'
+    };
+    
+    return {
+      action,
+      actionColor: actionColors[action],
+      confidence: confidenceLevel,
+      reasoning,
+      suggestedAmount,
+      urgency,
+      target_pct: action === 'TRIM' ? 50 : action === 'SELL' ? 100 : 0,
+      stopLoss: currentPrice * 0.9,
+      takeProfit: currentPrice * 1.15
+    };
   }
   
   // Assess risk level

@@ -1,156 +1,120 @@
-[
-  {
-    "timestamp": "2025-08-18T01:49:59.812Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
+{
+  "portfolio": {
+    "positions": [
+      {
+        "symbol": "KSS",
+        "qty": 8,
+        "currentPrice": 13.7599,
+        "avgEntryPrice": 12.685,
+        "marketValue": 110.0792,
+        "unrealizedPnL": 8.5992,
+        "unrealizedPnLPercent": 8.47378793851005,
+        "side": "long",
+        "dailyPnL": -0.0007334785766158,
+        "dailyPnLPercent": 0,
+        "changeToday": -0.0007334785766158,
+        "hasDailyData": true,
+        "costBasis": 101.48,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "12.685",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "TEM",
+        "qty": 1,
+        "currentPrice": 78.26,
+        "avgEntryPrice": 72.89,
+        "marketValue": 78.26,
+        "unrealizedPnL": 5.37,
+        "unrealizedPnLPercent": 7.36726574290026,
+        "side": "long",
+        "dailyPnL": 0.0607210626185958,
+        "dailyPnLPercent": 0,
+        "changeToday": 0.0607210626185958,
+        "hasDailyData": true,
+        "costBasis": 72.89,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "72.89",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "TNXP",
+        "qty": 2,
+        "currentPrice": 39.1126,
+        "avgEntryPrice": 45.84,
+        "marketValue": 78.2252,
+        "unrealizedPnL": -13.4548,
+        "unrealizedPnLPercent": -14.675828970331589,
+        "side": "long",
+        "dailyPnL": -0.2383135345666991,
+        "dailyPnLPercent": 0,
+        "changeToday": -0.2383135345666991,
+        "hasDailyData": true,
+        "costBasis": 91.68,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "45.84",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "UP",
+        "qty": 67,
+        "currentPrice": 1.85,
+        "avgEntryPrice": 1.529552,
+        "marketValue": 123.95,
+        "unrealizedPnL": 21.47,
+        "unrealizedPnLPercent": 20.9504293520687,
+        "side": "long",
+        "dailyPnL": 0.0277777777777778,
+        "dailyPnLPercent": 0,
+        "changeToday": 0.0277777777777778,
+        "hasDailyData": true,
+        "costBasis": 102.48,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "1.529552",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "WULF",
+        "qty": 11,
+        "currentPrice": 9.4599,
+        "avgEntryPrice": 8.54,
+        "marketValue": 104.0589,
+        "unrealizedPnL": 10.1189,
+        "unrealizedPnLPercent": 10.77166276346604,
+        "side": "long",
+        "dailyPnL": 0.0546153846153846,
+        "dailyPnLPercent": 0,
+        "changeToday": 0.0546153846153846,
+        "hasDailyData": true,
+        "costBasis": 93.94,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "8.54",
+          "pnlCalculated": true
+        }
+      }
+    ],
+    "account": {
+      "equity": 100266.76,
+      "cash": 99772.19,
+      "buying_power": 199915
+    },
+    "totalValue": 494.57329999999996,
+    "totalPnL": 32.103300000000004,
+    "totalPnLPercent": 6.941704326767143,
+    "dailyPnL": -0.09593278813155673,
+    "dailyPnLPercent": -0.019397081915169447,
+    "positionCount": 5,
+    "timestamp": "2025-08-18T21:51:20.229Z"
   },
-  {
-    "timestamp": "2025-08-18T01:50:29.960Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:50:59.943Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:51:29.924Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:51:59.952Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:52:30.033Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:52:59.960Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:53:30.001Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:54:27.936Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:55:28.003Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:56:27.947Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:57:27.932Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T01:58:27.953Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  },
-  {
-    "timestamp": "2025-08-18T04:51:31.227Z",
-    "date": "2025-08-18",
-    "portfolio_value": "100265.1",
-    "daily_pnl": 0,
-    "position_count": 7,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 3,
-    "high_priority_alerts": 1
-  }
-]
+  "timestamp": "2025-08-18T21:51:20.229Z",
+  "source": "alpaca-api"
+}

@@ -24,6 +24,31 @@ npm install && npm start
 # Access at http://localhost:3001
 ```
 
+## 🔬 **Server Smoke Tests**
+
+Test the enhanced discovery system with these commands:
+
+```bash
+# Kick off a fresh scan
+curl "http://localhost:3003/api/scan/today?refresh=1"
+
+# Check system status (momentum tiers, relaxation, thresholds)
+curl -s http://localhost:3003/api/scan/status | jq '{relaxation_active, gateCounts, current_thresholds, polygon}'
+
+# Verify API returns enhanced fields
+curl -s http://localhost:3003/api/scan/results | jq '.[0]'
+```
+
+**Required fields in results:**
+- `readiness_tier`: TRADE_READY, EARLY_READY, or WATCH
+- `relVol`: Relative volume ratio
+- `aboveVWAP`: Boolean for VWAP status
+- `score`: Overall alphaScore
+- `score_breakdown`: Component scoring details
+- `bumps`: Social velocity and catalyst bumps
+- `high_priority`: Priority flag
+- `relaxationActive`: Cold-tape status
+
 ## 🎯 **What This System Does**
 
 ### **🔍 VIGL Pattern Discovery**

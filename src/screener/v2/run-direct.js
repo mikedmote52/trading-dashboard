@@ -7,7 +7,7 @@ module.exports = function runDirectOnce() {
   const SCRIPT = process.env.SCREENER_V2_SCRIPT || path.resolve("agents/universe_screener.py");
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(PY, [SCRIPT, "--limit", "10", "--exclude-symbols", "BTAI,KSS,UP,TNXP"], {
+    const proc = spawn(PY, [SCRIPT, "--limit", "50"], {  // Get more candidates, no exclusions
       cwd: process.env.SCREENER_CWD || process.cwd(),
       env: { ...process.env },
       stdio: ["ignore", "pipe", "pipe"],

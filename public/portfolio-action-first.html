@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Intelligence - Action First</title>
+    <style>
+        /* Reset and base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0a0e1a; 
+            color: #eaf1ff; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a1f3a, #0e1320);
+            border: 1px solid #1b2440;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .live-badge {
+            background: #0fb67a;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Summary bar */
+        .summary-bar {
+            background: #0e1320;
+            border: 1px solid #1b2440;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-count {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: #8ea0c9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- Layout --- */
+        .lpi-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); 
+            gap: 16px; 
+        }
+        .lpi-card { 
+            background: #0e1320; 
+            border: 1px solid #1b2440; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 6px 18px rgba(0,0,0,.25); 
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .lpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,.35);
+        }
+
+        /* --- Top: Action banner --- */
+        .lpi-action {
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            padding: 14px 16px; 
+            font-weight: 700; 
+            letter-spacing: .3px; 
+            color: #fff;
+        }
+        .lpi-action .badge { 
+            padding: 6px 12px; 
+            border-radius: 999px; 
+            font-size: 14px; 
+            background: rgba(255,255,255,.15); 
+            font-weight: bold;
+        }
+        .lpi-action .ticker-info {
+            font-size: 14px;
+            opacity: .9;
+            margin-bottom: 2px;
+        }
+        .lpi-action .action-text {
+            font-size: 22px;
+            text-transform: uppercase;
+        }
+
+        /* Action colors */
+        .act-BUY_MORE { background: linear-gradient(90deg, #0fb67a, #17d08b); }
+        .act-HOLD { background: linear-gradient(90deg, #2d3a69, #3b4c8f); }
+        .act-TRIM { background: linear-gradient(90deg, #8f6b00, #c89b20); }
+        .act-SELL { background: linear-gradient(90deg, #9a1f2d, #d13f50); }
+
+        /* PnL colors for badge */
+        .pnl-positive { background: rgba(15, 182, 122, 0.25) !important; color: #17d08b !important; }
+        .pnl-negative { background: rgba(209, 63, 80, 0.25) !important; color: #ff6b7d !important; }
+
+        /* --- Middle: compact stats --- */
+        .lpi-stats { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 10px; 
+            padding: 14px 16px; 
+        }
+        .lpi-stat { 
+            background: #121a2a; 
+            border: 1px solid #1b2440; 
+            border-radius: 10px; 
+            padding: 12px; 
+            text-align: center;
+        }
+        .lpi-stat .k { 
+            font-size: 11px; 
+            color: #8ea0c9; 
+            text-transform: uppercase; 
+            letter-spacing: .4px; 
+            margin-bottom: 4px;
+        }
+        .lpi-stat .v { 
+            font-weight: 700; 
+            color: #eaf1ff; 
+            font-size: 16px;
+        }
+
+        /* --- Targets row --- */
+        .lpi-targets { 
+            display: flex; 
+            gap: 10px; 
+            padding: 0 16px 14px; 
+            flex-wrap: wrap;
+        }
+        .lpi-chip { 
+            background: #121a2a; 
+            border: 1px solid #1b2440; 
+            color: #cfe0ff; 
+            padding: 6px 12px; 
+            border-radius: 8px; 
+            font-size: 12px; 
+            font-weight: 600;
+        }
+        .lpi-chip.urgent {
+            background: rgba(255, 107, 107, 0.15);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+            animation: pulse 2s infinite;
+        }
+
+        /* --- Bottom: collapsible thesis --- */
+        .lpi-thesis { 
+            border-top: 1px dashed #263155; 
+        }
+        .lpi-thesis summary {
+            list-style: none; 
+            cursor: pointer; 
+            padding: 14px 16px; 
+            color: #9eb4ff; 
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .lpi-thesis summary::-webkit-details-marker { 
+            display: none; 
+        }
+        .lpi-thesis summary:hover {
+            color: #b8c8ff;
+            background: rgba(30, 50, 92, 0.2);
+        }
+        .lpi-thesis .body { 
+            padding: 0 16px 16px; 
+            color: #cdd7f3; 
+            font-size: 13px; 
+            line-height: 1.5; 
+        }
+        .lpi-reasons { 
+            margin-top: 10px; 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 6px; 
+        }
+        .lpi-reasons .r { 
+            background: #0f1a31; 
+            color: #9ec9ff; 
+            padding: 5px 10px; 
+            border-radius: 6px; 
+            font-size: 11px; 
+            border: 1px solid #1e325c; 
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #8ea0c9;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) { 
+            .lpi-stats { grid-template-columns: repeat(2, 1fr); } 
+            .lpi-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>
+            🧠 Portfolio Intelligence
+            <span class="live-badge">LIVE</span>
+        </h1>
+        <p style="color: #8ea0c9;">AI-Powered Position Management with Real-Time Analysis</p>
+    </div>
+
+    <!-- Summary Bar -->
+    <div class="summary-bar" id="summary-bar">
+        <div class="summary-item">
+            <div class="summary-count" style="color: #17d08b" id="buy-count">0</div>
+            <div class="summary-label">Buy More</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-count" style="color: #3b4c8f" id="hold-count">0</div>
+            <div class="summary-label">Hold</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-count" style="color: #c89b20" id="trim-count">0</div>
+            <div class="summary-label">Trim</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-count" style="color: #d13f50" id="sell-count">0</div>
+            <div class="summary-label">Sell</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-count" id="total-value">$0</div>
+            <div class="summary-label">Total Value</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-count" id="total-pnl">$0</div>
+            <div class="summary-label">Total P&L</div>
+        </div>
+    </div>
+
+    <!-- Portfolio Cards Grid -->
+    <div id="portfolio-cards" class="lpi-grid">
+        <div class="loading">Loading portfolio intelligence...</div>
+    </div>
+
+    <script>
+        // Render portfolio cards with real data
+        function renderPortfolioCards(positions) {
+            const el = document.getElementById('portfolio-cards');
+            
+            if (!positions || positions.length === 0) {
+                el.innerHTML = '<div class="loading">No positions found</div>';
+                return;
+            }
+            
+            el.innerHTML = positions.map(p => {
+                // Extract real data from position
+                const act = p.recommendation?.action || 'HOLD';
+                const conf = p.recommendation?.confidence || 50;
+                const pnl = p.unrealizedPnL || p.unrealized_pnl || 0;
+                const pnlPct = p.unrealizedPnLPercent || p.unrealized_pnl_pct || 0;
+                const avgScore = p.vigl_score || p.thesis?.currentScore || 0;
+                const days = p.thesis?.daysSinceEntry || 0;
+                const urgency = p.recommendation?.urgency || 'LOW';
+                
+                // Format values
+                const pnlClass = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+                const pnlSign = pnl >= 0 ? '+' : '';
+                
+                // Extract reasons from recommendation
+                const reasoning = p.recommendation?.reasoning || '';
+                const reasonCodes = extractReasonCodes(reasoning);
+                
+                // Targets from recommendation
+                const tp = p.recommendation?.takeProfit || p.currentPrice * 1.15;
+                const tpPct = ((tp / p.currentPrice - 1) * 100).toFixed(0);
+                const sl = p.recommendation?.stopLoss || p.currentPrice * 0.9;
+                const slPct = ((1 - sl / p.currentPrice) * 100).toFixed(0);
+                
+                return `
+                <div class="lpi-card">
+                    <!-- Top: ACTION banner -->
+                    <div class="lpi-action act-${act}">
+                        <div>
+                            <div class="ticker-info">${p.symbol} • ${p.qty || p.quantity} @ $${(p.avgCost || p.avg_cost || 0).toFixed(2)}</div>
+                            <div class="action-text">${act.replace('_', ' ')}</div>
+                        </div>
+                        <div class="badge ${pnlClass}">${pnlSign}${pnlPct.toFixed(1)}%</div>
+                    </div>
+
+                    <!-- Middle: compact stats -->
+                    <div class="lpi-stats">
+                        <div class="lpi-stat">
+                            <div class="k">Confidence</div>
+                            <div class="v">${conf}%</div>
+                        </div>
+                        <div class="lpi-stat">
+                            <div class="k">VIGL Score</div>
+                            <div class="v">${Math.floor(avgScore)}</div>
+                        </div>
+                        <div class="lpi-stat">
+                            <div class="k">Days Held</div>
+                            <div class="v">${days}</div>
+                        </div>
+                    </div>
+
+                    <!-- Targets -->
+                    <div class="lpi-targets">
+                        ${p.recommendation?.suggestedAmount ? `<div class="lpi-chip ${urgency === 'HIGH' ? 'urgent' : ''}">${p.recommendation.suggestedAmount}</div>` : ''}
+                        <div class="lpi-chip">TP: +${tpPct}%</div>
+                        <div class="lpi-chip">SL: -${slPct}%</div>
+                        <div class="lpi-chip">$${pnl.toFixed(2)}</div>
+                    </div>
+
+                    <!-- Bottom: collapsible thesis -->
+                    <details class="lpi-thesis">
+                        <summary>📋 Show thesis & reasoning</summary>
+                        <div class="body">
+                            <div><strong>Entry Thesis:</strong> ${p.thesis?.entryReason || 'Position analysis in progress'}</div>
+                            <div style="margin-top: 8px;"><strong>Current Analysis:</strong> ${reasoning}</div>
+                            ${reasonCodes.length > 0 ? `
+                            <div class="lpi-reasons">
+                                ${reasonCodes.map(r => `<span class="r">${r}</span>`).join('')}
+                            </div>` : ''}
+                        </div>
+                    </details>
+                </div>`;
+            }).join('');
+        }
+        
+        // Extract reason codes from reasoning text
+        function extractReasonCodes(reasoning) {
+            const codes = [];
+            
+            // Pattern-based extraction
+            if (reasoning.includes('VIGL score')) {
+                const score = parseInt(reasoning.match(/VIGL (\d+)/)?.[1] || 0);
+                if (score >= 70) codes.push('VIGL_HIGH');
+                else if (score >= 50) codes.push('VIGL_MID');
+                else codes.push('VIGL_LOW');
+            }
+            
+            if (reasoning.includes('volume')) {
+                const vol = parseFloat(reasoning.match(/([\d.]+)x volume/)?.[1] || 0);
+                if (vol >= 3) codes.push('VOL_SURGE');
+                else if (vol >= 2) codes.push('VOL_UP');
+            }
+            
+            if (reasoning.includes('gain')) codes.push('PROFITS');
+            if (reasoning.includes('loss')) codes.push('LOSS');
+            if (reasoning.includes('momentum')) codes.push('MOMENTUM');
+            if (reasoning.includes('broken')) codes.push('THESIS_BROKEN');
+            if (reasoning.includes('intact')) codes.push('THESIS_OK');
+            
+            return codes;
+        }
+        
+        // Update summary counts
+        function updateSummary(positions, analysis) {
+            const summary = {
+                buyMore: positions.filter(p => p.recommendation?.action === 'BUY_MORE').length,
+                hold: positions.filter(p => p.recommendation?.action === 'HOLD').length,
+                trim: positions.filter(p => p.recommendation?.action === 'TRIM').length,
+                sell: positions.filter(p => p.recommendation?.action === 'SELL').length
+            };
+            
+            document.getElementById('buy-count').textContent = summary.buyMore;
+            document.getElementById('hold-count').textContent = summary.hold;
+            document.getElementById('trim-count').textContent = summary.trim;
+            document.getElementById('sell-count').textContent = summary.sell;
+            
+            // Total value and P&L
+            const totalValue = analysis?.totalValue || 0;
+            const totalPnL = analysis?.totalPnL || 0;
+            
+            document.getElementById('total-value').textContent = `$${totalValue.toFixed(0)}`;
+            const pnlElement = document.getElementById('total-pnl');
+            pnlElement.textContent = `${totalPnL >= 0 ? '+' : ''}$${Math.abs(totalPnL).toFixed(0)}`;
+            pnlElement.style.color = totalPnL >= 0 ? '#17d08b' : '#ff6b7d';
+        }
+        
+        // Load portfolio data
+        async function loadPortfolio() {
+            try {
+                const response = await fetch('/api/enhanced-portfolio/enhanced');
+                const data = await response.json();
+                
+                if (data.success && data.portfolio) {
+                    renderPortfolioCards(data.portfolio.positions);
+                    updateSummary(data.portfolio.positions, data.portfolio.analysis);
+                } else {
+                    document.getElementById('portfolio-cards').innerHTML = 
+                        '<div class="loading">Unable to load portfolio data</div>';
+                }
+            } catch (error) {
+                console.error('Failed to load portfolio:', error);
+                document.getElementById('portfolio-cards').innerHTML = 
+                    '<div class="loading">Error loading portfolio: ' + error.message + '</div>';
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPortfolio();
+            
+            // Refresh every 30 seconds
+            setInterval(loadPortfolio, 30000);
+        });
+    </script>
+</body>
+</html>

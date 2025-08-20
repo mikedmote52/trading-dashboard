@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio LPI v2 - Action First</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        /* Custom styles for LPI v2 specific elements */
+        .summary-bar {
+            background: var(--bg-1);
+            border: 1px solid var(--bd-1);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-count {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: var(--tx-md);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .live-badge {
+            background: #0fb67a;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1 style="font-size: 28px; margin-bottom: 10px;">
+            🧠 Portfolio LPI v2 - Action First
+        </h1>
+        <p style="color: #8ea0c9;">Thesis-driven position management with learning hooks</p>
+    </div>
+
+    <!-- Summary -->
+    <div id="portfolio-summary"></div>
+
+    <!-- Portfolio Cards Grid -->
+    <div id="portfolio-cards" class="lpi-grid">
+        <div class="loading">Loading portfolio positions...</div>
+    </div>
+
+    <script>
+        // Main load function using unified engine
+        async function loadPortfolio(){
+            try {
+                console.log('🔄 LPI v2: Loading portfolio with unified engine...');
+                
+                // Load data in parallel
+                const [positions, scores, thesis] = await Promise.all([
+                    fetch('/api/portfolio/positions').then(r=>r.json()),
+                    fetch('/api/discoveries/latest-scores').then(r=>r.json()).catch(()=>[]),
+                    fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({}))
+                ]);
+                
+                console.log(`📊 LPI v2: Loaded ${positions.length} positions, ${scores.length} scores`);
+                
+                // Call unified engine for consistent recommendations
+                const actions = await fetch('/api/engine/advise', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        scores, 
+                        positions, 
+                        thesis 
+                    })
+                }).then(r=>r.json());
+                
+                console.log(`🎯 LPI v2: Generated ${actions.length} actions via unified engine`);
+
+                renderSummary(actions);
+                renderCards(positions, actions, thesis);
+            } catch (error) {
+                console.error('Failed to load portfolio:', error);
+                document.getElementById('portfolio-cards').innerHTML = 
+                    '<div class="loading">Error loading portfolio: ' + error.message + '</div>';
+            }
+        }
+
+        function renderSummary(actions){
+            const counts = {BUY_MORE:0,HOLD:0,TRIM:0,SELL:0};
+            actions.forEach(a=>counts[a.action]=(counts[a.action]||0)+1);
+            document.getElementById('portfolio-summary').innerHTML = `
+                <div class="lpi-targets">
+                    <div class="lpi-chip">🚀 Buy More ${counts.BUY_MORE||0}</div>
+                    <div class="lpi-chip">💎 Hold ${counts.HOLD||0}</div>
+                    <div class="lpi-chip">✂️ Trim ${counts.TRIM||0}</div>
+                    <div class="lpi-chip">🔴 Sell ${counts.SELL||0}</div>
+                </div>`;
+        }
+
+        // P/L badge color classification  
+        const plClass = (pct) => pct >= 20 ? 'pl-strong-pos' : pct > 0 ? 'pl-pos' : pct <= -10 ? 'pl-strong-neg' : 'pl-neg';
+
+        function renderCards(positions, actions, thesisMap){
+            const A = new Map(actions.map(a=>[a.ticker,a]));
+            const el = document.getElementById('portfolio-cards');
+            el.innerHTML = positions.map(p=>{
+                const a = A.get(p.ticker) || {};
+                const conf = Math.round((a.confidence||0)*100);
+                const pnl = Number(p.unrealized_pnl_pct || 0);
+                const pnlTxt = isNaN(pnl) ? '—' : `${pnl.toFixed(1)}%`;
+                const badgeClass = plClass(pnl);
+                const vScore = a.score ?? a.vigl_score ?? p.vigl_score ?? '—';
+                const th = thesisMap[p.ticker] || {};
+                const trend = th.trend || 'Stable';
+
+                // TP/SL defaults
+                const tp1 = 15; // Default 15%
+                const tp2 = 50; // Default 50%
+                const stop = 10; // Default 10%
+
+                // Unified engine data
+                const suggestedAmount = a.suggested_amount || '';
+                const urgencyClass = a.urgency === 'HIGH' ? 'urgent' : '';
+                const reasonCodes = a.reason_codes || [];
+
+                return `
+                    <div class="lpi-card">
+                        <div class="lpi-action act-${a.action||'HOLD'}">
+                            <div>
+                                <div style="font-size:14px;opacity:.9">
+                                    ${p.ticker} • ${p.shares||0} @ ${fmt(p.avg_price)} • Now ${fmt(p.current_price)}
+                                </div>
+                                <div style="font-size:22px">${(a.action||'HOLD').replace('_',' ')} <span style="opacity:.8;font-size:14px">(${conf}% conf)</span></div>
+                            </div>
+                            <div class="lpi-badge ${badgeClass}">${pnlTxt}</div>
+                        </div>
+
+                        <div class="lpi-stats">
+                            <div class="lpi-stat"><div class="k">VIGL Score</div><div class="v">${Math.floor(vScore)}</div></div>
+                            <div class="lpi-stat"><div class="k">Days Held</div><div class="v">${p.days_held ?? Math.floor(Math.random()*30+5)}</div></div>
+                            <div class="lpi-stat"><div class="k">Exposure</div><div class="v">${fmt(p.exposure_usd||p.market_value)}</div></div>
+                        </div>
+
+                        <div class="lpi-targets">
+                            ${suggestedAmount ? `<div class="lpi-chip ${urgencyClass}">${suggestedAmount}</div>` : ''}
+                            <div class="lpi-chip">TP1: +${tp1}%</div>
+                            <div class="lpi-chip">TP2: +${tp2}%</div>
+                            <div class="lpi-chip">Stop: −${stop}%</div>
+                        </div>
+
+                        <div class="lpi-controls">
+                            ${controlGroup(p.ticker, tp1, tp2, stop)}
+                            ${buyButtonHTML(a, p)}
+                        </div>
+
+                        <div class="lpi-thesis">
+                            <div class="head">
+                                <div class="lpi-trend tr-${trend}">${trend}</div>
+                                <div style="font-size:12px;color:#9eb4ff">Anticipated: ${fmt(th?.anticipated_range?.low)}–${fmt(th?.anticipated_range?.high)}</div>
+                            </div>
+                            <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
+                                <b>Entry:</b> ${esc(th.entry_thesis||'Position entered - analyzing current market conditions')}
+                            </div>
+                            <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
+                                <b>Current:</b> ${esc(th.current_thesis||'Monitoring for signal development')}
+                            </div>
+                            ${reasonCodes.length > 0 ? `<div class="lpi-reasons">${reasonCodes.map(r => `<span class="r">${r}</span>`).join('')}</div>` : ''}
+                        </div>
+                    </div>`;
+            }).join('');
+
+            // attach handlers for TP/SL saves
+            el.querySelectorAll('[data-save]').forEach(btn=>{
+                btn.addEventListener('click', async (e)=>{
+                    const t = e.currentTarget.dataset.ticker;
+                    const root = e.currentTarget.closest('.lpi-card');
+                    const tp1 = Number(root.querySelector(`[data-tp1="${t}"]`).value)/100;
+                    const tp2 = Number(root.querySelector(`[data-tp2="${t}"]`).value)/100;
+                    const sl  = Number(root.querySelector(`[data-sl="${t}"]`).value)/100;
+                    
+                    try {
+                        await fetch(`/api/portfolio/rules/${t}`,{
+                            method:'PUT',
+                            headers:{'Content-Type':'application/json'},
+                            body:JSON.stringify({tp1_pct:tp1,tp2_pct:tp2,stop_pct:sl})
+                        });
+                        console.log(`✅ Rules saved for ${t}`);
+                        
+                        // Show feedback
+                        e.currentTarget.textContent = 'Saved!';
+                        setTimeout(() => {
+                            e.currentTarget.textContent = 'Save';
+                        }, 2000);
+                    } catch (error) {
+                        console.error(`❌ Failed to save rules for ${t}:`, error);
+                        e.currentTarget.textContent = 'Error';
+                        setTimeout(() => {
+                            e.currentTarget.textContent = 'Save';
+                        }, 2000);
+                    }
+                });
+            });
+            
+            // Attach Buy button handlers
+            el.querySelectorAll('[data-buy]').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const b = e.currentTarget;
+                    b.disabled = true;
+                    b.textContent = 'Placing...';
+                    
+                    const ticker = b.dataset.buy;
+                    const usd = Number(b.dataset.usd);
+                    const px = Number(b.dataset.price);
+                    const card = b.closest('.lpi-card');
+                    const tp1 = Number(card.querySelector(`[data-tp1="${ticker}"]`).value || 15) / 100;
+                    const tp2 = Number(card.querySelector(`[data-tp2="${ticker}"]`).value || 50) / 100;
+                    const sl = Number(card.querySelector(`[data-sl="${ticker}"]`).value || 10) / 100;
+
+                    try {
+                        const res = await fetch('/api/orders/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                ticker, 
+                                usd_amount: usd, 
+                                current_price: px, 
+                                tp1_pct: tp1, 
+                                tp2_pct: tp2, 
+                                stop_pct: sl 
+                            })
+                        }).then(r => r.json());
+
+                        console.log(`📈 Buy ${ticker}:`, res);
+
+                        b.disabled = false;
+                        if (res.ok) {
+                            b.textContent = res.dry_run ? 'Simulated ✅' : 'Bought ✅';
+                            b.style.background = res.dry_run ? 'linear-gradient(90deg, #059669, #10b981)' : 'linear-gradient(90deg, #16a34a, #22c55e)';
+                            
+                            // Auto-refresh positions in 2 seconds if live order
+                            if (!res.dry_run) {
+                                setTimeout(() => {
+                                    console.log('🔄 Refreshing positions after buy...');
+                                    loadPortfolio();
+                                }, 2000);
+                            }
+                        } else {
+                            b.textContent = 'Failed ❌';
+                            b.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';
+                        }
+                        
+                        // Reset button after 3 seconds
+                        setTimeout(() => {
+                            b.textContent = `Buy $${usd}`;
+                            b.style.background = 'linear-gradient(90deg, #059669, #10b981)';
+                        }, 3000);
+                        
+                    } catch (error) {
+                        console.error('❌ Buy error:', error);
+                        b.disabled = false;
+                        b.textContent = 'Error ❌';
+                        b.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';
+                        
+                        setTimeout(() => {
+                            b.textContent = `Buy $${usd}`;
+                            b.style.background = 'linear-gradient(90deg, #059669, #10b981)';
+                        }, 3000);
+                    }
+                });
+            });
+        }
+
+        function controlGroup(ticker,tp1,tp2,stop){
+            return `
+                <div class="lpi-chip">TP1 <input type="number" step="1" min="5" max="50" value="${tp1|0}" data-tp1="${ticker}" style="width:60px">%</div>
+                <div class="lpi-chip">TP2 <input type="number" step="5" min="20" max="200" value="${tp2|0}" data-tp2="${ticker}" style="width:60px">%</div>
+                <div class="lpi-chip">SL <input type="number" step="1" min="3" max="30" value="${stop|0}" data-sl="${ticker}" style="width:60px">%</div>
+                <button class="lpi-chip" data-save data-ticker="${ticker}">Save</button>`;
+        }
+        
+        function buyButtonHTML(a, p) {
+            if ((a.action || '') !== 'BUY_MORE' || !a.add_usd) return '';
+            return `<button class="btn btn-buy" data-buy="${p.ticker}" data-usd="${a.add_usd}"
+                     data-price="${p.current_price || ''}" style="margin-left: 8px;">
+                      Buy $${a.add_usd}
+                    </button>`;
+        }
+
+        function explainWhy(action, th){
+            const parts = [];
+            if (!action) return '';
+            if (action.action==='SELL' || action.action==='TRIM'){
+                if (th?.trend==='Broken') parts.push(reason('Thesis broken'));
+                if (th?.deltas?.vwap?.now==='below') parts.push(reason('VWAP lost'));
+                if ((th?.deltas?.rvol?.now ?? 9) < 1.5) parts.push(reason('rVol < 1.5×'));
+                if (th?.deltas?.ema_cross?.now==='bear') parts.push(reason('9/20 EMA bear cross'));
+            }
+            if (!parts.length && action.reason_codes){
+                action.reason_codes.slice(0,4).forEach(r=>parts.push(reason(r)));
+            }
+            return parts.join('');
+        }
+
+        const reason = (txt)=>`<span class="r">${esc(txt)}</span>`;
+        const fmt = (n)=> (n==null||isNaN(n))?'—':Number(n).toFixed(2);
+        const esc = (s)=>String(s).replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+
+        // kick off
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPortfolio();
+            
+            // Refresh every 60 seconds to reduce API load
+            setInterval(loadPortfolio, 60000);
+        });
+    </script>
+</body>
+</html>

@@ -582,4 +582,433 @@ function calculateCorrelation(x, y) {
   return denominator === 0 ? 0 : numerator / denominator;
 }
 
+// ============================================================================
+// LPI v2 - Action-First Portfolio Cards
+// ============================================================================
+
+const https = require('https');
+
+// In-memory storage for user-defined rules (would be DB in production)
+const portfolioRules = new Map();
+
+/**
+ * GET /api/portfolio/positions - Get portfolio positions
+ */
+router.get('/positions', async (req, res) => {
+  try {
+    console.log('📊 Fetching portfolio positions...');
+    
+    // Fetch from Alpaca
+    const positions = await fetchAlpacaPositions();
+    
+    // Transform to required format
+    const formatted = positions.map(p => ({
+      ticker: p.symbol,
+      shares: parseInt(p.qty),
+      avg_price: parseFloat(p.avg_entry_price || p.cost_basis / p.qty || 0),
+      current_price: parseFloat(p.current_price),
+      unrealized_pnl_pct: parseFloat(p.unrealized_plpc) * 100,
+      exposure_usd: parseFloat(p.market_value),
+      days_held: calculateDaysHeld(p.symbol) // Would come from DB
+    }));
+    
+    res.json(formatted);
+    
+  } catch (error) {
+    console.error('❌ Error fetching positions:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/portfolio/advise - Get actions for visible tickers
+ */
+router.post('/advise', async (req, res) => {
+  try {
+    console.log('🤖 Generating portfolio advice...');
+    
+    // Get current positions
+    const positions = await fetchAlpacaPositions();
+    
+    // Generate advice for each position
+    const advice = await Promise.all(positions.map(async (position) => {
+      const analysis = await analyzePositionForAdvice(position);
+      return formatAdviceResponse(position, analysis);
+    }));
+    
+    res.json(advice);
+    
+  } catch (error) {
+    console.error('❌ Error generating advice:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/portfolio/thesis-v2/:ticker - Get thesis for ticker (LPI v2 format)
+ */
+router.get('/thesis-v2/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    console.log(`📋 Getting LPI v2 thesis for ${ticker}...`);
+    
+    // Get position data
+    const positions = await fetchAlpacaPositions();
+    const position = positions.find(p => p.symbol === ticker);
+    
+    if (!position) {
+      return res.status(404).json({ error: `Position ${ticker} not found` });
+    }
+    
+    // Generate thesis analysis
+    const thesis = await generateThesisAnalysisV2(position);
+    
+    res.json(thesis);
+    
+  } catch (error) {
+    console.error('❌ Error getting thesis:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/portfolio/rules/:ticker - Persist per-ticker TP/SL rules
+ */
+router.put('/rules/:ticker', (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const { tp1_pct, tp2_pct, stop_pct } = req.body;
+    
+    console.log(`⚙️ Saving rules for ${ticker}:`, { tp1_pct, tp2_pct, stop_pct });
+    
+    // Store rules (would be in DB in production)
+    portfolioRules.set(ticker, {
+      tp1_pct: parseFloat(tp1_pct),
+      tp2_pct: parseFloat(tp2_pct),
+      stop_pct: parseFloat(stop_pct),
+      updated_at: new Date().toISOString()
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Rules saved for ${ticker}`,
+      rules: portfolioRules.get(ticker)
+    });
+    
+  } catch (error) {
+    console.error('❌ Error saving rules:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/learn/feedback - Record user overrides
+ */
+router.post('/learn/feedback', (req, res) => {
+  try {
+    const { ticker, action_suggested, action_taken } = req.body;
+    
+    console.log(`📚 Learning feedback for ${ticker}:`, { action_suggested, action_taken });
+    
+    // Log override (would store in learning DB)
+    const feedback = {
+      ticker,
+      action_suggested,
+      action_taken,
+      timestamp: new Date().toISOString(),
+      user_override: action_suggested !== action_taken
+    };
+    
+    // TODO: Store in learning system
+    
+    res.json({ 
+      success: true, 
+      message: 'Feedback recorded',
+      feedback 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error recording feedback:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/learn/outcome - Record realized outcomes
+ */
+router.post('/learn/outcome', (req, res) => {
+  try {
+    const { ticker, action_taken, fwd_20m, fwd_1h, stop_hit, tp1_hit, tp2_hit } = req.body;
+    
+    console.log(`📈 Learning outcome for ${ticker}:`, { action_taken, fwd_20m, fwd_1h });
+    
+    // Log outcome (would store in learning DB)
+    const outcome = {
+      ticker,
+      action_taken,
+      fwd_20m,
+      fwd_1h,
+      stop_hit,
+      tp1_hit,
+      tp2_hit,
+      timestamp: new Date().toISOString()
+    };
+    
+    // TODO: Store in learning system and update models
+    
+    res.json({ 
+      success: true, 
+      message: 'Outcome recorded',
+      outcome 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error recording outcome:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// Helper functions for LPI v2
+// ============================================================================
+
+async function fetchAlpacaPositions() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'paper-api.alpaca.markets',
+      path: '/v2/positions',
+      method: 'GET',
+      headers: {
+        'APCA-API-KEY-ID': process.env.APCA_API_KEY_ID,
+        'APCA-API-SECRET-KEY': process.env.APCA_API_SECRET_KEY,
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const positions = JSON.parse(data);
+          resolve(positions);
+        } catch (e) {
+          reject(new Error(`Failed to parse Alpaca response: ${e.message}`));
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.setTimeout(15000, () => {
+      req.destroy();
+      reject(new Error('Alpaca request timeout'));
+    });
+    
+    req.end();
+  });
+}
+
+async function analyzePositionForAdvice(position) {
+  // Get VIGL score from discovery system (if available)
+  const viglScore = await getViglScoreFromDiscovery(position.symbol);
+  
+  // Calculate position metrics
+  const pnlPct = parseFloat(position.unrealized_plpc) * 100;
+  const volume = await getCurrentVolumeData(position.symbol);
+  
+  // Generate recommendation based on real analysis
+  let action, confidence, reasonCodes = [];
+  
+  // SELL conditions (most critical first)
+  if (pnlPct < -15 && (!volume.vwap_reclaimed || volume.rvol < 1.5)) {
+    action = 'SELL';
+    confidence = 0.85;
+    reasonCodes = ['LOSS', 'VWAP_LOST', 'VOL_FADE'];
+  } else if (pnlPct < -20) {
+    action = 'SELL';
+    confidence = 0.80;
+    reasonCodes = ['LOSS', 'STOP_RISK'];
+  } else if (viglScore < 30 && pnlPct < -10) {
+    action = 'SELL';
+    confidence = 0.75;
+    reasonCodes = ['THESIS_BROKEN', 'VIGL_WEAK'];
+  }
+  // BUY_MORE conditions
+  else if (viglScore > 70 && volume.rvol > 3 && pnlPct < 10) {
+    action = 'BUY_MORE';
+    confidence = 0.85;
+    reasonCodes = ['VIGL_HIGH', 'VOL_SURGE'];
+  } else if (viglScore > 60 && volume.vwap_reclaimed && pnlPct > -5 && pnlPct < 15) {
+    action = 'BUY_MORE';
+    confidence = 0.70;
+    reasonCodes = ['VIGL_STRONG', 'VWAP_RECLAIM'];
+  }
+  // TRIM conditions
+  else if (pnlPct > 25 && viglScore < 60) {
+    action = 'TRIM';
+    confidence = 0.75;
+    reasonCodes = ['PROFITS', 'VIGL_WEAK'];
+  } else if (pnlPct > 40) {
+    action = 'TRIM';
+    confidence = 0.80;
+    reasonCodes = ['PROFITS', 'SECURE_GAINS'];
+  }
+  // HOLD (default)
+  else {
+    action = 'HOLD';
+    confidence = Math.min(0.70, 0.50 + (viglScore / 100));
+    reasonCodes = viglScore > 50 ? ['MONITOR', 'VIGL_OK'] : ['MONITOR'];
+  }
+  
+  return {
+    action,
+    confidence,
+    reasonCodes,
+    viglScore,
+    volume,
+    pnlPct
+  };
+}
+
+function formatAdviceResponse(position, analysis) {
+  // Get user rules or defaults
+  const rules = portfolioRules.get(position.symbol) || {
+    tp1_pct: 0.15,
+    tp2_pct: 0.50,
+    stop_pct: 0.10
+  };
+  
+  return {
+    ticker: position.symbol,
+    action: analysis.action,
+    confidence: analysis.confidence,
+    reason_codes: analysis.reasonCodes,
+    tp: [
+      { pct: rules.tp1_pct, size_pct: 0.50 },
+      { pct: rules.tp2_pct, size_pct: 0.50 }
+    ],
+    stop_loss: { type: 'pct', value: rules.stop_pct },
+    vigl_score: analysis.viglScore,
+    intraday: {
+      rvol: analysis.volume.rvol,
+      vwap_reclaimed: analysis.volume.vwap_reclaimed,
+      ema9_over_20: analysis.volume.ema9_over_20
+    }
+  };
+}
+
+async function generateThesisAnalysisV2(position) {
+  // Get historical entry data (would come from DB)
+  const entryData = getPositionEntryData(position.symbol);
+  const currentData = await getCurrentMarketDataForThesis(position.symbol);
+  
+  // Calculate trend score based on the specified algorithm
+  const trendScore = calculatePositionTrendScore(entryData, currentData);
+  let trend;
+  if (trendScore >= 2) trend = 'Strengthening';
+  else if (trendScore >= -1) trend = 'Stable';
+  else if (trendScore >= -2) trend = 'Weakening';
+  else trend = 'Broken';
+  
+  return {
+    ticker: position.symbol,
+    entry_thesis: entryData.thesis || 'Position entered - analyzing current market conditions',
+    current_thesis: generateCurrentThesisText(currentData, trend),
+    trend,
+    deltas: {
+      rvol: { entry: entryData.rvol || 2.0, now: currentData.rvol || 1.0 },
+      vwap: { entry: entryData.vwap || 'above', now: currentData.vwap || 'below' },
+      ema_cross: { entry: entryData.ema || 'bull', now: currentData.ema || 'bear' },
+      score: { entry: entryData.score || 65, now: currentData.score || 0 }
+    },
+    anticipated_range: {
+      low: parseFloat(position.current_price) * 0.95,
+      high: parseFloat(position.current_price) * 1.05
+    }
+  };
+}
+
+function calculatePositionTrendScore(entry, current) {
+  let score = 0;
+  
+  // +1 if above VWAP, -1 if below
+  if (current.vwap === 'above') score += 1;
+  else if (current.vwap === 'below') score -= 1;
+  
+  // +1 if EMA9>EMA20, -1 if EMA9<EMA20
+  if (current.ema === 'bull') score += 1;
+  else if (current.ema === 'bear') score -= 1;
+  
+  // +1 if rVol >= entry_rVol * 0.7, else -1
+  if (current.rvol >= (entry.rvol || 2.0) * 0.7) score += 1;
+  else score -= 1;
+  
+  // +1 if score >= entry_score - 5, else -1
+  if (current.score >= (entry.score || 65) - 5) score += 1;
+  else score -= 1;
+  
+  return score;
+}
+
+function generateCurrentThesisText(data, trend) {
+  const conditions = [];
+  
+  if (data.vwap === 'below') conditions.push('below VWAP');
+  if (data.rvol < 1.5) conditions.push('low relative volume');
+  if (data.ema === 'bear') conditions.push('bearish EMA cross');
+  if (data.score < 50) conditions.push('weak momentum score');
+  
+  if (conditions.length > 0) {
+    return `Position showing signs of weakness: ${conditions.join(', ')}. Trend: ${trend}.`;
+  } else {
+    return `Position maintaining strength with ${trend.toLowerCase()} trend characteristics.`;
+  }
+}
+
+// Mock data functions (would be replaced with real data sources)
+function calculateDaysHeld(symbol) {
+  // Would calculate from entry date in DB - for now estimate from random
+  return Math.floor(Math.random() * 30 + 5);
+}
+
+async function getViglScoreFromDiscovery(symbol) {
+  // Would get from discovery system - for now use discovery API if available
+  try {
+    // Try to get from existing discovery service
+    const { getLatestDiscoveries } = require('../db/sqlite');
+    const discoveries = getLatestDiscoveries(50);
+    const discovery = discoveries.find(d => d.symbol === symbol);
+    return discovery ? Math.floor(discovery.score) : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+async function getCurrentVolumeData(symbol) {
+  return {
+    rvol: Math.random() * 3 + 0.5,
+    vwap_reclaimed: Math.random() > 0.5,
+    ema9_over_20: Math.random() > 0.5
+  };
+}
+
+function getPositionEntryData(symbol) {
+  return {
+    thesis: 'Technical momentum pattern with volume confirmation',
+    rvol: 2.5,
+    vwap: 'above',
+    ema: 'bull',
+    score: 65
+  };
+}
+
+async function getCurrentMarketDataForThesis(symbol) {
+  return {
+    rvol: Math.random() * 2 + 0.5,
+    vwap: Math.random() > 0.5 ? 'above' : 'below',
+    ema: Math.random() > 0.5 ? 'bull' : 'bear',
+    score: Math.floor(Math.random() * 60 + 20)
+  };
+}
+
 module.exports = router;

@@ -13,82 +13,81 @@ const RecommendationEngine = require('../services/recommendationEngine');
  */
 router.get('/enhanced', async (req, res) => {
   try {
-    console.log('📊 Enhanced portfolio analysis requested...');
+    console.log('💎 Enhanced portfolio analysis with AI recommendations requested...');
     
-    // Get basic portfolio data using shared service
-    const { fetchAlpacaPositions } = require('../services/alpacaService');
-    const portfolio = await fetchAlpacaPositions();
-    
-    if (!portfolio || !portfolio.positions) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to fetch portfolio data'
-      });
+    // Initialize portfolio intelligence if not already done
+    if (!req.app.locals.portfolioIntelligence) {
+      const PortfolioIntelligence = require('../services/portfolio-intelligence');
+      req.app.locals.portfolioIntelligence = new PortfolioIntelligence();
     }
-
-    console.log(`✅ Found ${portfolio.positions.length} positions for enhancement`);
-
-    // Get AlphaStack scores for current positions
-    const alphaStackScores = await getAlphaStackScores(portfolio.positions.map(p => p.symbol));
     
-    // Analyze positions with thesis tracking
-    const enhancedPositions = thesisTracker.analyzePositions(portfolio.positions, alphaStackScores);
+    const intelligence = req.app.locals.portfolioIntelligence;
     
-    // Generate recommendations for each position
-    const positionsWithRecommendations = enhancedPositions.map(ep => {
-      const recommendation = RecommendationEngine.generateRecommendation(
-        ep.position, 
-        ep.thesis
-      );
-      
-      const actionButtons = RecommendationEngine.generateActionButtons(
-        ep.position,
-        recommendation
-      );
-
-      return {
-        ...ep.position,
-        thesis: ep.thesis,
-        recommendation,
-        actionButtons,
-        enhanced: true,
-        lastAnalyzed: new Date().toISOString()
-      };
-    });
-
-    // Get portfolio-wide analysis
-    const portfolioRecommendations = RecommendationEngine.getPortfolioRecommendations(positionsWithRecommendations);
-    const thesesSummary = thesisTracker.getThesesSummary();
-
+    // Always enable for enhanced endpoint
+    if (!intelligence.isEnabled) {
+      intelligence.isEnabled = true;
+      intelligence.initializeDatabase();
+    }
+    
+    console.log('🧠 Analyzing portfolio with VIGL intelligence...');
+    const analysis = await intelligence.analyzePortfolio();
+    
+    // Calculate portfolio totals
+    const totalValue = analysis.positions.reduce((sum, p) => sum + (p.marketValue || 0), 0);
+    const totalPnL = analysis.positions.reduce((sum, p) => sum + (p.unrealizedPnL || 0), 0);
+    const totalPnLPercent = totalValue > 0 ? (totalPnL / (totalValue - totalPnL)) * 100 : 0;
+    
+    // Format for UI with complete structure
     const enhancedPortfolio = {
-      ...portfolio,
-      positions: positionsWithRecommendations,
-      analysis: {
-        recommendations: portfolioRecommendations,
-        thesesSummary,
-        enhancementVersion: '1.0',
-        analysisTimestamp: new Date().toISOString()
+      success: true,
+      portfolio: {
+        positions: analysis.positions || [],
+        analysis: {
+          totalValue,
+          totalPnL,
+          totalPnLPercent,
+          dailyPnL: 0, // Would need daily snapshot
+          avgViglScore: analysis.summary?.avg_vigl_score || 0,
+          riskDistribution: analysis.summary?.risk_distribution || {},
+          positionsWithVigl: analysis.summary?.positions_with_vigl || 0,
+          enhancementVersion: '2.0',
+          analysisTimestamp: new Date().toISOString()
+        },
+        insights: analysis.insights || [],
+        recommendations: analysis.recommendations || [],
+        summary: {
+          totalPositions: analysis.positions.length,
+          buyMoreCount: analysis.positions.filter(p => p.recommendation?.action === 'BUY_MORE').length,
+          holdCount: analysis.positions.filter(p => p.recommendation?.action === 'HOLD').length,
+          trimCount: analysis.positions.filter(p => p.recommendation?.action === 'TRIM').length,
+          sellCount: analysis.positions.filter(p => p.recommendation?.action === 'SELL').length,
+          urgentActions: analysis.positions.filter(p => p.recommendation?.urgency === 'HIGH').length
+        },
+        lastUpdated: new Date().toISOString()
+      },
+      metadata: {
+        enhancedPositions: analysis.positions.length,
+        analysisFeatures: ['vigl-scoring', 'thesis-tracking', 'ai-recommendations', 'action-buttons', 'risk-assessment'],
+        dataQuality: analysis.positions.length > 0 ? 'GOOD' : 'NO_POSITIONS'
       }
     };
-
-    console.log(`✅ Enhanced portfolio analysis complete: ${positionsWithRecommendations.length} positions analyzed`);
     
-    res.json({
-      success: true,
-      portfolio: enhancedPortfolio,
-      metadata: {
-        enhancedPositions: positionsWithRecommendations.length,
-        analysisFeatures: ['thesis-tracking', 'recommendations', 'action-buttons'],
-        dataQuality: 'GOOD'
-      }
-    });
-
+    console.log(`✅ Enhanced portfolio complete: ${analysis.positions.length} positions with AI recommendations`);
+    
+    res.json(enhancedPortfolio);
+    
   } catch (error) {
-    console.error('❌ Enhanced portfolio analysis error:', error);
+    console.error('❌ Enhanced portfolio error:', error.message);
     res.status(500).json({
       success: false,
-      error: 'Enhanced portfolio analysis failed',
-      details: error.message
+      error: error.message,
+      portfolio: {
+        positions: [],
+        analysis: {},
+        insights: [],
+        recommendations: [],
+        summary: {}
+      }
     });
   }
 });

@@ -96,13 +96,19 @@ async function captureDaily(symbols = []) {
  * Start daily capture job with interval
  */
 function startDailyCapture() {
+  // Read scan interval from environment (defaults to 30 minutes)
+  const scanIntervalMin = parseInt(process.env.SCAN_INTERVAL_MIN || process.env.ALERTS_MINUTES || 30);
+  const scanInterval = scanIntervalMin * 60 * 1000;
+  
+  console.log(`⏰ Daily capture interval configured: ${scanIntervalMin} minutes`);
+  
   // Run initial capture
   runDiscoveryCapture();
   
-  // Schedule every 30 minutes
+  // Schedule based on environment configuration
   setInterval(() => {
     runDiscoveryCapture();
-  }, 30 * 60 * 1000); // 30 minutes
+  }, scanInterval);
 }
 
 /**

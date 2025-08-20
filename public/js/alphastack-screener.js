@@ -8,6 +8,7 @@ class AlphaStackScreener {
     this.containerId = containerId;
     this.data = [];
     this.isLoading = false;
+    this.loadingScan = false; // Single-flight guard
     this.lastUpdate = null;
     
     // Bind methods
@@ -98,52 +99,60 @@ class AlphaStackScreener {
   }
   
   /**
-   * Load screening data - fetch real universe scan results
+   * Load screening data with proper backoff and single-flight protection
    */
   async loadData() {
-    if (this.isLoading) return;
+    if (this.loadingScan) return; // Single-flight guard
     
     try {
-      this.isLoading = true;
-      this.showLoading('Scanning universe for new opportunities...');
+      this.loadingScan = true;
+      this.showLoading('Loading AlphaStack results...');
       
-      // REPLACE hardcoded data with real API call
-      const response = await fetch('/api/alphastack/scan?limit=5');
-      const result = await response.json();
+      // Check if we have fresh cached results first
+      const statusResp = await fetch('/api/scan/status');
+      const status = await statusResp.json();
       
-      if (result.success) {
-        this.data = result.candidates.map(candidate => ({
-          symbol: candidate.symbol,
-          score: candidate.score,
-          bucket: this.getBucket(candidate.score),
-          price: candidate.price,
-          rsi: candidate.rsi,  // Show real RSI or undefined
-          rel_vol_30m: candidate.rel_vol_30m || candidate.rel_vol,  // Real volume data
-          short_interest: candidate.short_interest,  // Real short interest or null
-          borrow_fee: candidate.borrow_fee,  // Real borrow fee or null
-          reddit_mentions: candidate.reddit_mentions,  // Real Reddit data or undefined
-          sentiment_score: candidate.sentiment_score,  // Real sentiment or undefined
-          thesis: candidate.thesis,
-          target_price: candidate.target_price,
-          upside_pct: candidate.upside_pct,
-          risk_note: candidate.risk_note
-        }));
-        
-        console.log(`✅ AlphaStack: Loaded ${this.data.length} NEW opportunities`);
-      } else {
-        throw new Error(result.error);
+      if (!status.hasData || status.dataAge > 300) { // 5 min cache
+        await this.startScanWithBackoff();
+        await this.waitForScanCompletion();
       }
       
-      // Rest of method stays exactly the same
+      // Get results
+      const response = await fetch('/api/scan/results');
+      const results = await response.json();
+      
+      if (Array.isArray(results)) {
+        this.data = results.map(candidate => ({
+          symbol: candidate.ticker,
+          score: candidate.alphaScore,
+          bucket: this.getBucket(candidate.alphaScore),
+          price: candidate.price,
+          catalyst: candidate.catalyst,
+          action: candidate.action,
+          relVol: parseFloat(candidate.relVolume),
+          rsi: parseFloat(candidate.rsi14),
+          atrPct: parseFloat(candidate.atrPct),
+          vwap: parseFloat(candidate.vwap),
+          aboveVWAP: candidate.aboveVWAP,
+          emaCross: candidate.emaCross920 === 'confirmed',
+          sessionType: candidate.sessionType,
+          fallbackMode: candidate.fallbackMode
+        }));
+        
+        console.log(`✅ AlphaStack: Loaded ${this.data.length} candidates (${this.data.filter(d=>d.score>=75).length} trade-ready)`);
+      } else {
+        throw new Error('Invalid results format');
+      }
+      
       this.lastUpdate = new Date();
       this.renderResults();
-      this.updateStats({ count: this.data.length });
       
     } catch (error) {
       console.error('❌ AlphaStack load error:', error);
-      this.showError(`Error loading universe data: ${error.message}`);
+      const isRateLimit = error.message.includes('429') || error.message.includes('rate limit');
+      this.showError(isRateLimit ? 'Rate limit exceeded. Please wait a moment and try again.' : `Load failed: ${error.message}`);
     } finally {
-      this.isLoading = false;
+      this.loadingScan = false;
       this.resetButtonStates();
     }
   }
@@ -152,21 +161,39 @@ class AlphaStackScreener {
    * Trigger a new screening scan
    */
   async runScan() {
-    if (this.isLoading) return;
+    if (this.loadingScan) return; // Single-flight guard
     
     try {
-      this.isLoading = true;
+      this.loadingScan = true;
       this.showScanning();
       
-      // Trigger universe scan via API
-      const response = await fetch('/api/screener/universe-scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          force_refresh: true,
-          exclude_portfolio: true
+      // Trigger fresh scan with current preset
+      await this.startScanWithBackoff(true); // force refresh
+      await this.waitForScanCompletion();
+      
+      // Get fresh results
+      const response = await fetch('/api/scan/results');
+      const results = await response.json();
+      
+      if (Array.isArray(results)) {
+        this.data = results.map(candidate => ({
+          symbol: candidate.ticker,
+          score: candidate.alphaScore,
+          bucket: this.getBucket(candidate.alphaScore),
+          catalyst: candidate.catalyst,
+          action: candidate.action,
+          price: candidate.price,
+          relVol: candidate.relVolume
+        }));
+        
+        this.renderResults();
+        this.lastUpdate = new Date();
+        
+        console.log(`✅ AlphaStack scan completed: ${results.length} candidates found`);
+        this.showSuccess(`Scan completed! Found ${results.length} new opportunities`);
+      } else {
+        throw new Error('Invalid results format');
+      }
         })
       });
       
@@ -181,17 +208,52 @@ class AlphaStackScreener {
       }
       
       // Refresh data with new scan results
-      await this.loadData();
-      
-      console.log(`✅ AlphaStack scan completed: ${result.candidates_found || 0} candidates found`);
-      this.showSuccess(`Scan completed! Found ${result.candidates_found || 0} new opportunities`);
       
     } catch (error) {
       console.error('❌ AlphaStack scan error:', error);
-      this.showError(`Scan failed: ${error.message}`);
+      const isRateLimit = error.message.includes('429') || error.message.includes('rate limit');
+      this.showError(isRateLimit ? 'Rate limit exceeded. Please wait a moment and try again.' : `Scan failed: ${error.message}`);
     } finally {
-      this.isLoading = false;
+      this.loadingScan = false;
       this.resetButtonStates();
+    }
+  }
+  
+  /**
+   * Start scan with exponential backoff for rate limits
+   */
+  async startScanWithBackoff(forceRefresh = false) {
+    let delay = 800;
+    for (let i = 0; i < 5; i++) {
+      const params = new URLSearchParams({
+        refresh: forceRefresh ? '1' : '0',
+        relvolmin: '2',
+        rsimin: '58', 
+        rsimax: '78',
+        atrpctmin: '3.5',
+        requireemacross: 'false'
+      });
+      
+      const resp = await fetch(`/api/scan/today?${params}`);
+      if (resp.status !== 429) return;
+      
+      const retryAfter = resp.headers.get('retry-after');
+      delay = retryAfter ? Number(retryAfter) * 1000 : delay * 1.6;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    throw new Error('Rate limit exceeded - please try again later');
+  }
+  
+  /**
+   * Wait for scan completion with polling
+   */
+  async waitForScanCompletion() {
+    let tries = 0;
+    while (tries++ < 40) { // Max 60 seconds
+      const statusResp = await fetch('/api/scan/status');
+      const status = await statusResp.json();
+      if (!status.inProgress) break;
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
   }
   

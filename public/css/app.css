@@ -1,0 +1,280 @@
+/* Trading Dashboard - Unified Color Tokens & Role-Based UI */
+
+:root{
+  --bg-1:#0f1628; --bg-2:#111a2e; --bd-1:#1b2440;
+  --tx-hi:#eaf1ff; --tx-md:#a9b8d9;
+  --act-buy:#12c294; --act-hold:#6274e7; --act-trim:#f2b035; --act-sell:#ef4b4b;
+  --chip-bg:#121a2a; --chip-bd:#1b2440;
+  --trend-strong-bg:#0f2a1f; --trend-strong-fg:#7cf0c6; --trend-strong-bd:#1b6c57;
+  --trend-stable-bg:#0f1a31; --trend-stable-fg:#9ec9ff; --trend-stable-bd:#1e325c;
+  --trend-weak-bg:#291b10; --trend-weak-fg:#f0c675; --trend-weak-bd:#6c4b1b;
+  --trend-broke-bg:#2a1013; --trend-broke-fg:#ff9aa8; --trend-broke-bd:#6c1b2b;
+}
+
+/* Base layout */
+body { 
+  background: var(--bg-1); 
+  color: var(--tx-hi); 
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+/* Cards + banner tints */
+.lpi-card{
+  background:var(--bg-1);
+  border:1px solid var(--bd-1);
+  border-radius:12px;
+  color:var(--tx-hi);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.lpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+
+.lpi-action{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 14px;
+  font-weight:700;
+  letter-spacing: .3px;
+}
+
+.act-BUY_MORE{
+  background:color-mix(in srgb,var(--act-buy) 20%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--act-buy) 45%,#000);
+  color: var(--act-buy);
+}
+.act-HOLD{
+  background:color-mix(in srgb,var(--act-hold) 20%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--act-hold) 45%,#000);
+  color: var(--act-hold);
+}
+.act-TRIM{
+  background:color-mix(in srgb,var(--act-trim) 20%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--act-trim) 45%,#000);
+  color: var(--act-trim);
+}
+.act-SELL{
+  background:color-mix(in srgb,var(--act-sell) 20%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--act-sell) 45%,#000);
+  color: var(--act-sell);
+}
+
+.lpi-badge{
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:13px;
+  background:rgba(255,255,255,.1);
+  font-weight: bold;
+}
+
+/* Stats + chips */
+.lpi-stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  padding:12px 14px;
+}
+.lpi-stat{
+  background:var(--bg-2);
+  border:1px solid var(--bd-1);
+  border-radius:10px;
+  padding:10px;
+  text-align: center;
+}
+.lpi-stat .k{
+  font-size:11px;
+  color:var(--tx-md);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  margin-bottom: 4px;
+}
+.lpi-stat .v{
+  margin-top:4px;
+  font-weight:700;
+  color:var(--tx-hi);
+  font-size: 16px;
+}
+
+.lpi-targets,.lpi-controls{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:0 14px 12px;
+}
+.lpi-chip{
+  background:var(--chip-bg);
+  border:1px solid var(--chip-bd);
+  color:#cfe0ff;
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight: 600;
+}
+
+/* Thesis always visible + trend chips */
+.lpi-thesis{
+  border-top:1px dashed var(--bd-1);
+  padding:12px 14px;
+}
+.lpi-thesis .head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+}
+.lpi-trend{
+  padding:2px 8px;
+  border-radius:8px;
+  font-size:11px;
+  border:1px solid transparent;
+  font-weight: 600;
+}
+.lpi-trend.tr-Strengthening{
+  background:var(--trend-strong-bg);
+  color:var(--trend-strong-fg);
+  border-color:var(--trend-strong-bd);
+}
+.lpi-trend.tr-Stable{
+  background:var(--trend-stable-bg);
+  color:var(--trend-stable-fg);
+  border-color:var(--trend-stable-bd);
+}
+.lpi-trend.tr-Weakening{
+  background:var(--trend-weak-bg);
+  color:var(--trend-weak-fg);
+  border-color:var(--trend-weak-bd);
+}
+.lpi-trend.tr-Broken{
+  background:var(--trend-broke-bg);
+  color:var(--trend-broke-fg);
+  border-color:var(--trend-broke-bd);
+}
+
+/* P/L pill shades */
+.lpi-badge.pl-strong-pos{
+  background:color-mix(in srgb,var(--act-buy) 50%,transparent);
+  color: var(--act-buy);
+  border: 1px solid var(--act-buy);
+}
+.lpi-badge.pl-pos{
+  background:color-mix(in srgb,var(--act-buy) 30%,transparent);
+  color: var(--act-buy);
+  border: 1px solid color-mix(in srgb,var(--act-buy) 60%,transparent);
+}
+.lpi-badge.pl-neg{
+  background:color-mix(in srgb,var(--act-sell) 30%,transparent);
+  color: var(--act-sell);
+  border: 1px solid color-mix(in srgb,var(--act-sell) 60%,transparent);
+}
+.lpi-badge.pl-strong-neg{
+  background:color-mix(in srgb,var(--act-sell) 55%,transparent);
+  color: var(--act-sell);
+  border: 1px solid var(--act-sell);
+}
+
+/* Grid layout */
+.lpi-grid { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); 
+  gap: 16px; 
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #1a1f3a, #0e1320);
+  border: 1px solid var(--bd-1);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* Controls styling */
+.lpi-controls input {
+  background: var(--bg-1);
+  border: 1px solid var(--bd-1);
+  color: var(--tx-hi);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: 0 4px;
+}
+
+.lpi-controls button {
+  background: #2d3a69;
+  border: 1px solid #3b4c8f;
+  color: var(--tx-hi);
+  cursor: pointer;
+  transition: background 0.2s;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.lpi-controls button:hover {
+  background: #3b4c8f;
+}
+
+/* Buy button styles */
+.btn {
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.btn-buy {
+  background: linear-gradient(90deg, var(--act-buy), color-mix(in srgb, var(--act-buy) 80%, #fff));
+  color: #fff;
+  border: 1px solid var(--act-buy);
+}
+
+.btn-buy:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--act-buy) 80%, #000), var(--act-buy));
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Loading state */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--tx-md);
+}
+
+/* Reason codes */
+.lpi-reasons { 
+  display: flex; 
+  gap: 6px; 
+  flex-wrap: wrap; 
+  margin-top: 8px; 
+}
+.lpi-reasons .r { 
+  background: var(--chip-bg); 
+  border: 1px solid var(--chip-bd); 
+  color: var(--tx-md); 
+  padding: 2px 6px; 
+  border-radius: 4px; 
+  font-size: 10px; 
+  font-weight: 500; 
+  text-transform: uppercase; 
+  letter-spacing: 0.3px; 
+}
+
+/* Responsive */
+@media (max-width: 480px) { 
+  .lpi-stats { grid-template-columns: repeat(2, 1fr); } 
+  .lpi-grid { grid-template-columns: 1fr; }
+}

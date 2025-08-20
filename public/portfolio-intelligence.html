@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Intelligence - AI-Powered Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-purple-900 via-indigo-900 to-blue-900 p-6 shadow-2xl">
+        <div class="container mx-auto">
+            <h1 class="text-4xl font-bold flex items-center gap-3">
+                🧠 Portfolio Intelligence
+                <span class="text-sm bg-green-500 text-white px-3 py-1 rounded-full animate-pulse">LIVE</span>
+            </h1>
+            <p class="text-gray-200 mt-2">AI-Powered Position Management with VIGL Analysis</p>
+        </div>
+    </div>
+
+    <!-- Portfolio Summary -->
+    <div class="container mx-auto p-6">
+        <div id="portfolio-summary" class="bg-slate-800 rounded-xl p-6 mb-6 border border-slate-700">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                <div>
+                    <div class="text-3xl font-bold" id="total-value">$0</div>
+                    <div class="text-sm text-gray-400">Total Value</div>
+                </div>
+                <div>
+                    <div class="text-3xl font-bold" id="total-pnl">$0</div>
+                    <div class="text-sm text-gray-400">Total P&L</div>
+                </div>
+                <div>
+                    <div class="text-3xl font-bold" id="avg-vigl">0</div>
+                    <div class="text-sm text-gray-400">Avg VIGL Score</div>
+                </div>
+                <div>
+                    <div class="text-3xl font-bold text-yellow-400" id="urgent-actions">0</div>
+                    <div class="text-sm text-gray-400">Urgent Actions</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Summary Bar -->
+        <div id="action-summary" class="bg-slate-800 rounded-xl p-4 mb-6 border border-slate-700">
+            <div class="flex justify-around text-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-green-400 text-2xl">🚀</span>
+                    <div>
+                        <span class="font-bold text-xl" id="buy-more-count">0</span>
+                        <span class="text-sm text-gray-400 ml-1">Buy More</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-blue-400 text-2xl">💎</span>
+                    <div>
+                        <span class="font-bold text-xl" id="hold-count">0</span>
+                        <span class="text-sm text-gray-400 ml-1">Hold</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-yellow-400 text-2xl">✂️</span>
+                    <div>
+                        <span class="font-bold text-xl" id="trim-count">0</span>
+                        <span class="text-sm text-gray-400 ml-1">Trim</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-red-400 text-2xl">🔴</span>
+                    <div>
+                        <span class="font-bold text-xl" id="sell-count">0</span>
+                        <span class="text-sm text-gray-400 ml-1">Sell</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Positions Grid -->
+        <div id="portfolio-positions" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <!-- Positions will be inserted here -->
+        </div>
+    </div>
+
+    <!-- Include the enhanced portfolio component -->
+    <script src="js/enhancedPortfolio.js"></script>
+    
+    <script>
+        // Initialize enhanced portfolio
+        const portfolio = new EnhancedPortfolio('portfolio-positions');
+        
+        // Override render method to update summary
+        const originalRender = portfolio.render.bind(portfolio);
+        portfolio.render = function() {
+            originalRender();
+            updateSummary();
+        };
+
+        // Load and display portfolio
+        async function loadPortfolio() {
+            try {
+                const response = await fetch('/api/enhanced-portfolio/enhanced');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Store data for summary
+                    window.portfolioData = data.portfolio;
+                    
+                    // Update portfolio positions
+                    portfolio.positions = data.portfolio.positions;
+                    portfolio.analysis = data.portfolio.analysis;
+                    portfolio.render();
+                    
+                    updateSummary();
+                }
+            } catch (error) {
+                console.error('Failed to load portfolio:', error);
+            }
+        }
+
+        // Update summary displays
+        function updateSummary() {
+            if (!window.portfolioData) return;
+            
+            const { analysis, summary } = window.portfolioData;
+            
+            // Update totals
+            document.getElementById('total-value').textContent = 
+                `$${analysis.totalValue?.toFixed(2) || '0.00'}`;
+            
+            const pnlElement = document.getElementById('total-pnl');
+            const pnl = analysis.totalPnL || 0;
+            pnlElement.textContent = `$${Math.abs(pnl).toFixed(2)}`;
+            pnlElement.className = pnl >= 0 ? 'text-3xl font-bold text-green-400' : 'text-3xl font-bold text-red-400';
+            
+            document.getElementById('avg-vigl').textContent = 
+                Math.floor(analysis.avgViglScore || 0);
+            
+            document.getElementById('urgent-actions').textContent = 
+                summary?.urgentActions || 0;
+            
+            // Update action counts
+            document.getElementById('buy-more-count').textContent = summary?.buyMoreCount || 0;
+            document.getElementById('hold-count').textContent = summary?.holdCount || 0;
+            document.getElementById('trim-count').textContent = summary?.trimCount || 0;
+            document.getElementById('sell-count').textContent = summary?.sellCount || 0;
+            
+            // Highlight urgent sections
+            if (summary?.urgentActions > 0) {
+                document.getElementById('urgent-actions').parentElement.classList.add('animate-pulse-slow');
+            }
+        }
+
+        // Load on page ready
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPortfolio();
+            
+            // Refresh every 30 seconds
+            setInterval(loadPortfolio, 30000);
+        });
+
+        // Make portfolio available globally for action buttons
+        window.enhancedPortfolio = portfolio;
+    </script>
+</body>
+</html>

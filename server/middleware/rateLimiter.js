@@ -60,5 +60,5 @@ module.exports = {
   general: createRateLimit(60 * 1000, 60),        // 60 requests per minute
   api: createRateLimit(60 * 1000, 30),           // 30 API calls per minute  
   scan: createRateLimit(5 * 60 * 1000, 5),       // 5 scans per 5 minutes
-  portfolio: createRateLimit(60 * 1000, 20),     // 20 portfolio requests per minute
+  portfolio: createRateLimit(60 * 1000, 100),    // 100 portfolio requests per minute (increased for LPI v2)
 };

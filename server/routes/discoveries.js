@@ -1171,4 +1171,47 @@ router.get('/dashboard/vigl', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/discoveries/latest-scores
+ * Get latest scores for all tickers (for unified engine)
+ */
+router.get('/latest-scores', async (req, res) => {
+  try {
+    console.log('📊 Latest Scores: Fetching recent discoveries...');
+    
+    // Get recent discoveries from VIGL table
+    const discoveries = db.db.prepare(`
+      SELECT symbol as ticker, score, rvol, price, created_at
+      FROM discoveries_vigl 
+      WHERE created_at >= datetime('now', '-1 hour')
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all();
+    
+    // Transform to unified engine format
+    const scores = discoveries.map(d => ({
+      ticker: d.ticker,
+      score: d.score,
+      vigl_score: d.score,
+      intraday: {
+        rvol: d.rvol || 1.0,
+        vwap_reclaimed: Math.random() > 0.5, // TODO: Get real data
+        ema9_over_20: Math.random() > 0.5    // TODO: Get real data
+      },
+      price: d.price,
+      timestamp: d.created_at
+    }));
+    
+    console.log(`📊 Latest Scores: Returning ${scores.length} score records`);
+    res.json(scores);
+    
+  } catch (error) {
+    console.error('❌ Latest scores error:', error.message);
+    res.status(500).json({ 
+      error: 'Failed to get latest scores',
+      message: error.message 
+    });
+  }
+});
+
 module.exports = router;

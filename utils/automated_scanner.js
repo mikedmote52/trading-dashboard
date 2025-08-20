@@ -41,8 +41,11 @@ class AutomatedScanner {
     }
     
     startScheduledScanning() {
-        // Run VIGL scan every 30 minutes during market hours
-        const scanInterval = 30 * 60 * 1000; // 30 minutes
+        // Read scan interval from environment (defaults to 30 minutes)
+        const scanIntervalMin = parseInt(process.env.SCAN_INTERVAL_MIN || process.env.ALERTS_MINUTES || 30);
+        const scanInterval = scanIntervalMin * 60 * 1000;
+        
+        console.log(`⏰ Scan interval configured: ${scanIntervalMin} minutes`);
         
         setInterval(async () => {
             const now = new Date();
@@ -58,7 +61,7 @@ class AutomatedScanner {
         // Also run an immediate scan on startup
         setTimeout(() => this.runCompleteScan(), 5000);
         
-        console.log('⏰ Scheduled scanning started (every 30 minutes during market hours)');
+        console.log(`⏰ Scheduled scanning started (every ${scanIntervalMin} minutes during market hours)`);
     }
     
     async runCompleteScan() {

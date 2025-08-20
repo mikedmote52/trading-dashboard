@@ -35,6 +35,18 @@ services:
       - key: SERVE_STATIC
         value: true
         
+      # Unified Engine Configuration
+      - key: USE_UNIFIED_ENGINE
+        value: "1"
+      - key: NEW_DASH_ENABLED
+        value: "true"
+      - key: PORTFOLIO_INTELLIGENCE
+        value: "true"
+      - key: SELECT_ENGINE
+        value: optimized
+      - key: ORDERS_ENABLED
+        value: "0"
+        
       # Admin Authentication
       - key: ADMIN_TOKEN
         sync: false

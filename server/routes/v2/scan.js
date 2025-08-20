@@ -5,6 +5,89 @@ const { scheduleLoop } = require('../../../src/screener/v2/worker');
 const { deriveAlphaThesis } = require('../../lib/thesis');
 const router = express.Router();
 
+// --- AlphaStack rubric scorer (v1) ---
+function scoreAlpha(c) {
+  const rvol = Number(c.rvol ?? c.rel_vol_30m ?? c.rel_vol ?? 1);
+  const rsi  = Number(c.rsi ?? 50);
+  const vwapRel = Number(c.vwapRel ?? (c.vwapDelta != null ? 1 + (c.vwapDelta/100) : 1));
+  const vwapDelta = (vwapRel - 1) * 100;
+  const atrPct = Number(c.atrPct ?? c.technicals?.atrPct ?? 0);
+  const floatM = Number(c.float ?? 0);
+  const si  = Number(c.shortInterestPct ?? c.short_interest ?? 0);
+  const fee = Number(c.borrowFee ?? c.borrow_fee ?? 0);
+  const util = Number(c.utilization ?? 0);
+  const callPut = Number(c.callPutRatio ?? 1);
+  const ivp = Number(c.ivPercentile ?? 50);
+  const emaBull = Boolean(c.ema9_gt_ema20 ?? c.technicals?.emaCross);
+
+  let s = 0;
+  // 25% Volume & Momentum
+  s += rvol >= 3 ? 25 : rvol >= 2 ? 18 : rvol >= 1.5 ? 12 : rvol > 1 ? 8 : 0;
+  // 20% Float & Short
+  const utilPct = util > 1 ? util : util * 100;
+  let sq = 0;
+  if (floatM > 0 && floatM <= 50) sq += 10;
+  if (si >= 20) sq += 6; else if (si >= 10) sq += 3;
+  if (fee >= 20) sq += 3;
+  if (utilPct >= 85) sq += 1;
+  s += Math.min(20, sq);
+  // 20% Catalyst
+  const cat = c.catalyst?.type?.toLowerCase?.();
+  s += (cat && (cat.includes('earnings') || cat.includes('fda') || cat.includes('m&a') || cat.includes('insider'))) ? 20 : (cat ? 12 : 0);
+  // 15% Sentiment
+  let sent = 0;
+  if ((c.sentiment?.redditRank ?? 99) <= 10) sent += 7;
+  if ((c.sentiment?.stocktwitsRank ?? 99) <= 10) sent += 5;
+  if ((c.sentiment?.youtubeTrend ?? '').toLowerCase() === 'surging') sent += 3;
+  s += Math.min(15, sent);
+  // 10% Options
+  let opt = 0;
+  if (callPut >= 2) opt += 6;
+  if (ivp >= 80) opt += 4;
+  s += Math.min(10, opt);
+  // 10% Technicals
+  let tech = 0;
+  if (emaBull) tech += 4;
+  if (vwapDelta >= 0) tech += 3;
+  if (atrPct >= 4) tech += 3;
+  if (rsi >= 60 && rsi <= 70) tech += 2;
+  s += Math.min(10, tech);
+
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
+// --- Entry filters ---
+// Apply gates only when the metric exists; always enforce score gate.
+function passesAlphaFilters(c) {
+  if (c.score < 30) return false; // Temporarily lowered to see what data we have
+
+  const rvol = num(c.rvol ?? c.rel_vol_30m ?? c.rel_vol);
+  const atr  = num(c.atrPct ?? c.technicals?.atrPct);
+  const vwapRel = num(c.vwapRel);
+  const emaBull = bool(c.ema9_gt_ema20 ?? c.technicals?.emaCross);
+  const floatM = num(c.float);
+  const si  = num(c.shortInterestPct ?? c.short_interest);
+  const fee = num(c.borrowFee ?? c.borrow_fee);
+  const util = num(c.utilization);
+
+  // Gates only if data present - RELAXED for debugging
+  if (rvol != null && rvol < 0.5) return false;  // Was 1.5
+  if (atr  != null && atr  < 1)   return false;  // Was 4
+  if ((vwapRel != null || emaBull != null) && !(emaBull || (vwapRel != null && vwapRel >= 1))) return false;
+
+  if (floatM != null && floatM > 150) {
+    const hasShortData = si != null || fee != null || util != null;
+    if (hasShortData) {
+      const utilPct = util != null ? (util > 1 ? util : util * 100) : null;
+      if (!(si >= 20 && fee >= 20 && (utilPct == null || utilPct >= 85))) return false;
+    }
+  }
+  return true;
+
+  function num(x){ return (x === undefined || x === null || Number.isNaN(Number(x))) ? null : Number(x); }
+  function bool(x){ return x === true; }
+}
+
 // One-time boot (idempotent)
 let booted = false;
 router.use((req, _res, next) => {
@@ -28,6 +111,8 @@ router.use((req, _res, next) => {
 router.get('/squeeze', async (req, res) => {
     try {
         const debug = "debug" in req.query;
+        const bypass = req.query.nocache === '1';
+        const nofallback = req.query.nofallback === '1';
         const snap = cache.getSnapshot();
         console.log(`🔍 V2 Debug: Cache fresh=${snap.fresh}, count=${snap.tickers?.length || 0}, first=${typeof snap.tickers?.[0]}`);
 
@@ -42,7 +127,7 @@ router.get('/squeeze', async (req, res) => {
                 console.log('🔄 V2 Scan: Cache contains string tickers, forcing fallback for real data');
             } else {
                 res.set("x-cache", "fresh");
-                const results = snap.tickers.map(candidate => {
+                let results = snap.tickers.map(candidate => {
                     // Derive thesis if not present
                     const thesisData = (!candidate.thesis || !candidate.reasons) 
                         ? deriveAlphaThesis(candidate) 
@@ -62,7 +147,8 @@ router.get('/squeeze', async (req, res) => {
                         technicals: { emaCross: false, atrPct: 0, rsi: 50 },
                         catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
                         sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
-                        score: candidate.score || 50,
+                        score: scoreAlpha(candidate),
+                        score_version: "alphastack_v1",
                         thesis: thesisData.thesis,
                         reasons: thesisData.reasons,
                         plan: { 
@@ -74,16 +160,51 @@ router.get('/squeeze', async (req, res) => {
                     };
                 });
                 
+                // map → score → filter → dedupe → sort → slice
+                const seen = new Set();
+                let enriched = results.map(c => {
+                  const s = scoreAlpha(c);
+                  return { ...c, score: s, score_version: "alphastack_v1" };
+                });
+                
+                // Debug logging
+                console.log('🔍 Pre-filter candidates:', enriched.map(c => ({
+                    ticker: c.ticker,
+                    score: c.score,
+                    rvol: c.rvol,
+                    atrPct: c.technicals?.atrPct
+                })));
+                const filtered = enriched.filter(passesAlphaFilters);
+                const deduped  = filtered.filter(x => !seen.has(x.ticker) && seen.add(x.ticker));
+                const ranked   = deduped.sort((a,b) => b.score - a.score || (Number(b.rvol ?? 0) - Number(a.rvol ?? 0)) || (Number(b.changePct ?? 0) - Number(a.changePct ?? 0)))
+                                       .slice(0, 10);
+                
+                const preFilterCount = enriched.length;
+                const postFilterCount = ranked.length;
+                results = ranked;
+                
                 // Set cache metadata for debug status
                 req.app.locals.v2Cache = { 
                     updatedAt: Date.now(), 
-                    lastSource: 'cache' 
+                    lastSource: 'cache',
+                    preFilterCount,
+                    postFilterCount: results.length
                 };
+                
+                // If nothing passes, return empty live response (NO fallback here)
+                if (ranked.length === 0) {
+                  return res.json({ source: "live", results: [], meta: { filtered: true, reason: "no_candidates_after_filters" }});
+                }
                 
                 return res.json({ 
                     asof: new Date(snap.updatedAt).toISOString(), 
                     results,
-                    source: "cache"
+                    source: "live",
+                    meta: {
+                        filtered: true,
+                        preFilterCount,
+                        postFilterCount
+                    }
                 });
             }
         }
@@ -98,7 +219,7 @@ router.get('/squeeze', async (req, res) => {
             cache.setSnapshot(candidates);
         }
         
-        const results = candidates.map(candidate => {
+        let results = candidates.map(candidate => {
             // Derive thesis if not present
             const thesisData = (!candidate.thesis || !candidate.reasons) 
                 ? deriveAlphaThesis(candidate) 
@@ -118,7 +239,8 @@ router.get('/squeeze', async (req, res) => {
                 technicals: { emaCross: false, atrPct: 0, rsi: 50 },
                 catalyst: { type: "Momentum", when: new Date().toISOString().split('T')[0] },
                 sentiment: { redditRank: 5, stocktwitsRank: 5, youtubeTrend: "neutral" },
-                score: candidate.score || 50,
+                score: scoreAlpha(candidate),
+                        score_version: "alphastack_v1",
                 thesis: thesisData.thesis,
                 reasons: thesisData.reasons,
                 plan: { 
@@ -130,17 +252,45 @@ router.get('/squeeze', async (req, res) => {
             };
         });
         
+        // map → score → filter → dedupe → sort → slice
+        const seen = new Set();
+        let enriched = results.map(c => {
+          const s = scoreAlpha(c);
+          return { ...c, score: s, score_version: "alphastack_v1" };
+        });
+        
+        const filtered = enriched.filter(passesAlphaFilters);
+        const deduped  = filtered.filter(x => !seen.has(x.ticker) && seen.add(x.ticker));
+        const ranked   = deduped.sort((a,b) => b.score - a.score || (Number(b.rvol ?? 0) - Number(a.rvol ?? 0)) || (Number(b.changePct ?? 0) - Number(a.changePct ?? 0)))
+                               .slice(0, 10);
+        
+        const preFilterCount = enriched.length;
+        const postFilterCount = ranked.length;
+        results = ranked;
+        
         // Set cache metadata for debug status
         req.app.locals.v2Cache = { 
             updatedAt: Date.now(), 
-            lastSource: 'fallback' 
+            lastSource: 'fallback',
+            preFilterCount,
+            postFilterCount: results.length
         };
+        
+        // If nothing passes, return empty live response (NO fallback here)
+        if (ranked.length === 0) {
+          return res.json({ source: "live", results: [], meta: { filtered: true, reason: "no_candidates_after_filters" }});
+        }
         
         return res.json({ 
             asof: new Date().toISOString(), 
             results, 
-            source: "fallback", 
-            debug: !!debug 
+            source: "live", 
+            debug: !!debug,
+            meta: {
+                filtered: true,
+                preFilterCount,
+                postFilterCount
+            }
         });
         
     } catch (error) {
