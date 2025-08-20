@@ -4,7 +4,7 @@ services:
     name: trading-dashboard
     env: node
     buildCommand: npm install && pip3 install -r requirements.txt
-    startCommand: npm run render:start
+    startCommand: node scripts/init_db.js && npm run render:start
     plan: starter
     envVars:
       # Market Data API
