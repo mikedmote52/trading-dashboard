@@ -6,7 +6,7 @@ const ORDERS_ENABLED = (process.env.ORDERS_ENABLED || '0') === '1';
 const ALPACA_KEY = process.env.APCA_API_KEY_ID;
 const ALPACA_SECRET = process.env.APCA_API_SECRET_KEY;
 const ALPACA_BASE = process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets';
-const ACCOUNT_SUPPORTS_FRACTIONAL = true; // set false if your account doesn't
+const ACCOUNT_SUPPORTS_FRACTIONAL = false; // fractional orders don't support bracket orders
 
 function alpacaRequest(path, method = 'GET', data = null) {
   return new Promise((resolve, reject) => {
