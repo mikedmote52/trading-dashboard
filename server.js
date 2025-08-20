@@ -95,15 +95,14 @@ if (process.env.DISCOVERY_LOGGING === 'true') {
   console.log('✅ Discovery research logging ready');
 }
 
-// Initialize Portfolio Intelligence if enabled
+// Initialize Enhanced Portfolio Intelligence
 let portfolioIntelligence = null;
-if (process.env.PORTFOLIO_INTELLIGENCE === 'true') {
-  console.log('🧠 Initializing Portfolio Intelligence...');
-  const PortfolioIntelligence = require('./server/services/portfolio-intelligence');
-  portfolioIntelligence = new PortfolioIntelligence();
-  app.locals.portfolioIntelligence = portfolioIntelligence;
-  console.log('✅ Portfolio intelligence ready');
-}
+console.log('🧠 Initializing Enhanced Portfolio Intelligence...');
+const EnhancedPortfolioIntelligence = require('./server/services/portfolio-intelligence-enhanced');
+portfolioIntelligence = new EnhancedPortfolioIntelligence();
+portfolioIntelligence.isEnabled = true; // Always enabled for integrated system
+app.locals.portfolioIntelligence = portfolioIntelligence;
+console.log('✅ Enhanced portfolio intelligence ready');
 
 // Apply middleware
 app.use(cors());
@@ -185,6 +184,9 @@ app.use('/api/learn', require('./server/routes/learn'));
 
 // Trading Orders Routes (feature-gated)
 app.use('/api/orders', require('./server/routes/orders'));
+
+// Quick Discovery Route (fast cached results)
+app.use('/api/quick-discovery', require('./server/routes/quick-discovery'));
 
 // Prometheus metrics endpoints (always available, but only functional when metrics service is enabled)
 app.use('/metrics', require('./server/routes/metrics'));
