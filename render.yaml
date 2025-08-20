@@ -45,7 +45,7 @@ services:
       - key: SELECT_ENGINE
         value: optimized
       - key: ORDERS_ENABLED
-        value: "0"
+        value: "1"
         
       # Admin Authentication
       - key: ADMIN_TOKEN
