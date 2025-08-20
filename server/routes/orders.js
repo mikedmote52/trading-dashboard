@@ -8,6 +8,16 @@ const ALPACA_SECRET = process.env.APCA_API_SECRET_KEY;
 const ALPACA_BASE = process.env.APCA_API_BASE_URL || 'https://paper-api.alpaca.markets';
 const ACCOUNT_SUPPORTS_FRACTIONAL = false; // fractional orders don't support bracket orders
 
+// Guardrails configuration
+const MAX_DAILY_NOTIONAL = parseFloat(process.env.MAX_DAILY_NOTIONAL || '2000');
+const MAX_TICKER_EXPOSURE = parseFloat(process.env.MAX_TICKER_EXPOSURE || '500');
+const TRADE_START_ET = process.env.TRADE_START_ET || '09:35';
+const TRADE_END_ET = process.env.TRADE_END_ET || '15:50';
+
+// Daily tracking (in-memory for now, should be database in production)
+let dailyNotional = 0;
+let tickerExposure = new Map();
+
 function alpacaRequest(path, method = 'GET', data = null) {
   return new Promise((resolve, reject) => {
     const url = new URL(ALPACA_BASE + path);
@@ -66,6 +76,47 @@ router.post('/orders/create', async (req, res) => {
         error: 'ticker, usd_amount, current_price required' 
       });
     }
+
+    // Guardrails enforcement (applies even in dry-run mode for testing)
+    
+    // 1. Trading window check (ET timezone)
+    const now = new Date();
+    const etHour = now.getUTCHours() - 5; // EST/EDT approximation
+    const etMinute = now.getUTCMinutes();
+    const currentTimeET = `${String(etHour).padStart(2, '0')}:${String(etMinute).padStart(2, '0')}`;
+    
+    if (currentTimeET < TRADE_START_ET || currentTimeET > TRADE_END_ET) {
+      return res.status(403).json({
+        ok: false,
+        error: `Outside trading window (${TRADE_START_ET}-${TRADE_END_ET} ET)`,
+        current_time_et: currentTimeET
+      });
+    }
+
+    // 2. Bracket parameters validation
+    if (tp1_pct < 0.05 || tp1_pct > 0.25 || tp2_pct < 0.20 || tp2_pct > 1.00 || stop_pct < 0.03 || stop_pct > 0.25) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Bracket params out of safe range (TP1: 5-25%, TP2: 20-100%, SL: 3-25%)'
+      });
+    }
+
+    // 3. Daily notional cap
+    if (dailyNotional + usd_amount > MAX_DAILY_NOTIONAL) {
+      return res.status(403).json({
+        ok: false,
+        error: `Daily notional cap exceeded ($${dailyNotional + usd_amount} > $${MAX_DAILY_NOTIONAL})`
+      });
+    }
+
+    // 4. Per-ticker exposure cap
+    const currentExposure = tickerExposure.get(ticker) || 0;
+    if (currentExposure + usd_amount > MAX_TICKER_EXPOSURE) {
+      return res.status(403).json({
+        ok: false,
+        error: `Max exposure exceeded for ${ticker} ($${currentExposure + usd_amount} > $${MAX_TICKER_EXPOSURE})`
+      });
+    }
     
     // Split into two brackets: TP1 (50%) + TP2 (50%) sharing the same stop
     const notional1 = Math.max(1, Math.round((usd_amount/2) * 100) / 100);
@@ -121,6 +172,10 @@ router.post('/orders/create', async (req, res) => {
     ]);
     
     console.log(`✅ Orders: Successfully placed 2 orders for ${ticker} - IDs: ${r1.id}, ${r2.id}`);
+    
+    // Update tracking after successful orders
+    dailyNotional += usd_amount;
+    tickerExposure.set(ticker, (tickerExposure.get(ticker) || 0) + usd_amount);
     
     return res.json({ 
       ok: true, 
