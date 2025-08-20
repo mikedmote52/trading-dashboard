@@ -89,12 +89,16 @@
                 console.log('🔄 LPI v2: Loading portfolio with unified engine...');
                 
                 // Load data in parallel
-                const [positions, scores, thesis, discoveries] = await Promise.all([
+                const [positions, scoresResponse, thesis, discoveries] = await Promise.all([
                     fetch('/api/portfolio/positions').then(r=>r.json()),
-                    fetch('/api/discoveries/latest-scores').then(r=>r.json()).catch(()=>[]),
+                    fetch('/api/discoveries/latest-scores').then(r=>r.json()).catch(()=>({success:false,data:[]})),
                     fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({})),
                     fetch('/api/discoveries/latest').then(r=>r.json()).catch(()=>({discoveries:[]}))
                 ]);
+                
+                // Handle new response format from latest-scores
+                const scores = scoresResponse.data || scoresResponse || [];
+                const scoresSource = scoresResponse.source || 'unknown';
                 
                 console.log(`📊 LPI v2: Loaded ${positions.length} positions, ${scores.length} scores`);
                 console.log(`🔍 LPI v2: Loaded ${discoveries.discoveries?.length || 0} discoveries`);

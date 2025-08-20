@@ -1179,14 +1179,32 @@ router.get('/latest-scores', async (req, res) => {
   try {
     console.log('📊 Latest Scores: Fetching recent discoveries...');
     
-    // Get recent discoveries from VIGL table
-    const discoveries = db.db.prepare(`
-      SELECT symbol as ticker, score, rvol, price, created_at
-      FROM discoveries_vigl 
-      WHERE created_at >= datetime('now', '-1 hour')
-      ORDER BY created_at DESC
-      LIMIT 100
-    `).all();
+    let discoveries = [];
+    let source = 'discoveries_vigl';
+    
+    try {
+      // Try to get recent discoveries from VIGL table
+      discoveries = db.db.prepare(`
+        SELECT symbol as ticker, score, rvol, price, created_at
+        FROM discoveries_vigl 
+        WHERE created_at >= datetime('now', '-1 hour')
+        ORDER BY created_at DESC
+        LIMIT 100
+      `).all();
+    } catch (err) {
+      // Fallback if discoveries_vigl table doesn't exist
+      console.warn('⚠️ Latest scores fallback -> discoveries:', err.message);
+      source = 'discoveries';
+      
+      discoveries = db.db.prepare(`
+        SELECT symbol as ticker, score, rvol, price, created_at
+        FROM discoveries 
+        WHERE score IS NOT NULL 
+          AND created_at >= datetime('now', '-1 hour')
+        ORDER BY created_at DESC
+        LIMIT 100
+      `).all();
+    }
     
     // Transform to unified engine format
     const scores = discoveries.map(d => ({
@@ -1202,8 +1220,13 @@ router.get('/latest-scores', async (req, res) => {
       timestamp: d.created_at
     }));
     
-    console.log(`📊 Latest Scores: Returning ${scores.length} score records`);
-    res.json(scores);
+    console.log(`📊 Latest Scores: Returning ${scores.length} score records from ${source}`);
+    res.json({ 
+      success: true, 
+      source: source,
+      count: scores.length,
+      data: scores 
+    });
     
   } catch (error) {
     console.error('❌ Latest scores error:', error.message);
