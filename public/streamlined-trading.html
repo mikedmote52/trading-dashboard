@@ -233,6 +233,201 @@
             border: 1px solid rgba(239, 68, 68, 0.3);
             color: #ef4444;
         }
+
+        /* Discovery Section Styling */
+        .discovery-section {
+            margin-bottom: 2rem;
+        }
+        
+        .section-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+        
+        .buy-header { color: #10b981; }
+        .early-header { color: #0ea5e9; }
+        .watchlist-header { color: #8b5cf6; }
+        
+        /* Score Badge Styling */
+        .score-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 1px solid;
+        }
+        
+        .score-emerald {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+        }
+        
+        .score-sky {
+            background: #0ea5e9;
+            color: white; 
+            border-color: #0ea5e9;
+        }
+        
+        .score-slate {
+            background: #64748b;
+            color: white;
+            border-color: #64748b;
+        }
+        
+        /* Target Row */
+        .target-row {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin-bottom: 0.75rem;
+        }
+        
+        .target-price {
+            color: #10b981;
+            font-weight: 600;
+        }
+        
+        .target-kind {
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+        
+        /* Card Thesis */
+        .card-thesis {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        /* Order Ticket */
+        .order-ticket {
+            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            padding-top: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .order-amount {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .amount-btn {
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #94a3b8;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .amount-btn:hover {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: #10b981;
+            color: #10b981;
+        }
+        
+        .amount-input {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .amount-input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+        }
+        
+        .auto-tp-sl {
+            margin-bottom: 0.75rem;
+        }
+        
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+        
+        .auto-toggle {
+            accent-color: #10b981;
+        }
+        
+        .tp-sl-inputs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .tp-input, .sl-input {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.75rem;
+        }
+        
+        .tp-input:focus, .sl-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+        
+        .place-order-btn {
+            width: 100%;
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .place-order-btn:hover:not(:disabled) {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+        
+        .place-order-btn:disabled {
+            background: #64748b;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Empty States */
+        .empty-state {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem;
+            color: #94a3b8;
+            font-size: 1.125rem;
+        }
     </style>
 </head>
 <body>
@@ -377,122 +572,272 @@
             return buttons || '<div style="color: #94a3b8;">Hold Position</div>';
         }
 
-        // Discovery System
+        // Real AlphaStack Discovery System - NO MOCK DATA
         async function loadDiscovery() {
             try {
-                showStatus('discovery', 'Loading AlphaStack opportunities...', 'success');
+                showStatus('discovery', 'Loading real AlphaStack VIGL discoveries...', 'success');
                 
-                // Try quick discovery API first (fast cached results)
-                try {
-                    const quickResponse = await fetch('/api/quick-discovery');
-                    const quickData = await quickResponse.json();
-                    
-                    if (quickData.success && quickData.items && quickData.items.length > 0) {
-                        renderDiscoveryCards(quickData.items);
-                        const sourceNote = quickData.cached ? ' (cached)' : '';
-                        showStatus('discovery', `Discovery loaded: ${quickData.items.length} opportunities${sourceNote}`, 'success');
-                        return;
-                    }
-                } catch (quickError) {
-                    console.log('Quick discovery failed, trying V2 API:', quickError);
-                }
-                
-                // Fallback to V2 API if quick discovery fails
-                showStatus('discovery', 'Loading fresh opportunities... (may take 30-60 seconds)', 'success');
-                
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-                
-                const response = await fetch('/api/v2/scan/squeeze?engine=optimized', {
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                
+                const response = await fetch('/api/alphastack-v2/latest');
                 const data = await response.json();
                 
-                if (data.items && data.items.length > 0) {
+                if (data.success && data.items && data.items.length > 0) {
                     renderDiscoveryCards(data.items);
-                    showStatus('discovery', `Discovery loaded: ${data.items.length} fresh opportunities`, 'success');
+                    const statusNote = data.fresh ? ' (fresh scan)' : ' (cached)';
+                    const runningNote = data.running ? ' - scan in progress...' : '';
+                    showStatus('discovery', `AlphaStack VIGL: ${data.items.length} real opportunities${statusNote}${runningNote}`, 'success');
+                } else if (data.running) {
+                    // Show empty state while scanning
+                    showEmptyDiscoveryState('🔍 AlphaStack VIGL scan in progress...\n\nScanning 4,896 stocks for opportunities');
+                    // Retry in 10 seconds
+                    setTimeout(loadDiscovery, 10000);
                 } else {
-                    await loadDiscoveryFallback();
+                    // No discoveries found
+                    showEmptyDiscoveryState('📊 AlphaStack VIGL scan complete\n\nNo high-confidence opportunities found in current market conditions');
                 }
+                
             } catch (error) {
-                console.error('Discovery load error:', error);
-                if (error.name === 'AbortError') {
-                    showStatus('discovery', 'Discovery scan timeout - using fallback...', 'error');
-                } else {
-                    showStatus('discovery', 'Discovery error - using fallback...', 'error');
-                }
-                await loadDiscoveryFallback();
+                console.error('Real AlphaStack discovery error:', error);
+                showEmptyDiscoveryState('❌ AlphaStack connection error\n\nPlease check system status');
             }
         }
         
-        async function loadDiscoveryFallback() {
-            try {
-                // Create mock opportunities based on known working symbols
-                const mockOpportunities = [
-                    { symbol: 'VERB', score: 72, price: 2.45, rel_vol_30m: 2.1, action: 'BUY', thesis: 'High volume breakout setup' },
-                    { symbol: 'SNDX', score: 68, price: 15.20, rel_vol_30m: 1.8, action: 'EARLY_READY', thesis: 'Strong momentum building' },
-                    { symbol: 'DLO', score: 75, price: 8.90, rel_vol_30m: 2.4, action: 'BUY', thesis: 'VIGL pattern confirmed' },
-                    { symbol: 'RUN', score: 70, price: 12.35, rel_vol_30m: 1.9, action: 'BUY', thesis: 'Technical breakout pending' },
-                    { symbol: 'WULF', score: 65, price: 9.22, rel_vol_30m: 1.6, action: 'EARLY_READY', thesis: 'Accumulation phase complete' },
-                    { symbol: 'EQX', score: 73, price: 22.10, rel_vol_30m: 2.2, action: 'BUY', thesis: 'Institutional interest growing' }
-                ];
-                
-                renderDiscoveryCards(mockOpportunities);
-                showStatus('discovery', `Fallback discovery: ${mockOpportunities.length} cached opportunities`, 'success');
-            } catch (error) {
-                showStatus('discovery', 'All discovery methods failed', 'error');
-            }
+        function showEmptyDiscoveryState(message) {
+            const container = document.getElementById('discovery-cards');
+            container.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #94a3b8;">
+                    <div style="font-size: 1.125rem; margin-bottom: 1rem;">${message.split('\n')[0]}</div>
+                    <div style="font-size: 0.875rem; opacity: 0.8;">${message.split('\n')[1] || ''}</div>
+                </div>
+            `;
         }
 
         function renderDiscoveryCards(opportunities) {
             const container = document.getElementById('discovery-cards');
             
-            container.innerHTML = opportunities.slice(0, 12).map(opp => {
-                return `
-                    <div class="card discovery-card">
-                        <div class="card-header">
-                            <div>
-                                <div class="symbol">${opp.symbol}</div>
-                                <div class="price">$${(opp.price || 0).toFixed(2)}</div>
-                            </div>
-                            <div class="action-badge action-buy">${opp.action || 'BUY'}</div>
+            // Filter for only actionable recommendations and preserve API order
+            const actionable = opportunities.filter(opp => 
+                opp.action === 'BUY' || 
+                opp.action === 'EARLY_READY' || 
+                opp.action === 'WATCHLIST' ||
+                opp.action === 'PRE_BREAKOUT'  // Legacy compatibility
+            );
+            
+            if (actionable.length === 0) {
+                container.innerHTML = '<div class="empty-state">No actionable recommendations found</div>';
+                return;
+            }
+            
+            // Group by action level while preserving order within groups
+            const buyNow = actionable.filter(o => o.action === 'BUY');
+            const earlyReady = actionable.filter(o => o.action === 'EARLY_READY');
+            const watchlist = actionable.filter(o => o.action === 'WATCHLIST' || o.action === 'PRE_BREAKOUT');
+            
+            let html = '';
+            
+            // Show BUY recommendations first (show ALL, not capped at 6)
+            if (buyNow.length > 0) {
+                html += `<div class="discovery-section">
+                    <h3 class="section-header buy-header">🎯 BUY NOW (${buyNow.length})</h3>
+                    <div class="cards-grid">`;
+                html += buyNow.map(opp => createDiscoveryCard(opp)).join('');
+                html += '</div></div>';
+            }
+            
+            // Show EARLY_READY recommendations (show ALL)
+            if (earlyReady.length > 0) {
+                html += `<div class="discovery-section">
+                    <h3 class="section-header early-header">👀 EARLY READY (${earlyReady.length})</h3>
+                    <div class="cards-grid">`;
+                html += earlyReady.map(opp => createDiscoveryCard(opp)).join('');
+                html += '</div></div>';
+            }
+            
+            // Show WATCHLIST setups (show ALL)
+            if (watchlist.length > 0) {
+                html += `<div class="discovery-section">
+                    <h3 class="section-header watchlist-header">📈 WATCHLIST (${watchlist.length})</h3>
+                    <div class="cards-grid">`;
+                html += watchlist.map(opp => createDiscoveryCard(opp)).join('');
+                html += '</div></div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // Helper function to create discovery card HTML
+        function createDiscoveryCard(opp) {
+            // Get real relative volume (no 1.0 fallback)
+            const relVol = opp.rel_vol_30m ?? opp.rel_vol_day ?? null;
+            
+            // Get dynamic target price and kind
+            const targetPrice = opp.dynamic_target_price || opp.target_price;
+            const targetKind = opp.target_kind || '';
+            
+            // Score badge styling based on tier
+            const scoreBadgeClass = opp.score >= 95 ? 'score-emerald' : 
+                                   opp.score >= 90 ? 'score-sky' : 'score-slate';
+            
+            // Generate thesis text
+            let thesisText = opp.thesis_text || '';
+            if (!thesisText && opp.thesis_tags) {
+                thesisText = `${opp.thesis_tags.join(', ')} opportunity`;
+            }
+            if (!thesisText) {
+                thesisText = `${opp.ticker || opp.symbol} at $${(opp.price || 0).toFixed(2)}`;
+                if (opp.atr_pct) thesisText += `, ATR ${(opp.atr_pct * 100).toFixed(1)}%`;
+                if (relVol && relVol > 1.5) thesisText += `, ${relVol.toFixed(1)}× volume`;
+            }
+            
+            return `
+                <div class="card discovery-card" data-ticker="${opp.ticker || opp.symbol}">
+                    <div class="card-header">
+                        <div>
+                            <div class="symbol">${opp.ticker || opp.symbol}</div>
+                            <div class="price">$${(opp.price || 0).toFixed(2)}</div>
                         </div>
-                        
-                        <div class="card-stats">
-                            <div class="stat">
-                                <div class="stat-label">VIGL Score</div>
-                                <div class="stat-value">${Math.round(opp.score || 50)}</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">Volume</div>
-                                <div class="stat-value">${(opp.rel_vol_30m || opp.rel_vol || 1).toFixed(1)}x</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">Target</div>
-                                <div class="stat-value">$${(opp.target_price || opp.price * 1.15 || 0).toFixed(2)}</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">Upside</div>
-                                <div class="stat-value pnl-positive">+${(opp.upside_pct || 15).toFixed(0)}%</div>
-                            </div>
-                        </div>
-                        
-                        <div style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 1rem;">
-                            ${opp.thesis || opp.reasoning || 'AlphaStack VIGL opportunity'}
-                        </div>
-                        
-                        <div class="card-actions">
-                            <button class="btn btn-buy" onclick="executeTrade('${opp.symbol}', 'buy', null, 250)">Buy $250</button>
-                            <button class="btn btn-buy" onclick="executeTrade('${opp.symbol}', 'buy', null, 500)">Buy $500</button>
-                        </div>
+                        <div class="score-badge ${scoreBadgeClass}">${Math.round(opp.score || 0)}</div>
                     </div>
-                `;
-            }).join('');
+                    
+                    <div class="card-stats">
+                        ${relVol ? `
+                        <div class="stat">
+                            <div class="stat-label">RelVol</div>
+                            <div class="stat-value">${relVol.toFixed(1)}×</div>
+                        </div>` : ''}
+                        ${opp.atr_pct ? `
+                        <div class="stat">
+                            <div class="stat-label">ATR%</div>
+                            <div class="stat-value">${(opp.atr_pct * 100).toFixed(1)}%</div>
+                        </div>` : ''}
+                        ${targetPrice ? `
+                        <div class="stat">
+                            <div class="stat-label">Target</div>
+                            <div class="stat-value">$${targetPrice.toFixed(2)}</div>
+                        </div>` : ''}
+                    </div>
+                    
+                    ${targetPrice && targetKind ? `
+                    <div class="target-row">
+                        Target: <span class="target-price">$${targetPrice.toFixed(2)}</span>
+                        <span class="target-kind">(${targetKind})</span>
+                    </div>` : ''}
+                    
+                    <div class="card-thesis">
+                        ${thesisText}
+                    </div>
+                    
+                    ${opp.action === 'BUY' ? `
+                        <div class="order-ticket" id="ticket-${opp.ticker || opp.symbol}">
+                            <div class="order-amount">
+                                <button class="amount-btn" onclick="adjustAmount('${opp.ticker || opp.symbol}', -25)">-25</button>
+                                <input type="number" class="amount-input" value="100" min="10" max="500" 
+                                       onchange="validateAmount('${opp.ticker || opp.symbol}', this.value)">
+                                <button class="amount-btn" onclick="adjustAmount('${opp.ticker || opp.symbol}', 25)">+25</button>
+                            </div>
+                            <div class="auto-tp-sl">
+                                <label class="toggle-label">
+                                    <input type="checkbox" class="auto-toggle" checked 
+                                           onchange="toggleAutoTPSL('${opp.ticker || opp.symbol}', this.checked)">
+                                    Auto TP/SL
+                                </label>
+                            </div>
+                            <div class="tp-sl-inputs" style="display: none;">
+                                <input type="number" class="tp-input" placeholder="TP1 %" value="20" min="1" max="100">
+                                <input type="number" class="tp-input" placeholder="TP2 %" value="50" min="1" max="200">
+                                <input type="number" class="sl-input" placeholder="SL %" value="10" min="1" max="50">
+                            </div>
+                            <button class="btn btn-buy place-order-btn" 
+                                    onclick="placeOrder('${opp.ticker || opp.symbol}', ${JSON.stringify(opp).replace(/"/g, '&quot;')})">
+                                Place Buy
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
         }
 
-        // Trading Execution
+        // Order ticket functionality
+        function adjustAmount(ticker, delta) {
+            const input = document.querySelector(`#ticket-${ticker} .amount-input`);
+            const current = parseInt(input.value) || 100;
+            const newValue = Math.max(10, Math.min(500, current + delta));
+            input.value = newValue;
+            validateAmount(ticker, newValue);
+        }
+        
+        function validateAmount(ticker, value) {
+            const button = document.querySelector(`#ticket-${ticker} .place-order-btn`);
+            const isValid = value >= 10 && value <= 500;
+            button.disabled = !isValid;
+            button.textContent = isValid ? 'Place Buy' : `Must be $10-$500`;
+        }
+        
+        function toggleAutoTPSL(ticker, enabled) {
+            const inputs = document.querySelector(`#ticket-${ticker} .tp-sl-inputs`);
+            inputs.style.display = enabled ? 'none' : 'flex';
+        }
+        
+        async function placeOrder(ticker, opp) {
+            const ticket = document.querySelector(`#ticket-${ticker}`);
+            const amount = parseInt(ticket.querySelector('.amount-input').value);
+            const autoTPSL = ticket.querySelector('.auto-toggle').checked;
+            
+            let tp1_pct = 0.20, tp2_pct = 0.50, sl_pct = 0.10;
+            if (!autoTPSL) {
+                const inputs = ticket.querySelectorAll('.tp-sl-inputs input');
+                tp1_pct = parseFloat(inputs[0].value) / 100 || 0.20;
+                tp2_pct = parseFloat(inputs[1].value) / 100 || 0.50; 
+                sl_pct = parseFloat(inputs[2].value) / 100 || 0.10;
+            }
+            
+            const orderData = {
+                side: "BUY",
+                ticker: ticker,
+                usd: amount,
+                tp1_pct: tp1_pct,
+                tp2_pct: tp2_pct,
+                sl_pct: sl_pct,
+                engine: "python_v2",
+                run_id: opp.run_id,
+                snapshot_ts: opp.snapshot_ts || opp.run_id?.split('-')[0]
+            };
+            
+            try {
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.ok) {
+                    showToast(`Order placed for ${ticker}`, 'success');
+                    // Optionally show "View in Portfolio" link
+                } else {
+                    showToast(`Order failed: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Order failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function showToast(message, type = 'info') {
+            // Simple toast notification
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 1000;
+                padding: 12px 20px; border-radius: 8px; color: white;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#6366f1'};
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // Trading Execution (legacy compatibility)
         async function executeTrade(symbol, side, qty, dollarAmount) {
             try {
                 const tradeData = {

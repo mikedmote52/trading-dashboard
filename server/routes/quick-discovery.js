@@ -30,18 +30,18 @@ router.get('/', async (req, res) => {
       const snapshot = cache.getSnapshot();
       
       if (snapshot.fresh && snapshot.tickers && snapshot.tickers.length > 0) {
-        // Transform cached data to discovery format
+        // Transform cached data to discovery format - NO MOCK DATA
         cachedDiscoveries = snapshot.tickers.slice(0, 12).map((ticker, index) => ({
           symbol: ticker.symbol || ticker,
-          score: ticker.score || (75 - index * 2), // Descending scores
-          price: ticker.price || (Math.random() * 20 + 5), // Mock price 5-25
-          rel_vol_30m: ticker.rel_vol_30m || ticker.rvol || (1.5 + Math.random() * 1.5), // 1.5-3x volume
-          action: ticker.action || (ticker.score > 70 ? 'BUY' : 'EARLY_READY'),
-          thesis: ticker.thesis || `AlphaStack VIGL opportunity - Score: ${ticker.score || 70}`,
-          target_price: ticker.target_price || ((ticker.price || 10) * 1.15),
-          upside_pct: ticker.upside_pct || 15,
-          volume_spike: ticker.rel_vol_30m || 2.0,
-          momentum: ticker.momentum || 'Building'
+          score: ticker.score || 0,
+          price: ticker.price || 0,
+          rel_vol_30m: ticker.rel_vol_30m || ticker.rvol || 0,
+          action: ticker.action || 'MONITOR',
+          thesis: ticker.thesis || `AlphaStack VIGL candidate - Score: ${ticker.score || 0}`,
+          target_price: ticker.target_price || 0,
+          upside_pct: ticker.upside_pct || 0,
+          volume_spike: ticker.rel_vol_30m || 0,
+          momentum: ticker.momentum || 'Unknown'
         }));
         
         lastUpdate = now;
@@ -58,84 +58,14 @@ router.get('/', async (req, res) => {
       console.log('Cache access failed, using fallback');
     }
     
-    // Fallback to high-quality mock data
-    cachedDiscoveries = [
-      {
-        symbol: 'VERB',
-        score: 75,
-        price: 2.45,
-        rel_vol_30m: 2.3,
-        action: 'BUY',
-        thesis: 'High volume breakout setup with institutional accumulation',
-        target_price: 2.85,
-        upside_pct: 16,
-        momentum: 'Strong'
-      },
-      {
-        symbol: 'SNDX',
-        score: 72,
-        price: 15.20,
-        rel_vol_30m: 1.9,
-        action: 'BUY',
-        thesis: 'Technical pattern completion, strong momentum building',
-        target_price: 17.50,
-        upside_pct: 15,
-        momentum: 'Building'
-      },
-      {
-        symbol: 'DLO',
-        score: 78,
-        price: 8.90,
-        rel_vol_30m: 2.6,
-        action: 'BUY',
-        thesis: 'VIGL pattern confirmed with volume validation',
-        target_price: 10.25,
-        upside_pct: 15,
-        momentum: 'Confirmed'
-      },
-      {
-        symbol: 'RUN',
-        score: 69,
-        price: 12.35,
-        rel_vol_30m: 1.8,
-        action: 'EARLY_READY',
-        thesis: 'Pre-breakout accumulation phase, watch for catalyst',
-        target_price: 14.20,
-        upside_pct: 15,
-        momentum: 'Early'
-      },
-      {
-        symbol: 'CELH',
-        score: 74,
-        price: 35.60,
-        rel_vol_30m: 2.1,
-        action: 'BUY',
-        thesis: 'Consumer growth story with technical setup alignment',
-        target_price: 41.00,
-        upside_pct: 15,
-        momentum: 'Strong'
-      },
-      {
-        symbol: 'EQX',
-        score: 71,
-        price: 22.10,
-        rel_vol_30m: 2.0,
-        action: 'BUY',
-        thesis: 'Institutional interest growing, momentum building',
-        target_price: 25.40,
-        upside_pct: 15,
-        momentum: 'Building'
-      }
-    ];
-    
-    lastUpdate = now;
-    
+    // No fallback mock data - return empty if no real data available
     res.json({
-      success: true,
-      items: cachedDiscoveries,
+      success: false,
+      items: [],
       cached: false,
-      source: 'fallback',
-      count: cachedDiscoveries.length
+      source: 'no_data',
+      count: 0,
+      message: 'No discovery data available - use /api/discoveries/latest for real AlphaStack VIGL results'
     });
     
   } catch (error) {

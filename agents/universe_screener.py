@@ -21,6 +21,10 @@ FEAT_PATH = ROOT / "data" / "universe_features.parquet"
 sys.path.append(str(ROOT))
 from data.providers.alpha_providers import minute_bars, short_metrics
 
+# PR Catalyst Keywords for microcap ignition detection
+PR_KEYWORDS = ['fda','approval','clearance','fast track','breakthrough','partnership',
+               'contract','award','uplist','licensing','financing','trial']
+
 def ramp(x, lo, hi, max_pts):
     """Smooth ramp function for capped scoring"""
     if x is None: return 0
@@ -46,6 +50,168 @@ def squeeze_synergy(float_shares, si_pct, borrow_fee):
     if (si_pct or 0) >= 15 and (borrow_fee or 0) >= 30: 
         pts += 6
     return pts
+
+def detect_pr_catalyst(symbol):
+    """Detect PR catalyst keywords for microcap ignition (+3 per hit, max +10)"""
+    try:
+        # TODO: Replace with actual news provider call
+        # For now, stub implementation - real implementation would call news API
+        pr_tags = []
+        pr_bonus = 0
+        has_pr = False
+        
+        # Placeholder for news API integration
+        # news_headlines = get_latest_news(symbol)  # Would call actual provider
+        # for headline in news_headlines:
+        #     headline_lower = headline.lower()
+        #     for keyword in PR_KEYWORDS:
+        #         if keyword in headline_lower and keyword not in pr_tags:
+        #             pr_tags.append(keyword)
+        #             pr_bonus = min(10, pr_bonus + 3)  # +3 per hit, max +10
+        #             has_pr = True
+        
+        return {
+            "has_pr": has_pr,
+            "pr_tags": pr_tags,
+            "pr_bonus": pr_bonus
+        }
+    except Exception:
+        return {"has_pr": False, "pr_tags": [], "pr_bonus": 0}
+
+def detect_premarket_spark(symbol, prev_close, current_price):
+    """Pre-market spark detector (gap ≥10% + relvol ≥1.5x = +8)"""
+    try:
+        if not prev_close or not current_price:
+            return {"has_spark": False, "gap_pct": 0, "relvol_pm": 0, "spark_bonus": 0}
+        
+        gap_pct = ((current_price - prev_close) / prev_close) * 100
+        
+        # Get pre-market or early morning relative volume
+        relvol_pm = 0.0
+        try:
+            # TODO: Replace with actual pre-market volume calculation
+            # For now, stub implementation - real implementation would check pre-market data
+            mins = minute_bars(symbol)
+            if mins and len(mins) >= 5:
+                # Calculate early session relative volume (first 15-30 minutes)
+                dfm = pd.DataFrame(mins).rename(columns=str.lower, inplace=False)
+                early_volume = float(dfm['v'].head(15).sum())  # First 15 minutes
+                # Compare to typical 15-minute volume
+                relvol_pm = early_volume / (dfm['v'].mean() * 15) if dfm['v'].mean() > 0 else 0
+        except Exception:
+            pass
+        
+        # Pre-market Spark condition: gap ≥10% AND relvol ≥1.5x
+        has_spark = abs(gap_pct) >= 10.0 and relvol_pm >= 1.5
+        spark_bonus = 8 if has_spark else 0
+        
+        return {
+            "has_spark": has_spark,
+            "gap_pct": round(gap_pct, 1),
+            "relvol_pm": round(relvol_pm, 1),
+            "spark_bonus": spark_bonus
+        }
+    except Exception:
+        return {"has_spark": False, "gap_pct": 0, "relvol_pm": 0, "spark_bonus": 0}
+
+def detect_options_gex_nudge(symbol, spot_price):
+    """Options/GEX nudge via Polygon (+6 for rising OI, ±4 for gamma)"""
+    try:
+        # TODO: Replace with actual Polygon options API call
+        # For now, stub implementation - real implementation would query options data
+        
+        # Placeholder for Polygon options data
+        # options_data = get_options_chain(symbol, expiry_days=14)
+        # ntm_options = filter_ntm_options(options_data, spot_price, strike_tolerance=0.05)
+        
+        ntm_call_put_ratio = 1.0  # Stub value
+        ntm_call_oi_rising = False  # Stub value
+        net_gamma_exposure = 0.0  # Stub value
+        
+        # Calculate nudge points
+        nudge_points = 0
+        
+        # +6 if NTM call OI rising (≥10% increase and ≥+200 OI)
+        if ntm_call_oi_rising:
+            nudge_points += 6
+        
+        # ±4 for net gamma exposure
+        if abs(net_gamma_exposure) > 1e10:  # Materially significant
+            if net_gamma_exposure > 0:
+                nudge_points += 4  # Positive gamma exposure
+            else:
+                nudge_points -= 2  # Negative gamma exposure
+        
+        return {
+            "ntmCallPutRatio": round(ntm_call_put_ratio, 2),
+            "ntmCallOIRising": ntm_call_oi_rising,
+            "netGammaExposure": net_gamma_exposure,
+            "nudgePoints": nudge_points
+        }
+    except Exception:
+        return {
+            "ntmCallPutRatio": 1.0,
+            "ntmCallOIRising": False,
+            "netGammaExposure": 0.0,
+            "nudgePoints": 0
+        }
+
+def drawdown_and_spread_penalties(hod_drawdown_pct, bid_ask_spread_pct):
+    """Drawdown & spread penalties"""
+    pts = 0
+    
+    # HOD drawdown penalty
+    if hod_drawdown_pct and hod_drawdown_pct >= 20.0:
+        pts -= 8  # -8 points for ≥20% HOD drawdown
+    
+    # Quoted spread penalty  
+    if bid_ask_spread_pct and bid_ask_spread_pct > 1.2:
+        if bid_ask_spread_pct > 2.0:
+            pts -= 5  # -5 points for wide spread >2%
+        else:
+            pts -= 3  # -3 points for spread >1.2%
+    
+    return pts
+
+def live_vs_cached_drift_guard(live_price, cached_price):
+    """Live-vs-cached drift guard"""
+    if not live_price or not cached_price:
+        return {"has_drift": False, "drift_pct": 0, "drift_penalty": 0}
+    
+    drift_pct = abs(live_price - cached_price) / cached_price * 100
+    has_drift = drift_pct >= 10.0
+    drift_penalty = -8 if has_drift else 0
+    
+    return {
+        "has_drift": has_drift,
+        "drift_pct": round(drift_pct, 1),
+        "drift_penalty": drift_penalty,
+        "recalc_due_to_price_drift": has_drift
+    }
+
+def theme_boost_sector_herd(symbol, sector, recent_runners):
+    """Theme boost for sector herd behavior (+6 for ≥2 runners in sector)"""
+    try:
+        if not sector or not recent_runners:
+            return {"has_theme_boost": False, "sector_runners": 0, "theme_bonus": 0}
+        
+        # Count runners in same sector (RelVol ≥2 and +10% day)
+        sector_runners = len([r for r in recent_runners 
+                             if r.get('sector') == sector 
+                             and r.get('relvol', 0) >= 2.0 
+                             and r.get('day_change_pct', 0) >= 10.0
+                             and r.get('symbol') != symbol])
+        
+        has_theme_boost = sector_runners >= 2
+        theme_bonus = 6 if has_theme_boost else 0
+        
+        return {
+            "has_theme_boost": has_theme_boost,
+            "sector_runners": sector_runners,
+            "theme_bonus": theme_bonus
+        }
+    except Exception:
+        return {"has_theme_boost": False, "sector_runners": 0, "theme_bonus": 0}
 
 def live_penalties(price, vwap, rsi, ema9_ge_ema20, drawdown_from_hod):
     """Real-time tape quality penalties"""
@@ -100,19 +266,20 @@ def detect_early_catalysts(row):
     return points
 
 def map_action(score):
-    """Map score to action"""
-    if score >= 85: return "BUY"
-    elif score >= 75: return "EARLY_READY"
-    elif score >= 65: return "PRE_BREAKOUT"
+    """Map score to action with updated tier thresholds"""
+    if score >= 75: return "BUY"  # Updated from 85 to 75
+    elif score >= 65: return "EARLY_READY"  # Updated from 75 to 65  
+    elif score >= 55: return "PRE_BREAKOUT"  # Updated from 65 to 55
     elif score >= 50: return "WATCHLIST"
     else: return "MONITOR"
 
 def map_action_with_tape(score, live_price, live_vwap, ema9_ge_ema20):
-    """Action mapping with live tape validation"""
+    """Action mapping with live tape validation (hard cap)"""
     base_action = map_action(score)
     
-    # Tape guard: cap weak setups at PRE_BREAKOUT
-    if score >= 65:
+    # Tape guard: hard cap at PRE_BREAKOUT if price < VWAP OR EMA9<EMA20
+    # (regardless of score - prevents buying weak setups)
+    if score >= 55:  # Updated threshold
         below_vwap = (live_price and live_vwap and live_price < live_vwap)
         no_bullish_trend = not ema9_ge_ema20
         if below_vwap or no_bullish_trend:
@@ -235,11 +402,13 @@ class UniverseScreener:
             elif (row.get("atr_pct") or 0) >= 0.02: 
                 score += 5
 
-            # Volume bonus (use relative volume)
-            if relvol > 2.0: 
-                score += 15
-            elif relvol > 1.5: 
-                score += 8
+            # Volume confirmation (updated tiers)
+            if relvol >= 2.0: 
+                score += 15  # +15 @≥2.0x
+            elif relvol >= 1.7: 
+                score += 10  # +10 @1.7x
+            elif relvol >= 1.5: 
+                score += 4   # +4 @1.5x
 
             # Dollar volume bonus
             if (row.get("avg_dollar") or 0) >= 50_000_000: 
@@ -266,6 +435,48 @@ class UniverseScreener:
                 row.get("short_shares"), 
                 row.get("adv")
             )
+
+            # NEW BONUSES - AlphaStack Upgrade
+            
+            # PR Catalyst detection (+3 per hit, max +10)
+            catalyst_data = detect_pr_catalyst(row.get("symbol", ""))
+            score += catalyst_data["pr_bonus"]
+            
+            # Pre-market Spark (+8 for gap ≥10% + relvol ≥1.5x)
+            spark_data = detect_premarket_spark(
+                row.get("symbol", ""),
+                row.get("prev_close"),
+                row.get("price")
+            )
+            score += spark_data["spark_bonus"]
+            
+            # Options/GEX nudge (+6 for rising OI, ±4 for gamma)
+            options_data = detect_options_gex_nudge(
+                row.get("symbol", ""),
+                row.get("price")
+            )
+            score += options_data["nudgePoints"]
+            
+            # Drawdown & spread penalties (-8 for HOD, -3 to -5 for spread)
+            score += drawdown_and_spread_penalties(
+                row.get("hod_drawdown_pct"),
+                row.get("bid_ask_spread_pct")
+            )
+            
+            # Live-vs-cached drift guard (-8 for ≥10% drift)
+            drift_data = live_vs_cached_drift_guard(
+                row.get("live_price"),
+                row.get("price")
+            )
+            score += drift_data["drift_penalty"]
+            
+            # Theme boost (+6 for ≥2 runners in sector)
+            theme_data = theme_boost_sector_herd(
+                row.get("symbol", ""),
+                row.get("sector"),
+                []  # TODO: Pass recent_runners from context
+            )
+            score += theme_data["theme_bonus"]
 
             # Live tape penalties (will be 0 for now since no live data yet)
             score += live_penalties(
@@ -381,6 +592,13 @@ class UniverseScreener:
 
             sc = score_row(row, relvol)
             
+            # Collect all enhancement data for extended schema
+            catalyst_data = detect_pr_catalyst(sym)
+            spark_data = detect_premarket_spark(sym, row.get("prev_close"), row.get("price"))
+            options_data = detect_options_gex_nudge(sym, row.get("price"))
+            drift_data = live_vs_cached_drift_guard(row.get("live_price"), row.get("price"))
+            theme_data = theme_boost_sector_herd(sym, row.get("sector"), [])
+            
             # Generate thesis
             thesis_data = generate_thesis(sym, row, sc, relvol)
             
@@ -392,19 +610,72 @@ class UniverseScreener:
                 row.get("ema9_ge_ema20")
             )
             
-            candidates.append({
-                "symbol": sym,
-                "score": int(round(sc)),
+            # Build extended candidate with full schema
+            candidate = {
+                # Core data
+                "ticker": sym,
+                "symbol": sym,  # Keep for backward compatibility
                 "price": round(row["price"], 2),
-                "rel_vol_30m": round(max(relvol, 1.0), 1),
+                "score": int(round(sc)),
                 "action": action,
+                "thesis_tldr": thesis_data["thesis"][:100] + "..." if len(thesis_data["thesis"]) > 100 else thesis_data["thesis"],
+                
+                # Indicators
+                "indicators": {
+                    "relvol": round(max(relvol, 1.0), 1),
+                    "vwap_position": "above" if row.get("live_price", row["price"]) > row.get("live_vwap", row["price"]) else "below",
+                    "ema_9_20": "bullish" if row.get("ema9_ge_ema20") else "forming",
+                    "rsi": row.get("live_rsi", 50),
+                    "atr_pct": row.get("atr_pct", 0) * 100,
+                    "float": row.get("float_shares", 0),
+                    "short_interest_pct": (row.get("short_interest_pct", 0) or 0) * 100,
+                    "borrow_fee_pct": (row.get("borrow_fee_pct", 0) or 0) * 100,
+                    "sector": row.get("sector", "Unknown")
+                },
+                
+                # Catalyst data
+                "catalyst": catalyst_data,
+                
+                # Options data
+                "options": options_data,
+                
+                # Targets
+                "targets": {
+                    "entry": "VWAP reclaim" if action == "PRE_BREAKOUT" else "Current levels",
+                    "tp1": f"+{thesis_data['upside_pct']:.0f}%",
+                    "tp2": f"+{thesis_data['upside_pct'] * 2:.0f}%",
+                    "stop": "-8%"
+                },
+                
+                # Feature flags
+                "featureFlags": [
+                    action.lower(),
+                    "pr_watcher" if catalyst_data["has_pr"] else None,
+                    "premarket_scanner" if spark_data["has_spark"] else None,
+                    "options_nudge" if options_data["nudgePoints"] != 0 else None,
+                    "theme_boost" if theme_data["theme_bonus"] > 0 else None
+                ],
+                
+                # Timestamps
+                "timestamps": {
+                    "detected_premarket": None,  # Would be set if pre-market detection
+                    "scan_time": time.time()
+                },
+                
+                # Backward compatibility fields
+                "rel_vol_30m": round(max(relvol, 1.0), 1),
                 "bucket": "trade-ready" if sc>=75 else ("watch" if sc>=60 else "monitor"),
                 "thesis": thesis_data["thesis"],
                 "target_price": thesis_data["target_price"],
                 "upside_pct": thesis_data["upside_pct"],
                 "risk_note": thesis_data["risk_note"],
-                "tape_quality": "NEUTRAL"  # Will be enhanced with live data
-            })
+                "tape_quality": "NEUTRAL"
+            }
+            
+            # Filter out None values from feature flags
+            candidate["featureFlags"] = [f for f in candidate["featureFlags"] if f is not None]
+            
+            candidates.append(candidate)
 
         # Late short-interest enrichment for squeeze bias (deterministic; top N)
         enrich_max = int(UCFG.get("enrich_short_max", 800))
@@ -448,18 +719,18 @@ class UniverseScreener:
         if len(final) < limit and full_universe_mode:
             print(f"🥶 COLD TAPE RECOVERY: Markets quiet, creating PRE_BREAKOUT opportunities...", file=sys.stderr)
             
-            # Find lower-scoring candidates that could be pre-breakout setups
+            # Cold-tape recovery: PRE_BREAKOUT filler from 55-64 scoring items
             prebreakout_candidates = []
             for c in candidates[len(final):min(len(candidates), limit * 3)]:
-                if c["score"] >= 40 and c["score"] < 75:  # Lower threshold for cold tape
+                if c["score"] >= 55 and c["score"] <= 64:  # Updated: 55-64 range for PRE_BREAKOUT
                     # Enhance with PRE_BREAKOUT classification
                     c["action"] = "PRE_BREAKOUT"
                     c["cold_tape_enhanced"] = True
-                    c["confidence"] = max(50, c["score"] - 15)  # Reduced confidence for pre-breakout
+                    c["confidence"] = max(50, c["score"] - 5)  # Slight confidence reduction
                     
                     # Add cold tape thesis enhancement
                     if "thesis" in c:
-                        c["thesis"] += " [COLD TAPE: Early setup, monitor for momentum development]"
+                        c["thesis"] += " [COLD TAPE: Pre-breakout setup, watchable during quiet markets]"
                     
                     prebreakout_candidates.append(c)
                     
@@ -477,6 +748,7 @@ def main():
     parser.add_argument('--limit', type=int, default=5, help='Number of candidates to return')
     parser.add_argument('--exclude-symbols', type=str, default='', help='Comma-separated symbols to exclude')
     parser.add_argument('--full-universe', action='store_true', help='Force full universe scan (up to 2000 stocks)')
+    parser.add_argument('--json-out', action='store_true', help='Output extended JSON schema for API consumption')
     
     args = parser.parse_args()
     

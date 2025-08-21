@@ -167,6 +167,7 @@ app.use('/api/pm', require('./server/routes/pm'));
 app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
 app.use('/api/discoveries', require('./server/routes/discoveries'));
+app.use('/api/alphastack-v2', require('./server/routes/api/discoveries'));
 app.use('/api/scan', require('./server/routes/scan'));
 
 // Unified Engine Routes
@@ -185,7 +186,10 @@ app.use('/api/learn', require('./server/routes/learn'));
 // Trading Orders Routes (feature-gated)
 app.use('/api/orders', require('./server/routes/orders'));
 
-// Quick Discovery Route (fast cached results)
+// Real AlphaStack Discovery Route (no mock data)
+app.use('/api/alphastack', require('./server/routes/discoveries-latest'));
+
+// Quick Discovery Route (fast cached results) 
 app.use('/api/quick-discovery', require('./server/routes/quick-discovery'));
 
 // Prometheus metrics endpoints (always available, but only functional when metrics service is enabled)
@@ -2452,6 +2456,15 @@ app.listen(port, () => {
     console.log('🔄 Real discovery scheduler started');
   } catch (schedulerError) {
     console.warn('⚠️ Real discovery scheduler failed to start:', schedulerError.message);
+  }
+
+  // Start AlphaStack background screener loop
+  try {
+    const { startLoop } = require('./server/services/alphastack/screener_runner');
+    startLoop();
+    console.log('🚀 AlphaStack background screener loop started');
+  } catch (screenerError) {
+    console.warn('⚠️ AlphaStack background screener failed to start:', screenerError.message);
   }
   
   // Show active discovery engine (PROOF of which engine is running)
