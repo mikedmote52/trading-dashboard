@@ -43,9 +43,37 @@ services:
       - key: PORTFOLIO_INTELLIGENCE
         value: "true"
       - key: SELECT_ENGINE
-        value: optimized
+        value: v1  # Temporarily use v1 for reliability
       - key: ORDERS_ENABLED
         value: "1"
+      
+      # Fix parquet hang issues
+      - key: FEATURE_CACHE_BACKEND
+        value: sqlite
+      - key: FEATURE_CACHE_PATH
+        value: /var/data/trading_dashboard.db
+      - key: SKIP_CACHE_WRITES
+        value: "false"
+      
+      # Screener timeouts and budgets
+      - key: SCREENER_TIMEOUT_MS
+        value: "90000"
+      - key: SCREENER_BUDGET_MS
+        value: "30000"
+      
+      # Reduce universe for faster startup
+      - key: UNIVERSE_TARGET
+        value: "200"
+      - key: UNIVERSE_MIN
+        value: "100"
+      - key: UNIVERSE_PRICE_MIN
+        value: "0.5"
+      - key: UNIVERSE_PRICE_MAX
+        value: "200"
+      
+      # Startup behavior
+      - key: STRICT_STARTUP
+        value: "true"
         
       # Same-origin URL configuration (empty = relative URLs)
       - key: NEXT_PUBLIC_DISCOVERY_URL
