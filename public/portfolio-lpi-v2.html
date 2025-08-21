@@ -275,10 +275,45 @@
             try {
                 console.log('🔄 LPI v2: Loading portfolio with unified engine...');
                 
+                // Robust discovery fetcher with fallback chain
+                async function fetchDiscoveryData() {
+                    // Try contenders first (preferred)
+                    try {
+                        const r1 = await fetch('/api/discovery/contenders?limit=10');
+                        if (r1.ok) {
+                            const data = await r1.json();
+                            if (data.items?.length || data.contenders?.length) {
+                                console.log('✅ Got discovery data from contenders API');
+                                return { 
+                                    data: data.items || data.contenders, 
+                                    source: 'contenders',
+                                    success: true 
+                                };
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Contenders API failed:', e);
+                    }
+                    
+                    // Fallback to latest-scores
+                    try {
+                        const r2 = await fetch('/api/discoveries/latest-scores');
+                        if (r2.ok) {
+                            const data = await r2.json();
+                            console.log('✅ Using fallback: latest-scores API');
+                            return data;
+                        }
+                    } catch (e) {
+                        console.warn('Latest-scores API failed:', e);
+                    }
+                    
+                    return { success: false, data: [] };
+                }
+                
                 // Load data in parallel - use enhanced discoveries API
                 const [positions, scoresResponse, thesis] = await Promise.all([
                     fetch('/api/portfolio/positions').then(r=>r.json()),
-                    fetch('/api/discoveries/latest-scores').then(r=>r.json()).catch(()=>({success:false,data:[]})),
+                    fetchDiscoveryData(),
                     fetch('/api/portfolio/thesis-map').then(r=>r.json()).catch(()=>({}))
                 ]);
                 
@@ -650,44 +685,46 @@
         function actionButtonHTML(a, p) {
             const action = a.action || 'HOLD';
             const ticker = p.ticker;
-            const currentPrice = p.current_price || 0;
+            const shares = p.shares || 0;
+            const confidence = a.confidence || 0;
             
-            
+            // Only show action buttons that match the recommendation
             switch(action) {
+                case 'BUY':
                 case 'BUY_MORE':
-                    const addAmount = a.add_usd || a.suggested_amount || 500;
-                    return `<button class="btn btn-buy" onclick="toggleTradeTicket('${ticker}')" style="margin-left: 8px;">
-                              Add More
+                case 'ADD':
+                    return `<button class="btn btn-buy" onclick="toggleTradeTicket('${ticker}')" 
+                             style="margin-left: 8px; background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                              Buy More
                             </button>`;
                 
                 case 'TRIM':
-                    const trimPct = 25; // Default 25% trim
-                    return `<button class="btn btn-sell" onclick="executeTrimOrder('${ticker}', ${trimPct})" style="margin-left: 8px; background: linear-gradient(90deg, #f59e0b, #fbbf24);">
-                              Trim ${trimPct}%
-                            </button>`;
+                    // Only show trim if we have shares to trim
+                    if (shares >= 1) {
+                        const trimQty = Math.max(1, Math.floor(shares * 0.25));
+                        return `<button class="btn btn-trim" onclick="executeTrimOrder('${ticker}', ${trimQty})" 
+                                 style="margin-left: 8px; background: linear-gradient(90deg, #f59e0b, #fbbf24); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                  Trim ${trimQty} shares
+                                </button>`;
+                    }
+                    return '';
                 
                 case 'SELL':
-                    return `<button class="btn btn-sell" onclick="executeSellOrder('${ticker}')" style="margin-left: 8px;">
-                              Sell All
-                            </button>`;
+                    // Only show sell if confidence is high enough
+                    if (confidence >= 0.7 && shares >= 1) {
+                        return `<button class="btn btn-sell" onclick="executeSellOrder('${ticker}', ${shares})" 
+                                 style="margin-left: 8px; background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                  Sell All (${shares} shares)
+                                </button>`;
+                    }
+                    return '';
                 
                 case 'HOLD':
                 default:
-                    // Always show action buttons for debugging
-                    return `<div style="margin-left: 8px; display: flex; gap: 4px;">
-                              <button class="btn btn-buy" onclick="toggleTradeTicket('${ticker}')" 
-                                      style="background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                                Buy More
-                              </button>
-                              <button class="btn btn-sell" onclick="executeTrimOrder('${ticker}', 25)" 
-                                      style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                                Trim 25%
-                              </button>
-                              <button class="btn btn-sell" onclick="executeSellOrder('${ticker}')" 
-                                      style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                                Sell All
-                              </button>
-                            </div>`;
+                    // For HOLD, optionally show a disabled button or info
+                    return `<span style="margin-left: 8px; padding: 6px 12px; background: #6b7280; color: white; border-radius: 4px; display: inline-block;">
+                              Holding Position
+                            </span>`;
             }
         }
 
@@ -1072,47 +1109,51 @@
         }
 
         // Portfolio action execution functions
-        async function executeTrimOrder(ticker, trimPct) {
-            if (!confirm(`Trim ${trimPct}% of your ${ticker} position?`)) return;
+        async function executeTrimOrder(ticker, trimQty) {
+            if (!confirm(`Trim ${trimQty} shares of ${ticker}?`)) return;
+            
+            // Find and disable the button
+            const button = event?.target;
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Trimming...';
+                button.style.opacity = '0.6';
+            }
             
             try {
-                // Get current position size
-                const portfolioResponse = await fetch('/api/portfolio/positions');
-                const positions = await portfolioResponse.json();
-                const position = positions.find(p => p.ticker === ticker);
+                showTradeStatus(ticker, `🔄 Trimming ${trimQty} shares...`, 'info');
                 
-                if (!position) {
-                    showTradeStatus(ticker, '❌ Position not found', 'error');
-                    return;
-                }
+                // Create idempotency key
+                const idempotencyKey = `trim_${ticker}_${trimQty}_${Date.now()}`;
                 
-                const trimShares = Math.floor(position.shares * (trimPct / 100));
-                const trimValue = trimShares * position.current_price;
-                
-                showTradeStatus(ticker, `🔄 Trimming ${trimShares} shares (~$${trimValue.toFixed(0)})...`, 'info');
-                
-                // Execute trim via order API (sell order)
-                const response = await fetch('/api/orders/trade', {
+                // Execute trim via order API (sell order with qty)
+                const response = await fetch('/api/order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         ticker: ticker.toUpperCase(),
                         side: 'sell',
-                        qty: trimShares,
-                        type: 'market'
+                        qty: trimQty,
+                        idempotencyKey
                     })
                 });
 
                 const result = await response.json();
                 
-                if (result.success) {
-                    showTradeStatus(ticker, `✅ Trimmed ${trimShares} shares`, 'success');
+                if (result.ok || result.success) {
+                    showTradeStatus(ticker, `✅ Trimmed ${trimQty} shares`, 'success');
                     // Record learning feedback
-                    await recordLearningFeedback(ticker, 'TRIM', 'TRIM', 'User executed recommended trim');
+                    await recordLearningFeedback(ticker, 'TRIM', 'TRIM', `Trimmed ${trimQty} shares`);
                     // Refresh portfolio
                     setTimeout(() => loadPortfolio(), 2000);
                 } else {
                     showTradeStatus(ticker, `❌ Trim failed: ${result.error}`, 'error');
+                    // Re-enable button on failure
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = `Trim ${trimQty} shares`;
+                        button.style.opacity = '1';
+                    }
                 }
                 
             } catch (error) {
@@ -1121,34 +1162,51 @@
             }
         }
 
-        async function executeSellOrder(ticker) {
-            if (!confirm(`Sell your entire ${ticker} position?`)) return;
+        async function executeSellOrder(ticker, qty) {
+            if (!confirm(`Sell ${qty} shares of ${ticker}?`)) return;
+            
+            // Find and disable the button
+            const button = event?.target;
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Selling...';
+                button.style.opacity = '0.6';
+            }
             
             try {
-                showTradeStatus(ticker, `🔄 Selling entire ${ticker} position...`, 'info');
+                showTradeStatus(ticker, `🔄 Selling ${qty} shares of ${ticker}...`, 'info');
                 
-                // Execute sell via order API (sell all shares)
-                const response = await fetch('/api/orders/trade', {
+                // Create idempotency key
+                const idempotencyKey = `sell_${ticker}_${qty}_${Date.now()}`;
+                
+                // Execute sell via order API with specific qty
+                const response = await fetch('/api/order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         ticker: ticker.toUpperCase(),
                         side: 'sell',
-                        qty: 'all', // Sell all shares
-                        type: 'market'
+                        qty: qty,
+                        idempotencyKey
                     })
                 });
 
                 const result = await response.json();
                 
-                if (result.success) {
-                    showTradeStatus(ticker, `✅ Sold entire ${ticker} position`, 'success');
+                if (result.ok || result.success) {
+                    showTradeStatus(ticker, `✅ Sold ${qty} shares of ${ticker}`, 'success');
                     // Record learning feedback
-                    await recordLearningFeedback(ticker, 'SELL', 'SELL', 'User executed recommended sell');
+                    await recordLearningFeedback(ticker, 'SELL', 'SELL', `Sold ${qty} shares`);
                     // Refresh portfolio
                     setTimeout(() => loadPortfolio(), 2000);
                 } else {
                     showTradeStatus(ticker, `❌ Sell failed: ${result.error}`, 'error');
+                    // Re-enable button on failure
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = `Sell All (${qty} shares)`;
+                        button.style.opacity = '1';
+                    }
                 }
                 
             } catch (error) {

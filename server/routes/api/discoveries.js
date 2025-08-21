@@ -129,6 +129,39 @@ router.get("/contenders", (req, res) => {
       const { items, updatedAt, running, error, fresh, engine } = py.getState();
       
       if (items.length === 0) {
+        // Try fallback to latest-scores from DB
+        console.log('🔄 No Python contenders, trying DB fallback...');
+        try {
+          const dbModule = require('../../services/discoveries-repository');
+          const latestScores = dbModule.getLatestScores ? dbModule.getLatestScores(limit) : [];
+          
+          if (latestScores && latestScores.length > 0) {
+            console.log(`✅ Found ${latestScores.length} items from DB fallback`);
+            const mappedItems = latestScores.map(x => ({
+              ticker: x.ticker,
+              price: x.price || x.current_price || 0,
+              score: x.score || x.vigl_score || 70,
+              action: 'BUY',
+              confidence: 0.7,
+              thesis: x.thesis || `Score: ${x.score || 70}`,
+              engine: 'db_fallback',
+              run_id: 'latest-scores',
+              snapshot_ts: new Date().toISOString()
+            }));
+            
+            return res.json({
+              items: mappedItems,
+              contenders: mappedItems,
+              success: true,
+              count: mappedItems.length,
+              engine: 'db_fallback',
+              message: 'Using cached discoveries'
+            });
+          }
+        } catch (dbErr) {
+          console.warn('DB fallback failed:', dbErr.message);
+        }
+        
         return res.json({
           items: [],
           contenders: [],
