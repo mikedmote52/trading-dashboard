@@ -108,35 +108,29 @@ class AlphaStackScreener {
       this.loadingScan = true;
       this.showLoading('Loading AlphaStack results...');
       
-      // Check if we have fresh cached results first
-      const statusResp = await fetch('/api/scan/status');
-      const status = await statusResp.json();
-      
-      if (!status.hasData || status.dataAge > 300) { // 5 min cache
-        await this.startScanWithBackoff();
-        await this.waitForScanCompletion();
-      }
-      
-      // Get results
-      const response = await fetch('/api/scan/results');
-      const results = await response.json();
+      // Get fresh progressive squeeze results directly
+      const response = await fetch('/api/alphastack-v2/latest?limit=50');
+      const data = await response.json();
+      const results = data.items || [];
       
       if (Array.isArray(results)) {
         this.data = results.map(candidate => ({
-          symbol: candidate.ticker,
-          score: candidate.alphaScore,
-          bucket: this.getBucket(candidate.alphaScore),
+          symbol: candidate.symbol || candidate.ticker,
+          score: candidate.score,
+          bucket: this.getBucket(candidate.score),
           price: candidate.price,
-          catalyst: candidate.catalyst,
+          catalyst: candidate.thesis_tldr || candidate.thesis,
           action: candidate.action,
-          relVol: parseFloat(candidate.relVolume),
-          rsi: parseFloat(candidate.rsi14),
-          atrPct: parseFloat(candidate.atrPct),
-          vwap: parseFloat(candidate.vwap),
-          aboveVWAP: candidate.aboveVWAP,
-          emaCross: candidate.emaCross920 === 'confirmed',
-          sessionType: candidate.sessionType,
-          fallbackMode: candidate.fallbackMode
+          relVol: candidate.rel_vol_30m || candidate.indicators?.relvol || 1,
+          rsi: 50, // Default for progressive squeeze
+          atrPct: candidate.indicators?.atr_pct || 5,
+          vwap: candidate.price, // Use price as proxy
+          aboveVWAP: true, // Default for progressive squeeze
+          emaCross: candidate.indicators?.ret_5d > 0,
+          sessionType: 'progressive_squeeze',
+          fallbackMode: false,
+          thesis: candidate.thesis,
+          targets: candidate.targets
         }));
         
         console.log(`✅ AlphaStack: Loaded ${this.data.length} candidates (${this.data.filter(d=>d.score>=75).length} trade-ready)`);
@@ -167,23 +161,35 @@ class AlphaStackScreener {
       this.loadingScan = true;
       this.showScanning();
       
-      // Trigger fresh scan with current preset
-      await this.startScanWithBackoff(true); // force refresh
-      await this.waitForScanCompletion();
+      // Force refresh progressive squeeze data
+      await fetch('/api/alphastack-v2/refresh', { method: 'POST' });
       
-      // Get fresh results
-      const response = await fetch('/api/scan/results');
-      const results = await response.json();
+      // Wait a moment for fresh scan
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Get fresh progressive squeeze results
+      const response = await fetch('/api/alphastack-v2/latest?limit=50');
+      const data = await response.json();
+      const results = data.items || [];
       
       if (Array.isArray(results)) {
         this.data = results.map(candidate => ({
-          symbol: candidate.ticker,
-          score: candidate.alphaScore,
-          bucket: this.getBucket(candidate.alphaScore),
-          catalyst: candidate.catalyst,
-          action: candidate.action,
+          symbol: candidate.symbol || candidate.ticker,
+          score: candidate.score,
+          bucket: this.getBucket(candidate.score),
           price: candidate.price,
-          relVol: candidate.relVolume
+          catalyst: candidate.thesis_tldr || candidate.thesis,
+          action: candidate.action,
+          relVol: candidate.rel_vol_30m || candidate.indicators?.relvol || 1,
+          rsi: 50, // Default for progressive squeeze
+          atrPct: candidate.indicators?.atr_pct || 5,
+          vwap: candidate.price, // Use price as proxy
+          aboveVWAP: true, // Default for progressive squeeze
+          emaCross: candidate.indicators?.ret_5d > 0,
+          sessionType: 'progressive_squeeze',
+          fallbackMode: false,
+          thesis: candidate.thesis,
+          targets: candidate.targets
         }));
         
         this.renderResults();

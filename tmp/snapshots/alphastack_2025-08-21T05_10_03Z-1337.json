@@ -1,0 +1,1212 @@
+{
+  "run_id": "2025-08-21T05:10:03Z-1337",
+  "snapshot_ts": "2025-08-21T05:10:03Z",
+  "params": {
+    "seed": 1337,
+    "limit": 50,
+    "budget_ms": 45000,
+    "exclude_symbols": ""
+  },
+  "items": [
+    {
+      "ticker": "EQ",
+      "symbol": "EQ",
+      "price": 1.14,
+      "score": 100,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.14. explosive momentum (+130% 5d). high volatility (11% ATR). technical breakout. Score: 100",
+      "thesis_tldr": "Ultra micro-cap $1.14. explosive momentum (+130% 5d). high volatility (11% ATR). technical breakout.",
+      "rel_vol_30m": 0.2,
+      "indicators": {
+        "relvol": 0.2,
+        "ret_5d": 130.21001615508885,
+        "ret_21d": 170.7838479809976,
+        "atr_pct": 11.030069725596043,
+        "avg_dollar": 9229698.410102561
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752969.719774
+    },
+    {
+      "ticker": "ENLV",
+      "symbol": "ENLV",
+      "price": 1.82,
+      "score": 98,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.82. explosive momentum (+27% 5d). expanding volatility (6.9% ATR). strong volume (2.3x). Score: 98",
+      "thesis_tldr": "Ultra micro-cap $1.82. explosive momentum (+27% 5d). expanding volatility (6.9% ATR). strong volume ",
+      "rel_vol_30m": 2.3,
+      "indicators": {
+        "relvol": 2.3,
+        "ret_5d": 27.272727272727295,
+        "ret_21d": 51.666666666666686,
+        "atr_pct": 6.937306283460131,
+        "avg_dollar": 515175.88251282065
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752985.700119
+    },
+    {
+      "ticker": "STTK",
+      "symbol": "STTK",
+      "price": 1,
+      "score": 98,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.00. explosive momentum (+32% 5d). high volatility (9% ATR). technical breakout. Score: 98",
+      "thesis_tldr": "Ultra micro-cap $1.00. explosive momentum (+32% 5d). high volatility (9% ATR). technical breakout. S",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 32.222662964432104,
+        "ret_21d": 34.228187919463096,
+        "atr_pct": 9.34044358974359,
+        "avg_dollar": 2801741.487607692
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752989.720909
+    },
+    {
+      "ticker": "RMSG",
+      "symbol": "RMSG",
+      "price": 3.31,
+      "score": 98,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.31. explosive momentum (+63% 5d). high volatility (11% ATR). technical breakout. Score: 98",
+      "thesis_tldr": "Micro-cap $3.31. explosive momentum (+63% 5d). high volatility (11% ATR). technical breakout. Score:",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 63.054187192118235,
+        "ret_21d": 77.00534759358288,
+        "atr_pct": 11.284375242079166,
+        "avg_dollar": 3078666.7184717944
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752974.70653
+    },
+    {
+      "ticker": "CASI",
+      "symbol": "CASI",
+      "price": 2.38,
+      "score": 98,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.38. explosive momentum (+46% 5d). high volatility (9% ATR). technical breakout. Score: 98",
+      "thesis_tldr": "Micro-cap $2.38. explosive momentum (+46% 5d). high volatility (9% ATR). technical breakout. Score: ",
+      "rel_vol_30m": 0.2,
+      "indicators": {
+        "relvol": 0.2,
+        "ret_5d": 46.012269938650306,
+        "ret_21d": 84.49612403100775,
+        "atr_pct": 8.66936974789916,
+        "avg_dollar": 3796734.5334717943
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752976.323103
+    },
+    {
+      "ticker": "ENGS",
+      "symbol": "ENGS",
+      "price": 3.54,
+      "score": 97,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.54. explosive momentum (+26% 5d). high volatility (8% ATR). technical breakout. Score: 97",
+      "thesis_tldr": "Micro-cap $3.54. explosive momentum (+26% 5d). high volatility (8% ATR). technical breakout. Score: ",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 26.428571428571445,
+        "ret_21d": 64.6511627906977,
+        "atr_pct": 8.264739968129799,
+        "avg_dollar": 1078975.6284615383
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752982.2994828
+    },
+    {
+      "ticker": "TLRY",
+      "symbol": "TLRY",
+      "price": 1.03,
+      "score": 96,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.03. explosive momentum (+59% 5d). high volatility (8% ATR). Score: 96",
+      "thesis_tldr": "Ultra micro-cap $1.03. explosive momentum (+59% 5d). high volatility (8% ATR). Score: 96",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 58.77909665484815,
+        "ret_21d": 68.49337477506954,
+        "atr_pct": 8.233258650734381,
+        "avg_dollar": 46829465.74797179
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752974.487822
+    },
+    {
+      "ticker": "CGTX",
+      "symbol": "CGTX",
+      "price": 1.54,
+      "score": 96,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.54. explosive momentum (+104% 5d). high volatility (8% ATR). Score: 96",
+      "thesis_tldr": "Ultra micro-cap $1.54. explosive momentum (+104% 5d). high volatility (8% ATR). Score: 96",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 104.10868124585821,
+        "ret_21d": 126.47058823529412,
+        "atr_pct": 8.477672327672325,
+        "avg_dollar": 11205861.720299998
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752970.850548
+    },
+    {
+      "ticker": "XPON",
+      "symbol": "XPON",
+      "price": 1.85,
+      "score": 96,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.85. explosive momentum (+68% 5d). high volatility (12% ATR). Score: 96",
+      "thesis_tldr": "Ultra micro-cap $1.85. explosive momentum (+68% 5d). high volatility (12% ATR). Score: 96",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 68.18181818181816,
+        "ret_21d": 77.8846153846154,
+        "atr_pct": 12.42245045045045,
+        "avg_dollar": 23684491.541331727
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752974.209683
+    },
+    {
+      "ticker": "IVP",
+      "symbol": "IVP",
+      "price": 1.04,
+      "score": 95,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.04. explosive momentum (+35% 5d). high volatility (11% ATR). Score: 95",
+      "thesis_tldr": "Ultra micro-cap $1.04. explosive momentum (+35% 5d). high volatility (11% ATR). Score: 95",
+      "rel_vol_30m": 0.5,
+      "indicators": {
+        "relvol": 0.5,
+        "ret_5d": 35.0298623734095,
+        "ret_21d": 56.957440386356794,
+        "atr_pct": 11.33966222879684,
+        "avg_dollar": 1768965.1079069234
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752980.399432
+    },
+    {
+      "ticker": "GAU",
+      "symbol": "GAU",
+      "price": 2.04,
+      "score": 94,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.04. explosive momentum (+34% 5d). expanding volatility (4.0% ATR). strong volume (2.2x). Score: 94",
+      "thesis_tldr": "Micro-cap $2.04. explosive momentum (+34% 5d). expanding volatility (4.0% ATR). strong volume (2.2x)",
+      "rel_vol_30m": 2.2,
+      "indicators": {
+        "relvol": 2.2,
+        "ret_5d": 34.210526315789465,
+        "ret_21d": 48.90510948905109,
+        "atr_pct": 4.004147812971342,
+        "avg_dollar": 2046529.6882051283
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752984.356666
+    },
+    {
+      "ticker": "INO",
+      "symbol": "INO",
+      "price": 1.86,
+      "score": 94,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.86. explosive momentum (+32% 5d). expanding volatility (7.2% ATR). technical breakout. Score: 94",
+      "thesis_tldr": "Ultra micro-cap $1.86. explosive momentum (+32% 5d). expanding volatility (7.2% ATR). technical brea",
+      "rel_vol_30m": 0.5,
+      "indicators": {
+        "relvol": 0.5,
+        "ret_5d": 31.91489361702129,
+        "ret_21d": 35.76642335766422,
+        "atr_pct": 7.150537634408602,
+        "avg_dollar": 3989457.25474359
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752990.1885152
+    },
+    {
+      "ticker": "FOSL",
+      "symbol": "FOSL",
+      "price": 3.1,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.10. explosive momentum (+86% 5d). expanding volatility (4.6% ATR). heavy volume burst (3.4x). Score: 93",
+      "thesis_tldr": "Micro-cap $3.10. explosive momentum (+86% 5d). expanding volatility (4.6% ATR). heavy volume burst (",
+      "rel_vol_30m": 3.4,
+      "indicators": {
+        "relvol": 3.4,
+        "ret_5d": 85.62874251497009,
+        "ret_21d": 89.02439024390245,
+        "atr_pct": 4.605749379652605,
+        "avg_dollar": 1139677.543076923
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752973.213273
+    },
+    {
+      "ticker": "HIT",
+      "symbol": "HIT",
+      "price": 3.52,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.52. explosive momentum (+42% 5d). expanding volatility (7.3% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Micro-cap $3.52. explosive momentum (+42% 5d). expanding volatility (7.3% ATR). technical breakout. ",
+      "rel_vol_30m": 1.1,
+      "indicators": {
+        "relvol": 1.1,
+        "ret_5d": 41.93548387096775,
+        "ret_21d": 193.33333333333337,
+        "atr_pct": 7.252536421911423,
+        "avg_dollar": 2407025.0503769233
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752972.037014
+    },
+    {
+      "ticker": "PRPL",
+      "symbol": "PRPL",
+      "price": 1.12,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.12. explosive momentum (+36% 5d). expanding volatility (7.0% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Ultra micro-cap $1.12. explosive momentum (+36% 5d). expanding volatility (7.0% ATR). technical brea",
+      "rel_vol_30m": 0.6,
+      "indicators": {
+        "relvol": 0.6,
+        "ret_5d": 35.92233009708741,
+        "ret_21d": 72.28118750961391,
+        "atr_pct": 6.951673534798533,
+        "avg_dollar": 793640.1571717949
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752978.324206
+    },
+    {
+      "ticker": "BRLT",
+      "symbol": "BRLT",
+      "price": 2.34,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.34. explosive momentum (+34% 5d). expanding volatility (6.1% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Micro-cap $2.34. explosive momentum (+34% 5d). expanding volatility (6.1% ATR). technical breakout. ",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 33.714285714285694,
+        "ret_21d": 60.273972602739725,
+        "atr_pct": 6.082840236686392,
+        "avg_dollar": 3151843.8637179486
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752980.895148
+    },
+    {
+      "ticker": "AGH",
+      "symbol": "AGH",
+      "price": 3.62,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.62. explosive momentum (+37% 5d). high volatility (11% ATR). Score: 93",
+      "thesis_tldr": "Micro-cap $3.62. explosive momentum (+37% 5d). high volatility (11% ATR). Score: 93",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 37.12121212121211,
+        "ret_21d": 487.66233766233773,
+        "atr_pct": 10.582173112338857,
+        "avg_dollar": 2919334.223446051
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752969.0475159
+    },
+    {
+      "ticker": "ADN",
+      "symbol": "ADN",
+      "price": 3.81,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.81. explosive momentum (+102% 5d). expanding volatility (7.9% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Micro-cap $3.81. explosive momentum (+102% 5d). expanding volatility (7.9% ATR). technical breakout.",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 101.85185185185186,
+        "ret_21d": 97.66839378238343,
+        "atr_pct": 7.871223577645596,
+        "avg_dollar": 3596714.773961539
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752972.548197
+    },
+    {
+      "ticker": "VERB",
+      "symbol": "VERB",
+      "price": 22.45,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "$22.45 stock. explosive momentum (+34% 5d). high volatility (8% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "$22.45 stock. explosive momentum (+34% 5d). high volatility (8% ATR). technical breakout. Score: 93",
+      "rel_vol_30m": 0.2,
+      "indicators": {
+        "relvol": 0.2,
+        "ret_5d": 33.63095238095237,
+        "ret_21d": 143.88919065725148,
+        "atr_pct": 8.161386214379533,
+        "avg_dollar": 20688722.918246154
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752973.655741
+    },
+    {
+      "ticker": "TNYA",
+      "symbol": "TNYA",
+      "price": 1.16,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.16. explosive momentum (+73% 5d). expanding volatility (6.2% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Ultra micro-cap $1.16. explosive momentum (+73% 5d). expanding volatility (6.2% ATR). technical brea",
+      "rel_vol_30m": 0.1,
+      "indicators": {
+        "relvol": 0.1,
+        "ret_5d": 73.41904619524591,
+        "ret_21d": 33.93372589770234,
+        "atr_pct": 6.160366931918659,
+        "avg_dollar": 2006354.9444641024
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752977.653242
+    },
+    {
+      "ticker": "XFOR",
+      "symbol": "XFOR",
+      "price": 2.85,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.85. explosive momentum (+91% 5d). high volatility (9% ATR). Score: 93",
+      "thesis_tldr": "Micro-cap $2.85. explosive momentum (+91% 5d). high volatility (9% ATR). Score: 93",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 91.2751677852349,
+        "ret_21d": 91.2751677852349,
+        "atr_pct": 9.148088169140799,
+        "avg_dollar": 14930029.972564101
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752972.993933
+    },
+    {
+      "ticker": "PGEN",
+      "symbol": "PGEN",
+      "price": 2.94,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.94. explosive momentum (+65% 5d). expanding volatility (5.9% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Micro-cap $2.94. explosive momentum (+65% 5d). expanding volatility (5.9% ATR). technical breakout. ",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 65.1685393258427,
+        "ret_21d": 61.53846153846152,
+        "atr_pct": 5.9245595674167095,
+        "avg_dollar": 17829803.882564098
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752975.443169
+    },
+    {
+      "ticker": "OPEN",
+      "symbol": "OPEN",
+      "price": 3.17,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.17. explosive momentum (+63% 5d). high volatility (12% ATR). Score: 93",
+      "thesis_tldr": "Micro-cap $3.17. explosive momentum (+63% 5d). high volatility (12% ATR). Score: 93",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 62.56410256410256,
+        "ret_21d": 92.12121212121214,
+        "atr_pct": 12.121329774326618,
+        "avg_dollar": 600420520.3312435
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752971.3864489
+    },
+    {
+      "ticker": "CTNM",
+      "symbol": "CTNM",
+      "price": 7.38,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "Small-cap $7.38. strong momentum (+14.1% 5d). expanding volatility (6.9% ATR). heavy volume burst (11.8x). Score: 92",
+      "thesis_tldr": "Small-cap $7.38. strong momentum (+14.1% 5d). expanding volatility (6.9% ATR). heavy volume burst (1",
+      "rel_vol_30m": 11.8,
+      "indicators": {
+        "relvol": 11.8,
+        "ret_5d": 14.064914992272026,
+        "ret_21d": 92.1875,
+        "atr_pct": 6.8983739837398375,
+        "avg_dollar": 1306351.583846154
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752979.9577339
+    },
+    {
+      "ticker": "SNBR",
+      "symbol": "SNBR",
+      "price": 11.13,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "$11.13 stock. explosive momentum (+25% 5d). expanding volatility (7.3% ATR). heavy volume burst (4.7x). Score: 92",
+      "thesis_tldr": "$11.13 stock. explosive momentum (+25% 5d). expanding volatility (7.3% ATR). heavy volume burst (4.7",
+      "rel_vol_30m": 4.7,
+      "indicators": {
+        "relvol": 4.7,
+        "ret_5d": 25.337837837837828,
+        "ret_21d": 52.884615384615394,
+        "atr_pct": 7.309581403921027,
+        "avg_dollar": 5987341.787179487
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752986.819573
+    },
+    {
+      "ticker": "UPB",
+      "symbol": "UPB",
+      "price": 18.93,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "$18.93 stock. strong momentum (+18.3% 5d). expanding volatility (5.2% ATR). heavy volume burst (4.7x). Score: 92",
+      "thesis_tldr": "$18.93 stock. strong momentum (+18.3% 5d). expanding volatility (5.2% ATR). heavy volume burst (4.7x",
+      "rel_vol_30m": 4.7,
+      "indicators": {
+        "relvol": 4.7,
+        "ret_5d": 18.3125,
+        "ret_21d": 71.46739130434783,
+        "atr_pct": 5.228127920679426,
+        "avg_dollar": 6746169.20897436
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752983.889917
+    },
+    {
+      "ticker": "ARCT",
+      "symbol": "ARCT",
+      "price": 19.48,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "$19.48 stock. explosive momentum (+64% 5d). expanding volatility (5.6% ATR). heavy volume burst (2.9x). Score: 92",
+      "thesis_tldr": "$19.48 stock. explosive momentum (+64% 5d). expanding volatility (5.6% ATR). heavy volume burst (2.9",
+      "rel_vol_30m": 2.9,
+      "indicators": {
+        "relvol": 2.9,
+        "ret_5d": 63.560033585222506,
+        "ret_21d": 43.87001477104875,
+        "atr_pct": 5.606407623861424,
+        "avg_dollar": 8248229.089999998
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752977.87625
+    },
+    {
+      "ticker": "FTRE",
+      "symbol": "FTRE",
+      "price": 8.04,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "Small-cap $8.04. explosive momentum (+22% 5d). expanding volatility (7.5% ATR). elevated volume (1.6x). Score: 93",
+      "thesis_tldr": "Small-cap $8.04. explosive momentum (+22% 5d). expanding volatility (7.5% ATR). elevated volume (1.6",
+      "rel_vol_30m": 1.6,
+      "indicators": {
+        "relvol": 1.6,
+        "ret_5d": 22.188449848024305,
+        "ret_21d": 62.42424242424241,
+        "atr_pct": 7.4668325041459385,
+        "avg_dollar": 12737808.337820511
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752984.122566
+    },
+    {
+      "ticker": "UFG",
+      "symbol": "UFG",
+      "price": 3.89,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.89. explosive momentum (+23% 5d). expanding volatility (7.3% ATR). technical breakout. Score: 92",
+      "thesis_tldr": "Micro-cap $3.89. explosive momentum (+23% 5d). expanding volatility (7.3% ATR). technical breakout. ",
+      "rel_vol_30m": 0.4,
+      "indicators": {
+        "relvol": 0.4,
+        "ret_5d": 22.712933753943233,
+        "ret_21d": 72.88888888888889,
+        "atr_pct": 7.269988794410389,
+        "avg_dollar": 4339505.21448718
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752981.330564
+    },
+    {
+      "ticker": "MTNB",
+      "symbol": "MTNB",
+      "price": 2.36,
+      "score": 92,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.36. explosive momentum (+109% 5d). expanding volatility (6.0% ATR). technical breakout. Score: 92",
+      "thesis_tldr": "Micro-cap $2.36. explosive momentum (+109% 5d). expanding volatility (6.0% ATR). technical breakout.",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 108.8495575221239,
+        "ret_21d": 145.83333333333334,
+        "atr_pct": 5.991081051716645,
+        "avg_dollar": 1488899.4290571285
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752970.405727
+    },
+    {
+      "ticker": "BW",
+      "symbol": "BW",
+      "price": 1.56,
+      "score": 91,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.56. strong momentum (+18.2% 5d). expanding volatility (6.8% ATR). elevated volume (1.8x). Score: 91",
+      "thesis_tldr": "Ultra micro-cap $1.56. strong momentum (+18.2% 5d). expanding volatility (6.8% ATR). elevated volume",
+      "rel_vol_30m": 1.8,
+      "indicators": {
+        "relvol": 1.8,
+        "ret_5d": 18.181818181818187,
+        "ret_21d": 51.45631067961165,
+        "atr_pct": 6.846318211702827,
+        "avg_dollar": 1473854.7329948717
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752990.635128
+    },
+    {
+      "ticker": "VSTM",
+      "symbol": "VSTM",
+      "price": 8.22,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $8.22. explosive momentum (+22% 5d). expanding volatility (5.8% ATR). heavy volume burst (3.6x). Score: 90",
+      "thesis_tldr": "Small-cap $8.22. explosive momentum (+22% 5d). expanding volatility (5.8% ATR). heavy volume burst (",
+      "rel_vol_30m": 3.6,
+      "indicators": {
+        "relvol": 3.6,
+        "ret_5d": 21.95845697329377,
+        "ret_21d": 60.861056751467714,
+        "atr_pct": 5.765643521117975,
+        "avg_dollar": 15916896.8474359
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752985.247124
+    },
+    {
+      "ticker": "KOD",
+      "symbol": "KOD",
+      "price": 10.57,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "$10.57 stock. explosive momentum (+34% 5d). expanding volatility (6.1% ATR). heavy volume burst (3.2x). Score: 90",
+      "thesis_tldr": "$10.57 stock. explosive momentum (+34% 5d). expanding volatility (6.1% ATR). heavy volume burst (3.2",
+      "rel_vol_30m": 3.2,
+      "indicators": {
+        "relvol": 3.2,
+        "ret_5d": 33.79746835443038,
+        "ret_21d": 103.66088631984587,
+        "atr_pct": 6.09274579724911,
+        "avg_dollar": 3880446.9514102563
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752976.10034
+    },
+    {
+      "ticker": "DOGZ",
+      "symbol": "DOGZ",
+      "price": 15.98,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "$15.98 stock. explosive momentum (+112% 5d). high volatility (11% ATR). technical breakout. Score: 90",
+      "thesis_tldr": "$15.98 stock. explosive momentum (+112% 5d). high volatility (11% ATR). technical breakout. Score: 9",
+      "rel_vol_30m": 1.1,
+      "indicators": {
+        "relvol": 1.1,
+        "ret_5d": 111.65562913907286,
+        "ret_21d": 72.38403451995686,
+        "atr_pct": 10.959259972401398,
+        "avg_dollar": 4271086.974102563
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752972.763446
+    },
+    {
+      "ticker": "ATNF",
+      "symbol": "ATNF",
+      "price": 7.04,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $7.04. explosive momentum (+135% 5d). high volatility (15% ATR). Score: 90",
+      "thesis_tldr": "Small-cap $7.04. explosive momentum (+135% 5d). high volatility (15% ATR). Score: 90",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 134.66666666666666,
+        "ret_21d": 284.69945355191254,
+        "atr_pct": 14.737128496503496,
+        "avg_dollar": 100743325.21852309
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752969.498247
+    },
+    {
+      "ticker": "PPSI",
+      "symbol": "PPSI",
+      "price": 4.35,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Micro-cap $4.35. explosive momentum (+36% 5d). expanding volatility (6.1% ATR). technical breakout. Score: 91",
+      "thesis_tldr": "Micro-cap $4.35. explosive momentum (+36% 5d). expanding volatility (6.1% ATR). technical breakout. ",
+      "rel_vol_30m": 0.3,
+      "indicators": {
+        "relvol": 0.3,
+        "ret_5d": 35.51401869158877,
+        "ret_21d": 34.6749226006192,
+        "atr_pct": 6.051340996168584,
+        "avg_dollar": 11101731.631025638
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752987.9960709
+    },
+    {
+      "ticker": "SNOA",
+      "symbol": "SNOA",
+      "price": 5.35,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $5.35. explosive momentum (+75% 5d). expanding volatility (6.2% ATR). technical breakout. Score: 90",
+      "thesis_tldr": "Small-cap $5.35. explosive momentum (+75% 5d). expanding volatility (6.2% ATR). technical breakout. ",
+      "rel_vol_30m": 0.2,
+      "indicators": {
+        "relvol": 0.2,
+        "ret_5d": 74.83660130718953,
+        "ret_21d": 49.4413407821229,
+        "atr_pct": 6.168943206326385,
+        "avg_dollar": 10244577.996399997
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752975.6528618
+    },
+    {
+      "ticker": "BTAI",
+      "symbol": "BTAI",
+      "price": 5.48,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $5.48. explosive momentum (+36% 5d). high volatility (10% ATR). Score: 90",
+      "thesis_tldr": "Small-cap $5.48. explosive momentum (+36% 5d). high volatility (10% ATR). Score: 90",
+      "rel_vol_30m": 0.1,
+      "indicators": {
+        "relvol": 0.1,
+        "ret_5d": 35.643564356435654,
+        "ret_21d": 182.47422680412373,
+        "atr_pct": 10.44417930001872,
+        "avg_dollar": 40426589.45525641
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752972.3195012
+    },
+    {
+      "ticker": "WULF",
+      "symbol": "WULF",
+      "price": 8.97,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $8.97. explosive momentum (+78% 5d). expanding volatility (5.7% ATR). technical breakout. Score: 90",
+      "thesis_tldr": "Small-cap $8.97. explosive momentum (+78% 5d). expanding volatility (5.7% ATR). technical breakout. ",
+      "rel_vol_30m": 0.1,
+      "indicators": {
+        "relvol": 0.1,
+        "ret_5d": 78.33001988071571,
+        "ret_21d": 67.3507462686567,
+        "atr_pct": 5.693851299202471,
+        "avg_dollar": 310922402.17051286
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752973.976423
+    },
+    {
+      "ticker": "SLDP",
+      "symbol": "SLDP",
+      "price": 5.06,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $5.06. explosive momentum (+30% 5d). high volatility (8% ATR). Score: 90",
+      "thesis_tldr": "Small-cap $5.06. explosive momentum (+30% 5d). high volatility (8% ATR). Score: 90",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 29.743589743589727,
+        "ret_21d": 57.14285714285712,
+        "atr_pct": 8.402452619843922,
+        "avg_dollar": 42213153.22384615
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752981.814655
+    },
+    {
+      "ticker": "BSLK",
+      "symbol": "BSLK",
+      "price": 8.79,
+      "score": 90,
+      "action": "BUY",
+      "thesis": "Small-cap $8.79. explosive momentum (+289% 5d). high volatility (13% ATR). Score: 90",
+      "thesis_tldr": "Small-cap $8.79. explosive momentum (+289% 5d). high volatility (13% ATR). Score: 90",
+      "rel_vol_30m": 0,
+      "indicators": {
+        "relvol": 0,
+        "ret_5d": 288.9380530973452,
+        "ret_21d": 190.0990099009901,
+        "atr_pct": 12.557714185700537,
+        "avg_dollar": 113561295.83717945
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752968.811305
+    },
+    {
+      "ticker": "RIGL",
+      "symbol": "RIGL",
+      "price": 39.51,
+      "score": 89,
+      "action": "BUY",
+      "thesis": "$39.51 stock. explosive momentum (+25% 5d). heavy volume burst (5.4x). technical breakout. Score: 89",
+      "thesis_tldr": "$39.51 stock. explosive momentum (+25% 5d). heavy volume burst (5.4x). technical breakout. Score: 89",
+      "rel_vol_30m": 5.4,
+      "indicators": {
+        "relvol": 5.4,
+        "ret_5d": 24.6372239747634,
+        "ret_21d": 108.93707033315705,
+        "atr_pct": 3.352575459636964,
+        "avg_dollar": 11981898.339102564
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752976.980533
+    },
+    {
+      "ticker": "TREE",
+      "symbol": "TREE",
+      "price": 63.52,
+      "score": 89,
+      "action": "BUY",
+      "thesis": "$63.52 stock. strong momentum (+17.3% 5d). heavy volume burst (3.9x). technical breakout. Score: 89",
+      "thesis_tldr": "$63.52 stock. strong momentum (+17.3% 5d). heavy volume burst (3.9x). technical breakout. Score: 89",
+      "rel_vol_30m": 3.9,
+      "indicators": {
+        "relvol": 3.9,
+        "ret_5d": 17.271300655404787,
+        "ret_21d": 66.5224800104863,
+        "atr_pct": 3.395114803332686,
+        "avg_dollar": 15672548.683717951
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752986.367088
+    },
+    {
+      "ticker": "STOK",
+      "symbol": "STOK",
+      "price": 18.21,
+      "score": 89,
+      "action": "BUY",
+      "thesis": "$18.21 stock. explosive momentum (+39% 5d). expanding volatility (4.6% ATR). heavy volume burst (2.8x). Score: 89",
+      "thesis_tldr": "$18.21 stock. explosive momentum (+39% 5d). expanding volatility (4.6% ATR). heavy volume burst (2.8",
+      "rel_vol_30m": 2.8,
+      "indicators": {
+        "relvol": 2.8,
+        "ret_5d": 39.00763358778627,
+        "ret_21d": 47.44939271255062,
+        "atr_pct": 4.647052197299314,
+        "avg_dollar": 10622067.793076923
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752982.737036
+    },
+    {
+      "ticker": "SNDX",
+      "symbol": "SNDX",
+      "price": 15.74,
+      "score": 89,
+      "action": "BUY",
+      "thesis": "$15.74 stock. explosive momentum (+26% 5d). expanding volatility (4.3% ATR). strong volume (2.2x). Score: 89",
+      "thesis_tldr": "$15.74 stock. explosive momentum (+26% 5d). expanding volatility (4.3% ATR). strong volume (2.2x). S",
+      "rel_vol_30m": 2.2,
+      "indicators": {
+        "relvol": 2.2,
+        "ret_5d": 26.12179487179487,
+        "ret_21d": 62.771458117890376,
+        "atr_pct": 4.33787834359626,
+        "avg_dollar": 26574675.56230769
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752982.973654
+    },
+    {
+      "ticker": "FDMT",
+      "symbol": "FDMT",
+      "price": 7.26,
+      "score": 89,
+      "action": "BUY",
+      "thesis": "Small-cap $7.26. explosive momentum (+29% 5d). expanding volatility (5.9% ATR). technical breakout. Score: 89",
+      "thesis_tldr": "Small-cap $7.26. explosive momentum (+29% 5d). expanding volatility (5.9% ATR). technical breakout. ",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 28.95204262877442,
+        "ret_21d": 66.51376146788989,
+        "atr_pct": 5.875008829554286,
+        "avg_dollar": 8523719.221025642
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752981.112309
+    },
+    {
+      "ticker": "MATV",
+      "symbol": "MATV",
+      "price": 11.58,
+      "score": 88,
+      "action": "BUY",
+      "thesis": "$11.58 stock. explosive momentum (+23% 5d). expanding volatility (4.1% ATR). heavy volume burst (6.4x). Score: 88",
+      "thesis_tldr": "$11.58 stock. explosive momentum (+23% 5d). expanding volatility (4.1% ATR). heavy volume burst (6.4",
+      "rel_vol_30m": 6.4,
+      "indicators": {
+        "relvol": 6.4,
+        "ret_5d": 23.32268370607029,
+        "ret_21d": 58.41313269493844,
+        "atr_pct": 4.055976263230147,
+        "avg_dollar": 5175418.740769231
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752985.926708
+    },
+    {
+      "ticker": "PBYI",
+      "symbol": "PBYI",
+      "price": 5.73,
+      "score": 88,
+      "action": "BUY",
+      "thesis": "Small-cap $5.73. explosive momentum (+55% 5d). heavy volume burst (4.5x). technical breakout. Score: 88",
+      "thesis_tldr": "Small-cap $5.73. explosive momentum (+55% 5d). heavy volume burst (4.5x). technical breakout. Score:",
+      "rel_vol_30m": 4.5,
+      "indicators": {
+        "relvol": 4.5,
+        "ret_5d": 55.28455284552847,
+        "ret_21d": 70.5357142857143,
+        "atr_pct": 3.6430840828746582,
+        "avg_dollar": 2239827.613333333
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752976.761614
+    },
+    {
+      "ticker": "REAL",
+      "symbol": "REAL",
+      "price": 7.73,
+      "score": 88,
+      "action": "BUY",
+      "thesis": "Small-cap $7.73. explosive momentum (+21% 5d). expanding volatility (5.1% ATR). strong volume (2.3x). Score: 89",
+      "thesis_tldr": "Small-cap $7.73. explosive momentum (+21% 5d). expanding volatility (5.1% ATR). strong volume (2.3x)",
+      "rel_vol_30m": 2.3,
+      "indicators": {
+        "relvol": 2.3,
+        "ret_5d": 20.781249999999996,
+        "ret_21d": 37.05673758865249,
+        "atr_pct": 5.12986366802667,
+        "avg_dollar": 20595765.43128205
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752995.840259
+    },
+    {
+      "ticker": "DLO",
+      "symbol": "DLO",
+      "price": 15.66,
+      "score": 88,
+      "action": "BUY",
+      "thesis": "$15.66 stock. explosive momentum (+43% 5d). elevated volume (1.9x). technical breakout. Score: 88",
+      "thesis_tldr": "$15.66 stock. explosive momentum (+43% 5d). elevated volume (1.9x). technical breakout. Score: 88",
+      "rel_vol_30m": 1.9,
+      "indicators": {
+        "relvol": 1.9,
+        "ret_5d": 42.75296262534183,
+        "ret_21d": 40.448430493273534,
+        "atr_pct": 3.7601434325572254,
+        "avg_dollar": 26149449.256923076
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755752983.209043
+    }
+  ]
+}

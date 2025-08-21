@@ -173,9 +173,34 @@ class UniverseScreenerV2:
             (volatility_filtered["atr_pct"] >= 0.05)    # 5%+ volatility (breakout potential)
         ]
         
-        # Shuffle to avoid alphabetical bias
-        momentum_filtered = momentum_filtered.sample(frac=1).reset_index(drop=True)
-        symbols = momentum_filtered["symbol"].tolist()[:min(self.shortlist_target, len(momentum_filtered))]
+        # Pre-score all candidates by signal strength (no API calls)
+        momentum_filtered = momentum_filtered.copy()  # Avoid SettingWithCopyWarning
+        momentum_filtered["pre_score"] = (
+            momentum_filtered["ret_5d"] * 40 +      # Recent momentum weight
+            momentum_filtered["ret_21d"] * 30 +     # Intermediate momentum  
+            momentum_filtered["atr_pct"] * 20 +     # Volatility bonus
+            (momentum_filtered["adv"] / 1e6) * 0.1  # Liquidity factor
+        )
+        
+        # Add seeded hash for deterministic tie-breaking
+        if hasattr(self, 'seed') and self.seed:
+            import hashlib
+            momentum_filtered["hash_rank"] = momentum_filtered["symbol"].apply(
+                lambda x: int(hashlib.md5(f"{x}{self.seed}".encode()).hexdigest()[:8], 16)
+            )
+        else:
+            momentum_filtered["hash_rank"] = 0
+        
+        # Sort by pre_score (best first), then hash for determinism
+        momentum_filtered = momentum_filtered.sort_values(
+            by=["pre_score", "hash_rank"], 
+            ascending=[False, True]
+        ).reset_index(drop=True)
+        
+        # Take top candidates within shortlist target
+        shortlist_size = min(self.shortlist_target, len(momentum_filtered))
+        momentum_filtered = momentum_filtered.head(shortlist_size)
+        symbols = momentum_filtered["symbol"].tolist()
         
         print(f"🎯 Stage 3 (Momentum/Flow): {len(liquidity_filtered)} → {len(symbols)} final candidates", file=sys.stderr)
         
@@ -278,8 +303,13 @@ class UniverseScreenerV2:
                 "timestamp": time.time()
             })
         
-        # Sort by score and return top candidates
-        candidates.sort(key=lambda x: x["score"], reverse=True)
+        # Sort by score (desc), then relvol (desc), then price (asc), then ticker (asc) for stability
+        candidates.sort(key=lambda x: (
+            -x["score"],  # Descending score
+            -x.get("rel_vol_30m", 0),  # Descending relative volume
+            x["price"],  # Ascending price
+            x["ticker"]  # Ascending ticker for final tie-breaking
+        ))
         final = candidates[:limit]
         
         elapsed = time.time() - start_time
@@ -293,19 +323,51 @@ def main():
     parser.add_argument('--exclude-symbols', type=str, default='', help='Comma-separated symbols to exclude')
     parser.add_argument('--json-out', action='store_true', help='Output JSON for API consumption')
     parser.add_argument('--budget-ms', type=int, default=30000, help='Time budget in milliseconds')
+    parser.add_argument('--seed', type=int, default=None, help='Random seed for deterministic results')
+    parser.add_argument('--replay-json', type=str, default=None, help='Replay a saved JSON payload (use same items/order)')
     
     args = parser.parse_args()
     
+    # Handle replay mode - return saved snapshot
+    if args.replay_json:
+        with open(args.replay_json, 'r') as f:
+            payload = json.load(f)
+        # Echo back exactly what the API used (optionally trim to --limit)
+        payload['items'] = payload['items'][:args.limit]
+        print(json.dumps(payload))
+        sys.exit(0)
+    
+    # Set random seed for deterministic results
+    if args.seed is not None:
+        import random
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+    
     # Create screener and run fast scan
     screener = UniverseScreenerV2()
+    screener.seed = args.seed  # Pass seed to screener instance
     candidates = screener.screen_universe_fast(
         limit=args.limit, 
         exclude_symbols=args.exclude_symbols,
         budget_ms=args.budget_ms
     )
     
+    # Create payload with metadata
+    snapshot_ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    payload = {
+        "run_id": f"{snapshot_ts}-{args.seed or 'none'}",
+        "snapshot_ts": snapshot_ts,
+        "params": {
+            "seed": args.seed,
+            "limit": args.limit,
+            "budget_ms": args.budget_ms,
+            "exclude_symbols": args.exclude_symbols
+        },
+        "items": candidates
+    }
+    
     # Output as JSON
-    print(json.dumps(candidates))
+    print(json.dumps(payload))
 
 if __name__ == "__main__":
     main()

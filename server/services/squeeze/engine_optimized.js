@@ -1,3 +1,10 @@
+const usePython = (process.env.ALPHASTACK_ENGINE || "").toLowerCase() === "python_v2";
+let py;
+if (usePython) {
+  py = require("../alphastack/py_adapter");
+  py.startLoop();
+}
+
 const GatesOptimized = require('./gates_optimized');
 const Scorer = require('./scorer');
 const ActionMapper = require('./action_mapper');
@@ -40,6 +47,12 @@ module.exports = class EngineOptimized {
 
   async run() {
     try {
+      // Delegate to Python screener if enabled
+      if (usePython && py) {
+        console.log('🐍 Delegating to Python v2 screener...');
+        return this._delegateToPython();
+      }
+      
       console.log('🚀 Starting Optimized Discovery Engine');
       
       // Stage 1: Get broader universe
@@ -680,6 +693,66 @@ module.exports = class EngineOptimized {
     return enriched;
   }
   
+  async _delegateToPython() {
+    try {
+      const result = py.getState();
+      
+      // Transform Python output to match optimized engine format
+      const candidates = result.items.map(item => ({
+        ticker: item.ticker || item.symbol,
+        symbol: item.ticker || item.symbol,
+        price: item.price || 0,
+        score: item.score || 0,
+        action: item.action || 'MONITOR',
+        readiness_tier: this._mapActionToTier(item.action),
+        technicals: item.indicators || {},
+        volumeX: item.indicators?.relvol || 1,
+        relVolume: item.indicators?.relvol || 1,
+        thesis: item.thesis || item.thesis_tldr || '',
+        targets: item.targets || {},
+        timestamp: item.timestamp || Date.now()
+      }));
+      
+      return {
+        asof: result.updatedAt || new Date().toISOString(),
+        preset: 'progressive_squeeze',
+        universe_count: 0,
+        prefiltered_count: 0,
+        enriched_count: 0,
+        passed_progressive_filter: result.items.length,
+        high_quality_count: result.items.filter(i => i.score >= 70).length,
+        candidates,
+        gateCounts: {},
+        relaxation_active: false,
+        relaxation_since: null,
+        discovery_metrics: {
+          universe_expansion_ratio: 1,
+          prefilter_efficiency: '100%',
+          pass_rate: '100%',
+          action_rate: '100%',
+          quality_rate: `${(result.items.filter(i => i.score >= 70).length / Math.max(result.items.length, 1) * 100).toFixed(1)}%`,
+          trade_ready_count: result.items.filter(i => i.action === 'BUY').length,
+          early_ready_count: result.items.filter(i => i.action === 'EARLY_READY').length,
+          watch_count: result.items.filter(i => i.action === 'WATCHLIST').length
+        },
+        progressive_drops: {},
+        engine: 'python_v2'
+      };
+    } catch (error) {
+      console.error('❌ Python delegation failed:', error.message);
+      throw error;
+    }
+  }
+
+  _mapActionToTier(action) {
+    switch (action) {
+      case 'BUY': return 'TRADE_READY';
+      case 'EARLY_READY': return 'EARLY_READY';
+      case 'WATCHLIST': return 'WATCH';
+      default: return 'MONITOR';
+    }
+  }
+
   _mapActionOptimized(finalScore, stock, confidence = 0.7) {
     const BUY_T = Number(process.env.VIGL_BUY_THRESH || 70);
     const WATCH_T = Number(process.env.VIGL_WATCH_THRESH || 55);

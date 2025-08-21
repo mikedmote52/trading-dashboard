@@ -1,0 +1,1212 @@
+{
+  "run_id": "2025-08-21T03:34:36Z-1337",
+  "snapshot_ts": "2025-08-21T03:34:36Z",
+  "params": {
+    "seed": 1337,
+    "limit": 50,
+    "budget_ms": 45000,
+    "exclude_symbols": ""
+  },
+  "items": [
+    {
+      "ticker": "AGH",
+      "symbol": "AGH",
+      "price": 3.62,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.62. explosive momentum (+37% 5d). high volatility (11% ATR). Score: 93",
+      "thesis_tldr": "Micro-cap $3.62. explosive momentum (+37% 5d). high volatility (11% ATR). Score: 93",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 37.12121212121211,
+        "ret_21d": 487.66233766233773,
+        "atr_pct": 10.582173112338857,
+        "avg_dollar": 2919334.223446051
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747252.9916239
+    },
+    {
+      "ticker": "ADN",
+      "symbol": "ADN",
+      "price": 3.81,
+      "score": 93,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.81. explosive momentum (+102% 5d). expanding volatility (7.9% ATR). technical breakout. Score: 93",
+      "thesis_tldr": "Micro-cap $3.81. explosive momentum (+102% 5d). expanding volatility (7.9% ATR). technical breakout.",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 101.85185185185186,
+        "ret_21d": 97.66839378238343,
+        "atr_pct": 7.871223577645596,
+        "avg_dollar": 3596714.773961539
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747248.564904
+    },
+    {
+      "ticker": "ARCT",
+      "symbol": "ARCT",
+      "price": 19.48,
+      "score": 87,
+      "action": "BUY",
+      "thesis": "$19.48 stock. explosive momentum (+64% 5d). expanding volatility (5.6% ATR). technical breakout. Score: 87",
+      "thesis_tldr": "$19.48 stock. explosive momentum (+64% 5d). expanding volatility (5.6% ATR). technical breakout. Sco",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 63.560033585222506,
+        "ret_21d": 43.87001477104875,
+        "atr_pct": 5.606407623861424,
+        "avg_dollar": 8248229.089999998
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747271.870665
+    },
+    {
+      "ticker": "ALMS",
+      "symbol": "ALMS",
+      "price": 4.75,
+      "score": 84,
+      "action": "BUY",
+      "thesis": "Micro-cap $4.75. strong momentum (+10.5% 5d). expanding volatility (5.7% ATR). technical breakout. Score: 84",
+      "thesis_tldr": "Micro-cap $4.75. strong momentum (+10.5% 5d). expanding volatility (5.7% ATR). technical breakout. S",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 10.465116279069765,
+        "ret_21d": 35.32763532763534,
+        "atr_pct": 5.701808367071524,
+        "avg_dollar": 2812296.5166666666
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747260.365922
+    },
+    {
+      "ticker": "ANEB",
+      "symbol": "ANEB",
+      "price": 2.5,
+      "score": 82,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.50. building momentum (+3.9% 5d). high volatility (10% ATR). Score: 83",
+      "thesis_tldr": "Micro-cap $2.50. building momentum (+3.9% 5d). high volatility (10% ATR). Score: 83",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 3.8507871889668754,
+        "ret_21d": 52.4390243902439,
+        "atr_pct": 10.089025641025643,
+        "avg_dollar": 1995452.3511307698
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747266.36055
+    },
+    {
+      "ticker": "ABAT",
+      "symbol": "ABAT",
+      "price": 2.77,
+      "score": 82,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.77. explosive momentum (+29% 5d). high volatility (11% ATR). Score: 82",
+      "thesis_tldr": "Micro-cap $2.77. explosive momentum (+29% 5d). high volatility (11% ATR). Score: 82",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 28.837209302325583,
+        "ret_21d": 17.3728813559322,
+        "atr_pct": 10.821993890585947,
+        "avg_dollar": 15330890.670897432
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747242.849323
+    },
+    {
+      "ticker": "AERT",
+      "symbol": "AERT",
+      "price": 1,
+      "score": 81,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.00. explosive momentum (+25% 5d). high volatility (13% ATR). Score: 81",
+      "thesis_tldr": "Ultra micro-cap $1.00. explosive momentum (+25% 5d). high volatility (13% ATR). Score: 81",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 25.470514429109148,
+        "ret_21d": -5.660377358490576,
+        "atr_pct": 13.047053846153842,
+        "avg_dollar": 3895839.705146258
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747251.469248
+    },
+    {
+      "ticker": "AGL",
+      "symbol": "AGL",
+      "price": 1.11,
+      "score": 81,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.11. explosive momentum (+27% 5d). high volatility (13% ATR). Score: 81",
+      "thesis_tldr": "Ultra micro-cap $1.11. explosive momentum (+27% 5d). high volatility (13% ATR). Score: 81",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 27.060439560439576,
+        "ret_21d": -48.847926267281096,
+        "atr_pct": 13.296370986370986,
+        "avg_dollar": 13878764.554125642
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747253.4423318
+    },
+    {
+      "ticker": "ACRS",
+      "symbol": "ACRS",
+      "price": 1.87,
+      "score": 81,
+      "action": "BUY",
+      "thesis": "Ultra micro-cap $1.87. strong momentum (+14.7% 5d). expanding volatility (5.6% ATR). technical breakout. Score: 81",
+      "thesis_tldr": "Ultra micro-cap $1.87. strong momentum (+14.7% 5d). expanding volatility (5.6% ATR). technical break",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 14.723926380368102,
+        "ret_21d": 17.610062893081757,
+        "atr_pct": 5.5686343068696,
+        "avg_dollar": 2174846.860256411
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747247.241933
+    },
+    {
+      "ticker": "AMPY",
+      "symbol": "AMPY",
+      "price": 4.13,
+      "score": 81,
+      "action": "BUY",
+      "thesis": "Micro-cap $4.13. strong momentum (+16.0% 5d). expanding volatility (5.2% ATR). technical breakout. Score: 82",
+      "thesis_tldr": "Micro-cap $4.13. strong momentum (+16.0% 5d). expanding volatility (5.2% ATR). technical breakout. S",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 16.01123595505618,
+        "ret_21d": 24.77341389728096,
+        "atr_pct": 5.2315142484634025,
+        "avg_dollar": 3546328.2928205123
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747264.7787101
+    },
+    {
+      "ticker": "AIMD",
+      "symbol": "AIMD",
+      "price": 3.46,
+      "score": 78,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.46. building momentum (+8.8% 5d). high volatility (9% ATR). Score: 78",
+      "thesis_tldr": "Micro-cap $3.46. building momentum (+8.8% 5d). high volatility (9% ATR). Score: 78",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 8.805031446540879,
+        "ret_21d": 23.571428571428577,
+        "atr_pct": 8.516377649325628,
+        "avg_dollar": 12078318.203866664
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747255.111964
+    },
+    {
+      "ticker": "AEHL",
+      "symbol": "AEHL",
+      "price": 3.49,
+      "score": 77,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.49. explosive momentum (+63% 5d). high volatility (14% ATR). Score: 77",
+      "thesis_tldr": "Micro-cap $3.49. explosive momentum (+63% 5d). high volatility (14% ATR). Score: 77",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 63.084112149532714,
+        "ret_21d": -7.180851063829774,
+        "atr_pct": 13.960844904856362,
+        "avg_dollar": 1351876.3708589743
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747250.574045
+    },
+    {
+      "ticker": "ARDX",
+      "symbol": "ARDX",
+      "price": 5.97,
+      "score": 77,
+      "action": "BUY",
+      "thesis": "Small-cap $5.97. strong momentum (+14.6% 5d). technical breakout. Score: 78",
+      "thesis_tldr": "Small-cap $5.97. strong momentum (+14.6% 5d). technical breakout. Score: 78",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 14.587332053742808,
+        "ret_21d": 32.079646017699126,
+        "atr_pct": 3.847270540737877,
+        "avg_dollar": 20604127.684487183
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747272.3178759
+    },
+    {
+      "ticker": "AMPH",
+      "symbol": "AMPH",
+      "price": 29.83,
+      "score": 77,
+      "action": "BUY",
+      "thesis": "$29.83 stock. explosive momentum (+25% 5d). Score: 78",
+      "thesis_tldr": "$29.83 stock. explosive momentum (+25% 5d). Score: 78",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 25.28349433011339,
+        "ret_21d": 37.46543778801843,
+        "atr_pct": 3.2606354814031646,
+        "avg_dollar": 13940659.277435899
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747264.3155048
+    },
+    {
+      "ticker": "ANPA",
+      "symbol": "ANPA",
+      "price": 36.5,
+      "score": 77,
+      "action": "BUY",
+      "thesis": "$36.50 stock. building momentum (+4.0% 5d). high volatility (16% ATR). Score: 78",
+      "thesis_tldr": "$36.50 stock. building momentum (+4.0% 5d). high volatility (16% ATR). Score: 78",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 4.018238814477049,
+        "ret_21d": 489.66074313408717,
+        "atr_pct": 16.02980632971186,
+        "avg_dollar": 7208678.852758622
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747267.5081542
+    },
+    {
+      "ticker": "ARRY",
+      "symbol": "ARRY",
+      "price": 7.62,
+      "score": 76,
+      "action": "BUY",
+      "thesis": "Small-cap $7.62. explosive momentum (+39% 5d). expanding volatility (6.9% ATR). technical breakout. Score: 76",
+      "thesis_tldr": "Small-cap $7.62. explosive momentum (+39% 5d). expanding volatility (6.9% ATR). technical breakout. ",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 38.54545454545455,
+        "ret_21d": 10.595065312046458,
+        "atr_pct": 6.889225385288376,
+        "avg_dollar": 61535432.125384614
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747274.350403
+    },
+    {
+      "ticker": "ALEC",
+      "symbol": "ALEC",
+      "price": 2.25,
+      "score": 75,
+      "action": "BUY",
+      "thesis": "Micro-cap $2.25. building momentum (+4.7% 5d). expanding volatility (7.0% ATR). Score: 76",
+      "thesis_tldr": "Micro-cap $2.25. building momentum (+4.7% 5d). expanding volatility (7.0% ATR). Score: 76",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 4.651162790697683,
+        "ret_21d": 34.730538922155695,
+        "atr_pct": 7.0407977207977215,
+        "avg_dollar": 1842188.7997435902
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747258.106143
+    },
+    {
+      "ticker": "ABVC",
+      "symbol": "ABVC",
+      "price": 3.3,
+      "score": 75,
+      "action": "BUY",
+      "thesis": "Micro-cap $3.30. explosive momentum (+22% 5d). high volatility (13% ATR). Score: 76",
+      "thesis_tldr": "Micro-cap $3.30. explosive momentum (+22% 5d). high volatility (13% ATR). Score: 76",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 22.22222222222221,
+        "ret_21d": -7.8212290502793325,
+        "atr_pct": 12.754856254856255,
+        "avg_dollar": 1601997.357307692
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747244.259948
+    },
+    {
+      "ticker": "ABCL",
+      "symbol": "ABCL",
+      "price": 4.59,
+      "score": 75,
+      "action": "BUY",
+      "thesis": "Micro-cap $4.59. building momentum (+8.0% 5d). high volatility (8% ATR). Score: 75",
+      "thesis_tldr": "Micro-cap $4.59. building momentum (+8.0% 5d). high volatility (8% ATR). Score: 75",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 8.000000000000007,
+        "ret_21d": 17.692307692307697,
+        "atr_pct": 8.04189710072063,
+        "avg_dollar": 28269270.68051282
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747243.081485
+    },
+    {
+      "ticker": "APM",
+      "symbol": "APM",
+      "price": 1.39,
+      "score": 74,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.39. strong momentum (+10.3% 5d). high volatility (16% ATR). Score: 75",
+      "thesis_tldr": "Ultra micro-cap $1.39. strong momentum (+10.3% 5d). high volatility (16% ATR). Score: 75",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 10.317460317460302,
+        "ret_21d": -29.441624365482234,
+        "atr_pct": 15.859988931931376,
+        "avg_dollar": 10208065.881307691
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747269.6113138
+    },
+    {
+      "ticker": "ARHS",
+      "symbol": "ARHS",
+      "price": 12.8,
+      "score": 74,
+      "action": "EARLY_READY",
+      "thesis": "$12.80 stock. strong momentum (+14.1% 5d). expanding volatility (4.6% ATR). Score: 74",
+      "thesis_tldr": "$12.80 stock. strong momentum (+14.1% 5d). expanding volatility (4.6% ATR). Score: 74",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 14.081996434937615,
+        "ret_21d": 51.47928994082842,
+        "atr_pct": 4.638161057692308,
+        "avg_dollar": 21411982.592307694
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747273.2092311
+    },
+    {
+      "ticker": "ARWR",
+      "symbol": "ARWR",
+      "price": 20.51,
+      "score": 73,
+      "action": "EARLY_READY",
+      "thesis": "$20.51 stock. explosive momentum (+25% 5d). expanding volatility (5.1% ATR). technical breakout. Score: 73",
+      "thesis_tldr": "$20.51 stock. explosive momentum (+25% 5d). expanding volatility (5.1% ATR). technical breakout. Sco",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 24.908647990255783,
+        "ret_21d": 8.806366047745362,
+        "atr_pct": 5.114478240758103,
+        "avg_dollar": 35561914.347948715
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747275.230596
+    },
+    {
+      "ticker": "APLS",
+      "symbol": "APLS",
+      "price": 27.75,
+      "score": 73,
+      "action": "EARLY_READY",
+      "thesis": "$27.75 stock. strong momentum (+13.9% 5d). Score: 73",
+      "thesis_tldr": "$27.75 stock. strong momentum (+13.9% 5d). Score: 73",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 13.869511694706604,
+        "ret_21d": 38.47305389221558,
+        "atr_pct": 3.9529498729498744,
+        "avg_dollar": 54905508.34564103
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747269.387187
+    },
+    {
+      "ticker": "ALLO",
+      "symbol": "ALLO",
+      "price": 1.1,
+      "score": 72,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.10. building momentum (+5.8% 5d). high volatility (9% ATR). Score: 73",
+      "thesis_tldr": "Ultra micro-cap $1.10. building momentum (+5.8% 5d). high volatility (9% ATR). Score: 73",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 5.769230769230771,
+        "ret_21d": -11.290322580645151,
+        "atr_pct": 9.169463869463874,
+        "avg_dollar": 5514236.544871794
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747259.7045171
+    },
+    {
+      "ticker": "AMOD",
+      "symbol": "AMOD",
+      "price": 1.1,
+      "score": 72,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.10. building momentum (+4.8% 5d). high volatility (12% ATR). Score: 72",
+      "thesis_tldr": "Ultra micro-cap $1.10. building momentum (+4.8% 5d). high volatility (12% ATR). Score: 72",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 4.761904761904767,
+        "ret_21d": -14.728682170542628,
+        "atr_pct": 12.39090909090909,
+        "avg_dollar": 7065791.931153846
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747263.871381
+    },
+    {
+      "ticker": "AMIX",
+      "symbol": "AMIX",
+      "price": 1.13,
+      "score": 71,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.13. high volatility (16% ATR). Score: 71",
+      "thesis_tldr": "Ultra micro-cap $1.13. high volatility (16% ATR). Score: 71",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -5.833333333333335,
+        "ret_21d": -31.51515151515152,
+        "atr_pct": 16.34967097798956,
+        "avg_dollar": 3673567.9
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747262.92014
+    },
+    {
+      "ticker": "AREC",
+      "symbol": "AREC",
+      "price": 1.45,
+      "score": 71,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.45. high volatility (11% ATR). Score: 71",
+      "thesis_tldr": "Ultra micro-cap $1.45. high volatility (11% ATR). Score: 71",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -9.937888198757772,
+        "ret_21d": -1.3605442176870763,
+        "atr_pct": 10.883202475685234,
+        "avg_dollar": 2724934.453325641
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747272.760118
+    },
+    {
+      "ticker": "ABVE",
+      "symbol": "ABVE",
+      "price": 1.82,
+      "score": 71,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.82. high volatility (26% ATR). Score: 71",
+      "thesis_tldr": "Ultra micro-cap $1.82. high volatility (26% ATR). Score: 71",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -1.6216216216216273,
+        "ret_21d": -46.470588235294116,
+        "atr_pct": 25.512678219216685,
+        "avg_dollar": 68795551.54678975
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747244.487776
+    },
+    {
+      "ticker": "ADTX",
+      "symbol": "ADTX",
+      "price": 1.02,
+      "score": 70,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.02. high volatility (13% ATR). Score: 70",
+      "thesis_tldr": "Ultra micro-cap $1.02. high volatility (13% ATR). Score: 70",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -14.28571428571428,
+        "ret_21d": -15.702479338842966,
+        "atr_pct": 13.296282051282054,
+        "avg_dollar": 1752142.2710487177
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747249.4574652
+    },
+    {
+      "ticker": "ADV",
+      "symbol": "ADV",
+      "price": 1.8,
+      "score": 70,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.80. expanding volatility (8.0% ATR). Score: 71",
+      "thesis_tldr": "Ultra micro-cap $1.80. expanding volatility (8.0% ATR). Score: 71",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -2.1739130434782594,
+        "ret_21d": 19.999999999999996,
+        "atr_pct": 7.984757834757832,
+        "avg_dollar": 1328710.6898717945
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747249.920706
+    },
+    {
+      "ticker": "ARTL",
+      "symbol": "ARTL",
+      "price": 10.02,
+      "score": 70,
+      "action": "EARLY_READY",
+      "thesis": "$10.02 stock. strong momentum (+20.0% 5d). high volatility (28% ATR). Score: 71",
+      "thesis_tldr": "$10.02 stock. strong momentum (+20.0% 5d). high volatility (28% ATR). Score: 71",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 19.999999999999996,
+        "ret_21d": -36.05615826419911,
+        "atr_pct": 28.48060289677057,
+        "avg_dollar": 14619944.72969231
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747274.567791
+    },
+    {
+      "ticker": "ADVM",
+      "symbol": "ADVM",
+      "price": 2.86,
+      "score": 69,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $2.86. explosive momentum (+25% 5d). expanding volatility (7.6% ATR). Score: 70",
+      "thesis_tldr": "Micro-cap $2.86. explosive momentum (+25% 5d). expanding volatility (7.6% ATR). Score: 70",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 24.890829694323145,
+        "ret_21d": 0.7042253521126751,
+        "atr_pct": 7.5516559081943715,
+        "avg_dollar": 505319.2266666667
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747250.1409411
+    },
+    {
+      "ticker": "ADCT",
+      "symbol": "ADCT",
+      "price": 3.13,
+      "score": 69,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $3.13. strong momentum (+16.8% 5d). expanding volatility (6.5% ATR). Score: 69",
+      "thesis_tldr": "Micro-cap $3.13. strong momentum (+16.8% 5d). expanding volatility (6.5% ATR). Score: 69",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 16.791044776119392,
+        "ret_21d": 0.6430868167202508,
+        "atr_pct": 6.536741214057508,
+        "avg_dollar": 2173029.0484615387
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747247.90368
+    },
+    {
+      "ticker": "ALT",
+      "symbol": "ALT",
+      "price": 3.63,
+      "score": 69,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $3.63. building momentum (+5.2% 5d). high volatility (11% ATR). Score: 69",
+      "thesis_tldr": "Micro-cap $3.63. building momentum (+5.2% 5d). high volatility (11% ATR). Score: 69",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 5.217391304347818,
+        "ret_21d": -10.370370370370374,
+        "atr_pct": 11.431517976972524,
+        "avg_dollar": 29038071.353076927
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747260.824204
+    },
+    {
+      "ticker": "AQMS",
+      "symbol": "AQMS",
+      "price": 3.89,
+      "score": 69,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $3.89. building momentum (+5.1% 5d). high volatility (17% ATR). Score: 69",
+      "thesis_tldr": "Micro-cap $3.89. building momentum (+5.1% 5d). high volatility (17% ATR). Score: 69",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 5.135135135135127,
+        "ret_21d": -34.88449949782391,
+        "atr_pct": 17.43088787818865,
+        "avg_dollar": 2097809.2496615387
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747270.723609
+    },
+    {
+      "ticker": "AIOT",
+      "symbol": "AIOT",
+      "price": 4.57,
+      "score": 69,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $4.57. strong momentum (+18.1% 5d). expanding volatility (5.1% ATR). Score: 70",
+      "thesis_tldr": "Micro-cap $4.57. strong momentum (+18.1% 5d). expanding volatility (5.1% ATR). Score: 70",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 18.087855297157617,
+        "ret_21d": 0.8830022075055233,
+        "atr_pct": 5.061381361162544,
+        "avg_dollar": 8001479.0794871785
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747255.563284
+    },
+    {
+      "ticker": "ALGT",
+      "symbol": "ALGT",
+      "price": 59.78,
+      "score": 69,
+      "action": "EARLY_READY",
+      "thesis": "$59.78 stock. explosive momentum (+22% 5d). expanding volatility (5.1% ATR). Score: 70",
+      "thesis_tldr": "$59.78 stock. explosive momentum (+22% 5d). expanding volatility (5.1% ATR). Score: 70",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 22.14957090314671,
+        "ret_21d": 14.302103250478027,
+        "atr_pct": 5.051337811290972,
+        "avg_dollar": 25308624.198717955
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747258.3188028
+    },
+    {
+      "ticker": "AEMD",
+      "symbol": "AEMD",
+      "price": 1.14,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.14. high volatility (12% ATR). Score: 68",
+      "thesis_tldr": "Ultra micro-cap $1.14. high volatility (12% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -7.317073170731714,
+        "ret_21d": -10.236220472440948,
+        "atr_pct": 11.847478632478637,
+        "avg_dollar": 577422.0203846153
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747251.022282
+    },
+    {
+      "ticker": "AREB",
+      "symbol": "AREB",
+      "price": 1.16,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $1.16. high volatility (10% ATR). Score: 68",
+      "thesis_tldr": "Ultra micro-cap $1.16. high volatility (10% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -10.769230769230775,
+        "ret_21d": -23.684210526315795,
+        "atr_pct": 9.895877541998232,
+        "avg_dollar": 652032.8976923076
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747272.5383198
+    },
+    {
+      "ticker": "APVO",
+      "symbol": "APVO",
+      "price": 2,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Ultra micro-cap $2.00. high volatility (11% ATR). Score: 68",
+      "thesis_tldr": "Ultra micro-cap $2.00. high volatility (11% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -11.504424778761058,
+        "ret_21d": -32.88590604026845,
+        "atr_pct": 10.511410256410256,
+        "avg_dollar": 694601.0451282051
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747270.509043
+    },
+    {
+      "ticker": "ALBT",
+      "symbol": "ALBT",
+      "price": 2.28,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $2.28. high volatility (14% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $2.28. high volatility (14% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 2.702702702702675,
+        "ret_21d": -2.9787234042553346,
+        "atr_pct": 14.020805218173644,
+        "avg_dollar": 3127564.7351282043
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747257.4361238
+    },
+    {
+      "ticker": "ANNX",
+      "symbol": "ANNX",
+      "price": 2.44,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $2.44. building momentum (+3.4% 5d). high volatility (9% ATR). Score: 69",
+      "thesis_tldr": "Micro-cap $2.44. building momentum (+3.4% 5d). high volatility (9% ATR). Score: 69",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 3.3898305084745894,
+        "ret_21d": 4.2735042735042805,
+        "atr_pct": 8.679382093316521,
+        "avg_dollar": 3915820.858717949
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747267.278729
+    },
+    {
+      "ticker": "AMTX",
+      "symbol": "AMTX",
+      "price": 2.49,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $2.49. high volatility (9% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $2.49. high volatility (9% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -6.741573033707859,
+        "ret_21d": -10.752688172043001,
+        "atr_pct": 9.199876428792093,
+        "avg_dollar": 3229001.061025641
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747265.689265
+    },
+    {
+      "ticker": "ACHV",
+      "symbol": "ACHV",
+      "price": 2.55,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $2.55. high volatility (8% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $2.55. high volatility (8% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 2.0000000000000018,
+        "ret_21d": -7.272727272727275,
+        "atr_pct": 8.230869783810958,
+        "avg_dollar": 3292199.4025641023
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747246.12858
+    },
+    {
+      "ticker": "AIM",
+      "symbol": "AIM",
+      "price": 2.65,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $2.65. building momentum (+6.0% 5d). high volatility (35% ATR). Score: 69",
+      "thesis_tldr": "Micro-cap $2.65. building momentum (+6.0% 5d). high volatility (35% ATR). Score: 69",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 6.000000000000005,
+        "ret_21d": -69.38186019641826,
+        "atr_pct": 34.9878084179971,
+        "avg_dollar": 1225424.1963307692
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747254.888344
+    },
+    {
+      "ticker": "AGRI",
+      "symbol": "AGRI",
+      "price": 3.22,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $3.22. high volatility (24% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $3.22. high volatility (24% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 2.8753993610223683,
+        "ret_21d": -55.002166044802195,
+        "atr_pct": 24.317964644051596,
+        "avg_dollar": 2366397.3457783484
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747253.887685
+    },
+    {
+      "ticker": "ACDC",
+      "symbol": "ACDC",
+      "price": 3.54,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $3.54. high volatility (18% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $3.54. high volatility (18% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -43.8985736925515,
+        "ret_21d": -56.24227441285537,
+        "atr_pct": 17.727437346081416,
+        "avg_dollar": 5941328.982820513
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747245.396468
+    },
+    {
+      "ticker": "APPS",
+      "symbol": "APPS",
+      "price": 4.3,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $4.30. high volatility (10% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $4.30. high volatility (10% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -1.1494252873563204,
+        "ret_21d": -17.307692307692314,
+        "atr_pct": 9.717471675611213,
+        "avg_dollar": 26166581.60512821
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747270.051568
+    },
+    {
+      "ticker": "AGEN",
+      "symbol": "AGEN",
+      "price": 4.63,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $4.63. high volatility (11% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $4.63. high volatility (11% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": -3.541666666666665,
+        "ret_21d": -31.101190476190478,
+        "atr_pct": 11.480256964058258,
+        "avg_dollar": 6338542.391538461
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747252.763401
+    },
+    {
+      "ticker": "AISP",
+      "symbol": "AISP",
+      "price": 4.94,
+      "score": 68,
+      "action": "EARLY_READY",
+      "thesis": "Micro-cap $4.94. building momentum (+3.1% 5d). high volatility (8% ATR). Score: 68",
+      "thesis_tldr": "Micro-cap $4.94. building momentum (+3.1% 5d). high volatility (8% ATR). Score: 68",
+      "rel_vol_30m": 1,
+      "indicators": {
+        "relvol": 1,
+        "ret_5d": 3.131524008350728,
+        "ret_21d": -13.18101933216168,
+        "atr_pct": 8.417938336966676,
+        "avg_dollar": 7046407.0361538455
+      },
+      "targets": {
+        "entry": "Current levels",
+        "tp1": "+15%",
+        "tp2": "+30%",
+        "stop": "-8%"
+      },
+      "timestamp": 1755747256.716623
+    }
+  ]
+}

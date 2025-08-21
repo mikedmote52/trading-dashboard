@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaStack Trading - Discovery</title>
+    <style>
+        :root { color-scheme: dark; }
+        body { margin:0; background:#0b1220; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#e2e8f0; }
+        .page { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px; }
+        .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px; }
+        .card { background:#0f172a; border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25); transition: all 0.2s ease; }
+        .card:hover { transform: translateY(-2px); border-color: rgba(16, 185, 129, 0.3); box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+        .card-hd { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; }
+        .sym { font-weight:700; font-size:1.1rem; color:#fff; }
+        .px { color:#cbd5e1; margin-top: 2px; }
+        .badge { padding:.25rem .5rem; border-radius:999px; font-weight:700; font-size:.75rem; }
+        .badge-emerald{ background:rgba(16,185,129,.2); color:#86efac; border: 1px solid rgba(16,185,129,.3); box-shadow: 0 0 8px rgba(16,185,129,.2); }
+        .badge-sky{ background:rgba(14,165,233,.2); color:#7dd3fc; border: 1px solid rgba(14,165,233,.3); }
+        .badge-slate{ background:rgba(100,116,139,.2); color:#cbd5e1; border: 1px solid rgba(100,116,139,.3); }
+        .badge-new{ background:rgba(245,101,101,.2); color:#fca5a5; border: 1px solid rgba(245,101,101,.3); font-size:.6rem; padding:.15rem .4rem; margin-left: 6px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:12px 0; }
+        .stat { text-align: center; }
+        .lbl { color:#94a3b8; font-size:.75rem; text-transform: uppercase; }
+        .val { color:#e2e8f0; font-weight:600; margin-top: 2px; }
+        .thesis { 
+            color:#94a3b8; 
+            font-size:.875rem; 
+            line-height:1.5; 
+            margin: 12px 0; 
+            min-height: 60px;
+            max-height: 120px;
+            overflow-y: auto;
+            padding: 8px;
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            white-space: pre-line;
+        }
+        .thesis:hover {
+            max-height: none;
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .btn { border:0; border-radius:12px; padding:.75rem 1rem; font-weight:700; width:100%; margin-top: 8px; transition: all 0.2s ease; }
+        .btn-primary { background:#059669; color:#fff; }
+        .btn-primary:hover { background:#10b981; cursor:pointer; transform: translateY(-1px); }
+        .btn-secondary { background:rgba(148, 163, 184, 0.1); border:1px solid rgba(148, 163, 184, 0.2); color:#94a3b8; padding:.5rem 1rem; border-radius:8px; }
+        .btn-secondary:hover { background:rgba(16, 185, 129, 0.1); border-color:#10b981; color:#10b981; cursor:pointer; }
+        
+        /* Modal */
+        .scrim{ position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter: blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; }
+        .modal{ background:#0f172a; border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:20px; width:min(420px, 92vw); box-shadow: 0 25px 50px rgba(0,0,0,.5); }
+        .modal-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: #fff; }
+        .modal-subtitle { color:#94a3b8; font-size:.85rem; margin-top: 2px; }
+        .close-btn { background:rgba(148, 163, 184, 0.1); border:1px solid rgba(148, 163, 184, 0.2); color:#94a3b8; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .close-btn:hover { background:rgba(239, 68, 68, 0.1); border-color:#ef4444; color:#ef4444; }
+        .row{ display:flex; gap:8px; align-items:center; margin: 12px 0; }
+        .amt{ width:100px; text-align:center; background:#0b1220; color:#fff; border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:.6rem; font-weight:600; }
+        .amt:focus { outline:none; border-color:#10b981; box-shadow: 0 0 0 2px rgba(16,185,129,.1); }
+        .chip{ background:#0b1220; border:1px solid rgba(255,255,255,.1); padding:.5rem .75rem; border-radius:8px; color:#e2e8f0; cursor:pointer; transition: all 0.2s ease; }
+        .chip:hover { background:rgba(148, 163, 184, 0.1); border-color:#94a3b8; }
+        .toggle-row { align-items: center; }
+        .checkbox { accent-color: #10b981; margin-right: 8px; }
+        .manual-inputs { display:none; gap:8px; }
+        .manual-inputs.show { display:flex; }
+        .input-group { display:flex; flex-direction:column; align-items:center; gap:4px; }
+        
+        /* Toast */
+        .toast { position:fixed; top:20px; right:20px; z-index:1000; padding:12px 20px; border-radius:8px; color:#fff; font-weight:600; box-shadow: 0 10px 25px rgba(0,0,0,.3); }
+        .toast.success { background:#10b981; }
+        .toast.error { background:#ef4444; }
+        .toast.info { background:#6366f1; }
+        
+        /* Section headers */
+        .section-title { font-size: 1.25rem; font-weight: 700; margin: 24px 0 16px; color: #10b981; display: flex; align-items: center; gap: 8px; }
+        .show-all-btn { margin: 16px 0 24px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <h1>🚀 AlphaStack Trading</h1>
+            <div>
+                <a class="chip" href="/portfolio">Portfolio</a> 
+                <span class="chip" style="background:#10b981; color:#fff;">Discovery</span>
+            </div>
+        </div>
+
+        <div id="contenders"></div>
+        <div id="discovery-cards" class="grid"></div>
+    </div>
+
+    <script>
+        const seed = 1337;
+        
+        // Track previously seen contenders for "NEW" marking
+        let previousContenders = new Set(JSON.parse(localStorage.getItem('alphastack_contenders') || '[]'));
+        
+        function badge(score){
+            if (score >= 95) return 'badge badge-emerald';
+            if (score >= 90) return 'badge badge-sky';
+            return 'badge badge-slate';
+        }
+
+        function relVol(opp){
+            const v = (opp.rel_vol_30m ?? opp.rel_vol_day ?? opp.indicators?.relvol ?? null);
+            return v==null ? "—" : `${v.toFixed(1)}×`;
+        }
+
+        function atrPct(opp) {
+            const atr = opp.indicators?.atr_pct;
+            return typeof atr === "number" ? `${atr.toFixed(1)}%` : "—";
+        }
+
+        function generateComprehensiveThesis(opp) {
+            const ticker = opp.ticker || opp.symbol;
+            const price = opp.price || 0;
+            const score = opp.score || 0;
+            const atr_pct = opp.indicators?.atr_pct || 0;
+            const ret_5d = opp.indicators?.ret_5d || 0;
+            const ret_21d = opp.indicators?.ret_21d || 0;
+            const rel_vol = opp.rel_vol_30m || opp.rel_vol_day || opp.indicators?.relvol || 1;
+            const adv = opp.indicators?.avg_dollar || 0;
+            
+            // Determine market cap category
+            const marketCapCategory = price < 2.0 ? "ultra micro-cap" : 
+                                    price < 5.0 ? "micro-cap" : 
+                                    price < 20.0 ? "small-cap" : "mid-cap";
+            
+            // Calculate key metrics
+            const targetData = calculateDynamicTarget(opp);
+            const upsidePct = targetData.price > 0 ? ((targetData.price - price) / price * 100) : 15;
+            
+            // Liquidity assessment
+            const liquidityLevel = adv >= 5000000 ? "highly liquid" :
+                                 adv >= 2000000 ? "moderately liquid" :
+                                 adv >= 1000000 ? "adequate liquidity" : "low liquidity";
+            
+            // Risk assessment
+            const volatilityRisk = atr_pct >= 0.12 ? "high volatility" :
+                                 atr_pct >= 0.08 ? "elevated volatility" :
+                                 atr_pct >= 0.05 ? "moderate volatility" : "low volatility";
+            
+            // Momentum strength
+            const momentumStrength = ret_5d >= 50 ? "explosive momentum" :
+                                   ret_5d >= 25 ? "strong momentum" :
+                                   ret_5d >= 10 ? "positive momentum" :
+                                   ret_5d >= 0 ? "mild momentum" : "negative momentum";
+            
+            // Volume pattern analysis
+            const volumePattern = rel_vol >= 3.0 ? "massive volume spike" :
+                                rel_vol >= 2.0 ? "significant volume surge" :
+                                rel_vol >= 1.5 ? "elevated volume" : "normal volume";
+            
+            // Entry timing assessment
+            const entryTiming = (rel_vol >= 2.0 && ret_5d >= 15) ? "immediate breakout entry" :
+                              (rel_vol >= 1.5 && ret_5d >= 5) ? "strong entry setup" :
+                              (score >= 90) ? "quality entry opportunity" : "moderate entry setup";
+            
+            // Risk factors
+            const riskFactors = [];
+            if (atr_pct >= 0.15) riskFactors.push("extreme volatility");
+            if (adv < 1000000) riskFactors.push("liquidity risk");
+            if (price < 1.0) riskFactors.push("penny stock risk");
+            if (rel_vol < 1.2) riskFactors.push("low volume confirmation");
+            
+            // Catalysts and drivers
+            const drivers = [];
+            if (ret_5d >= 30) drivers.push("recent breakout momentum");
+            if (rel_vol >= 2.5) drivers.push("institutional volume");
+            if (atr_pct >= 0.08) drivers.push("volatility expansion");
+            if (score >= 95) drivers.push("technical confluence");
+            
+            // Time horizon
+            const timeHorizon = atr_pct >= 0.10 ? "1-3 days (swing)" :
+                              ret_5d >= 20 ? "3-7 days (momentum)" :
+                              "1-2 weeks (position)";
+            
+            // Build comprehensive thesis
+            let thesis = `**${ticker} Analysis** - ${marketCapCategory.toUpperCase()} at $${price.toFixed(2)} (VIGL ${score})\n\n`;
+            
+            thesis += `**OPPORTUNITY**: ${momentumStrength} (+${ret_5d.toFixed(0)}% 5d) with ${volumePattern} (${rel_vol.toFixed(1)}×). `;
+            thesis += `${entryTiming.charAt(0).toUpperCase() + entryTiming.slice(1)} showing ${upsidePct.toFixed(0)}% upside potential to $${targetData.price.toFixed(2)}.\n\n`;
+            
+            thesis += `**TECHNICALS**: ${volatilityRisk.toUpperCase()} (${(atr_pct * 100).toFixed(1)}% ATR) indicating `;
+            thesis += atr_pct >= 0.08 ? "high-reward/high-risk setup. " : "controlled risk profile. ";
+            thesis += `${liquidityLevel.charAt(0).toUpperCase() + liquidityLevel.slice(1)} with $${(adv/1000000).toFixed(1)}M avg daily volume.\n\n`;
+            
+            if (drivers.length > 0) {
+                thesis += `**DRIVERS**: ${drivers.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}. `;
+            }
+            
+            thesis += `**TIMEFRAME**: ${timeHorizon} play. `;
+            
+            if (riskFactors.length > 0) {
+                thesis += `**RISKS**: ${riskFactors.join(', ')}.`;
+            } else {
+                thesis += `**RISK PROFILE**: Manageable with proper position sizing.`;
+            }
+            
+            // Add specific entry/exit strategy
+            thesis += `\n\n**STRATEGY**: Enter current levels, target $${targetData.price.toFixed(2)} (+${upsidePct.toFixed(0)}%), `;
+            thesis += `stop-loss at $${(price * 0.92).toFixed(2)} (-8%). `;
+            thesis += `Position size: ${price >= 10 ? "standard" : price >= 5 ? "reduced" : "micro"} allocation.`;
+            
+            return thesis;
+        }
+
+        function getThesis(opp) {
+            // Use existing thesis if it's comprehensive (>100 chars)
+            if (opp.thesis_text && opp.thesis_text.length > 100) return opp.thesis_text;
+            if (opp.thesis && opp.thesis.length > 100) return opp.thesis;
+            
+            // Otherwise generate comprehensive thesis
+            return generateComprehensiveThesis(opp);
+        }
+
+        function calculateDynamicTarget(opp) {
+            const price = opp.price || 0;
+            const atr_pct = opp.indicators?.atr_pct || 0;
+            const ret_5d = opp.indicators?.ret_5d || 0;
+            const ret_21d = opp.indicators?.ret_21d || 0;
+            const rel_vol = opp.rel_vol_30m || opp.rel_vol_day || opp.indicators?.relvol || 1;
+            
+            if (price === 0) return { price: 0, method: "—" };
+            
+            // Base target calculation using multiple methods
+            let targets = [];
+            
+            // 1. Conservative ATR-based target (capped at reasonable levels)
+            if (atr_pct > 0) {
+                const atr_factor = Math.min(atr_pct, 0.15); // Cap ATR at 15%
+                const vol_multiplier = rel_vol >= 2.5 ? 1.5 : rel_vol >= 1.8 ? 1.3 : 1.0;
+                const atr_target = price * (1 + (atr_factor * vol_multiplier));
+                targets.push({ price: atr_target, method: `ATR` });
+            }
+            
+            // 2. Momentum-based target (much more conservative)
+            if (ret_5d > 0) {
+                const momentum_factor = Math.min(ret_5d / 100, 0.25); // Cap at 25%
+                const momentum_target = price * (1 + momentum_factor * 0.4); // 40% of recent momentum
+                targets.push({ price: momentum_target, method: "Momentum" });
+            }
+            
+            // 3. Simple breakout target (conservative)
+            if (rel_vol >= 2.0 && atr_pct > 0.05) {
+                const breakout_target = price * (1 + Math.min(atr_pct * 1.2, 0.30)); // Cap at 30%
+                targets.push({ price: breakout_target, method: "Breakout" });
+            }
+            
+            // 4. Price tier-adjusted target (much more realistic)
+            let tier_target, tier_method;
+            if (price < 2.0) {
+                // Ultra micro-cap: 15-35% targets
+                tier_target = price * (1 + 0.15 + Math.min(atr_pct * 1.5, 0.20));
+                tier_method = "MicroCap";
+            } else if (price < 5.0) {
+                // Micro-cap: 12-28% targets
+                tier_target = price * (1 + 0.12 + Math.min(atr_pct * 1.2, 0.16));
+                tier_method = "SmallCap";
+            } else if (price < 20.0) {
+                // Small-cap: 10-22% targets
+                tier_target = price * (1 + 0.10 + Math.min(atr_pct * 1.0, 0.12));
+                tier_method = "MidCap";
+            } else {
+                // Higher-priced stocks: 8-18% targets
+                tier_target = price * (1 + 0.08 + Math.min(atr_pct * 0.8, 0.10));
+                tier_method = "LargeCap";
+            }
+            targets.push({ price: tier_target, method: tier_method });
+            
+            // 5. High momentum extension (capped)
+            if (ret_21d > 50) {
+                const extension_target = price * Math.min(1.40, 1 + (ret_21d / 500)); // Cap at 40%
+                targets.push({ price: extension_target, method: "Extension" });
+            }
+            
+            // Choose the most appropriate target
+            if (targets.length === 0) {
+                return { price: price * 1.15, method: "Default" };
+            }
+            
+            // Use highest target if multiple breakout signals, otherwise use median
+            const breakout_signals = (rel_vol >= 2.0 ? 1 : 0) + (ret_5d >= 25 ? 1 : 0) + (atr_pct >= 0.08 ? 1 : 0);
+            
+            if (breakout_signals >= 2) {
+                // Strong breakout: use highest target
+                const best = targets.reduce((max, t) => t.price > max.price ? t : max);
+                return best;
+            } else {
+                // Normal conditions: use median target
+                targets.sort((a, b) => a.price - b.price);
+                const median_idx = Math.floor(targets.length / 2);
+                return targets[median_idx];
+            }
+        }
+
+        function getTarget(opp) {
+            // Check for server-computed dynamic target first
+            if (opp.dynamic_target_price) {
+                return `$${opp.dynamic_target_price.toFixed(2)}${opp.target_kind ? ` (${opp.target_kind})` : ""}`;
+            }
+            
+            // Calculate intelligent target based on technical analysis
+            const dynamic = calculateDynamicTarget(opp);
+            if (dynamic.price > 0) {
+                const upside_pct = ((dynamic.price - opp.price) / opp.price * 100);
+                return `$${dynamic.price.toFixed(2)} (+${upside_pct.toFixed(0)}% ${dynamic.method})`;
+            }
+            
+            // Fallback to API targets
+            if (opp.targets?.tp1) {
+                const tp1 = opp.targets.tp1;
+                if (tp1.includes('%')) {
+                    const pct = parseFloat(tp1.replace(/[^0-9.-]/g, '')) / 100;
+                    const targetPrice = opp.price * (1 + pct);
+                    return `$${targetPrice.toFixed(2)} (${tp1})`;
+                }
+                return tp1;
+            }
+            
+            return "—";
+        }
+
+        function cardHTML(opp){
+            const target = getTarget(opp);
+            const rv = relVol(opp);
+            const atr = atrPct(opp);
+            const thesis = getThesis(opp);
+            const ticker = opp.ticker || opp.symbol;
+            
+            // Check if this is a new contender
+            const isNew = !previousContenders.has(ticker);
+            const newBadge = isNew ? `<span class="badge-new">NEW</span>` : '';
+            
+            return `
+                <div class="card" data-ticker="${ticker}">
+                    <div class="card-hd">
+                        <div>
+                            <div class="sym">${ticker}${newBadge}</div>
+                            <div class="px">$${(opp.price||0).toFixed(2)}</div>
+                        </div>
+                        <div class="${badge(Math.round(opp.score||0))}">VIGL ${Math.round(opp.score||0)}</div>
+                    </div>
+
+                    <div class="stats">
+                        <div class="stat"><div class="lbl">RelVol</div><div class="val">${rv}</div></div>
+                        <div class="stat"><div class="lbl">ATR%</div><div class="val">${atr}</div></div>
+                        <div class="stat"><div class="lbl">Target</div><div class="val">${target}</div></div>
+                    </div>
+
+                    <div class="thesis">${thesis}</div>
+
+                    ${opp.action==="BUY" ? `<button class="btn btn-primary" onclick='openBuy("${opp.ticker || opp.symbol}", ${opp.price||0}, ${JSON.stringify(opp.run_id||"").replace(/"/g,"&quot;")})'>Buy</button>` : ""}
+                </div>
+            `;
+        }
+
+        async function load(){
+            try {
+                // Show CONTENDERS ONLY by default (top 5)
+                const res = await fetch(`/api/alphastack-v2/latest?limit=50&seed=${seed}&contenders=5`);
+                const data = await res.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load data');
+                }
+
+                // Use contenders if available, otherwise pick top 5 client-side
+                let picks = data.contenders;
+                if (!picks || picks.length === 0) {
+                    picks = pickTop5Client(data.items || [], seed);
+                }
+
+                // Update contender tracking
+                const currentContenders = new Set(picks.map(p => p.ticker || p.symbol));
+                const newContendersCount = [...currentContenders].filter(ticker => !previousContenders.has(ticker)).length;
+                
+                // Store current contenders for next comparison
+                localStorage.setItem('alphastack_contenders', JSON.stringify([...currentContenders]));
+                previousContenders = currentContenders;
+                
+                const title = newContendersCount > 0 ? 
+                    `🏆 Top Contenders (${picks.length}) • ${newContendersCount} NEW` : 
+                    `🏆 Top Contenders (${picks.length})`;
+
+                document.getElementById("contenders").innerHTML = `
+                    <h3 class="section-title">${title}</h3>
+                    <div class="grid">${picks.map(cardHTML).join("")}</div>
+                    <div class="show-all-btn">
+                        <button class="btn-secondary" onclick="showAll()">Show All (${data.items.length}) →</button>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load contenders:', error);
+                document.getElementById("contenders").innerHTML = `
+                    <div class="section-title">❌ Failed to load data</div>
+                    <p style="color:#94a3b8;">Error: ${error.message}</p>
+                `;
+            }
+        }
+
+        function pickTop5Client(items, seed = 1337) {
+            function relvol(x) {
+                return x.rel_vol_30m || x.rel_vol_day || x.indicators?.relvol || 0;
+            }
+            
+            function boost(x) {
+                const rv = relvol(x);
+                const atr = x.indicators?.atr_pct || 0;
+                const ret5d = x.indicators?.ret_5d || 0;
+                
+                let boost = 0;
+                boost += (rv >= 2.5 ? 6 : rv >= 1.8 ? 3 : 0);
+                boost += (atr >= 8 ? 4 : atr >= 5 ? 2 : 0);
+                boost += (ret5d >= 50 ? 4 : ret5d >= 25 ? 2 : 0);
+                boost += (x.score >= 95 ? 3 : 0);
+                
+                return boost;
+            }
+            
+            const scored = items.map(x => ({
+                ...x,
+                contender_score: 0.8 * (x.score || 0) + boost(x)
+            }));
+            
+            return scored.sort((a, b) => {
+                if (a.contender_score !== b.contender_score) return b.contender_score - a.contender_score;
+                if (relvol(a) !== relvol(b)) return relvol(b) - relvol(a);
+                return (a.ticker || a.symbol).localeCompare(b.ticker || b.symbol);
+            }).slice(0, 5);
+        }
+
+        async function showAll(){
+            try {
+                const res = await fetch(`/api/alphastack-v2/latest?limit=50&seed=${seed}`);
+                const data = await res.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load data');
+                }
+
+                document.getElementById("contenders").innerHTML = `
+                    <h3 class="section-title">📊 All Opportunities (${data.items.length})</h3>
+                `;
+                
+                document.getElementById("discovery-cards").innerHTML = data.items.map(cardHTML).join("");
+                
+                // Add back to contenders button
+                document.getElementById("contenders").innerHTML += `
+                    <div class="show-all-btn">
+                        <button class="btn-secondary" onclick="load()" style="background:rgba(16, 185, 129, 0.1); border-color:#10b981; color:#10b981;">← Back to Top Contenders</button>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load all discoveries:', error);
+                toast('Failed to load all discoveries', 'error');
+            }
+        }
+
+        function openBuy(ticker, price, run_id){
+            const scrim = document.createElement('div');
+            scrim.className = 'scrim';
+            scrim.innerHTML = `
+                <div class="modal">
+                    <div class="modal-header">
+                        <div>
+                            <div class="modal-title">Buy ${ticker}</div>
+                            <div class="modal-subtitle">Default $100 · TP1 20% · TP2 50% · SL 10%</div>
+                        </div>
+                        <button class="close-btn" onclick="this.closest('.scrim').remove()">✕</button>
+                    </div>
+                    
+                    <div class="row">
+                        <button class="chip" onclick="adjustAmount(-25)">−25</button>
+                        <input id="buy-amt" class="amt" value="100" min="10" max="500" onchange="validateAmount()" />
+                        <button class="chip" onclick="adjustAmount(25)">+25</button>
+                        <span class="lbl">Range $10–$500</span>
+                    </div>
+                    
+                    <div class="row toggle-row">
+                        <input id="auto" type="checkbox" checked class="checkbox" onchange="toggleManual()">
+                        <label for="auto">Auto TP/SL (TP1 20%, TP2 50%, SL 10%)</label>
+                    </div>
+                    
+                    <div class="row manual-inputs" id="manual">
+                        <div class="input-group">
+                            <span class="lbl">TP1 %</span>
+                            <input class="amt" id="tp1" value="20" min="1" max="100">
+                        </div>
+                        <div class="input-group">
+                            <span class="lbl">TP2 %</span>
+                            <input class="amt" id="tp2" value="50" min="1" max="200">
+                        </div>
+                        <div class="input-group">
+                            <span class="lbl">SL %</span>
+                            <input class="amt" id="sl" value="10" min="1" max="50">
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="confirm-btn" onclick="placeBuy('${ticker}', '${run_id}')">Confirm Buy</button>
+                </div>
+            `;
+            document.body.appendChild(scrim);
+            
+            // Focus management
+            scrim.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') scrim.remove();
+            });
+            scrim.querySelector('#buy-amt').focus();
+            
+            window.adjustAmount = (delta) => {
+                const input = scrim.querySelector('#buy-amt');
+                const current = parseInt(input.value) || 100;
+                const newValue = Math.max(10, Math.min(500, current + delta));
+                input.value = newValue;
+                validateAmount();
+            };
+            
+            window.validateAmount = () => {
+                const input = scrim.querySelector('#buy-amt');
+                const button = scrim.querySelector('#confirm-btn');
+                const value = parseInt(input.value) || 0;
+                const isValid = value >= 10 && value <= 500;
+                
+                button.disabled = !isValid;
+                button.textContent = isValid ? 'Confirm Buy' : 'Must be $10-$500';
+                button.style.background = isValid ? '#059669' : '#64748b';
+                button.style.cursor = isValid ? 'pointer' : 'not-allowed';
+            };
+            
+            window.toggleManual = () => {
+                const auto = scrim.querySelector('#auto');
+                const manual = scrim.querySelector('#manual');
+                if (auto.checked) {
+                    manual.classList.remove('show');
+                } else {
+                    manual.classList.add('show');
+                }
+            };
+        }
+
+        async function placeBuy(ticker, run_id){
+            const root = document.querySelector('.scrim');
+            const usd = Number(root.querySelector('#buy-amt').value||100);
+            const auto = root.querySelector('#auto').checked;
+            const tp1 = auto ? 20 : Number(root.querySelector('#tp1').value||20);
+            const tp2 = auto ? 50 : Number(root.querySelector('#tp2').value||50);
+            const sl  = auto ? 10 : Number(root.querySelector('#sl').value||10);
+            
+            if (usd<10 || usd>500) {
+                toast('Amount must be $10–$500','error');
+                return;
+            }
+
+            const button = root.querySelector('#confirm-btn');
+            button.disabled = true;
+            button.textContent = 'Placing Order...';
+
+            const body = {
+                ticker, usd,
+                tp1_pct: tp1/100, tp2_pct: tp2/100, sl_pct: sl/100,
+                engine: "python_v2", run_id, 
+                snapshot_ts: (run_id||"").split("-")[0]
+            };
+
+            try{
+                const r = await fetch('/api/order',{
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify(body)
+                });
+                const j = await r.json();
+                
+                if(!r.ok || !j.ok) {
+                    throw new Error(j.error||'Order failed');
+                }
+                
+                toast(`Order placed: ${ticker} (${j.position_id || j.order_id})`, 'success');
+                root.remove();
+                
+                // Optional: show portfolio link
+                if (j.portfolio_link) {
+                    setTimeout(() => {
+                        toast('View in Portfolio →', 'info');
+                    }, 1500);
+                }
+                
+            } catch(e) { 
+                console.error('Order error:', e);
+                toast(e.message||'Order failed','error'); 
+                button.disabled = false;
+                button.textContent = 'Confirm Buy';
+            }
+        }
+
+        function toast(msg, type='info'){
+            const d = document.createElement('div');
+            d.className = `toast ${type}`;
+            d.textContent = msg;
+            document.body.appendChild(d);
+            
+            // Animate in
+            setTimeout(() => {
+                d.style.transform = 'translateX(0)';
+            }, 100);
+            
+            // Remove after delay
+            setTimeout(() => {
+                d.style.transform = 'translateX(100%)';
+                setTimeout(() => d.remove(), 300);
+            }, 3200);
+        }
+
+        // Load contenders on page load
+        load();
+    </script>
+</body>
+</html>

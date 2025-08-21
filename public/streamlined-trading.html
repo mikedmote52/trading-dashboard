@@ -428,7 +428,16 @@
             color: #94a3b8;
             font-size: 1.125rem;
         }
+        
+        /* Additional Tailwind-like utilities for the modern cards */
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
     </style>
+    <script src="/js/discovery-card.js"></script>
 </head>
 <body>
     <div class="header">
@@ -581,7 +590,8 @@
                 const data = await response.json();
                 
                 if (data.success && data.items && data.items.length > 0) {
-                    renderDiscoveryCards(data.items);
+                    // Default to contenders view (cream of the crop)
+                    loadContenders();
                     const statusNote = data.fresh ? ' (fresh scan)' : ' (cached)';
                     const runningNote = data.running ? ' - scan in progress...' : '';
                     showStatus('discovery', `AlphaStack VIGL: ${data.items.length} real opportunities${statusNote}${runningNote}`, 'success');
@@ -684,7 +694,7 @@
             }
             if (!thesisText) {
                 thesisText = `${opp.ticker || opp.symbol} at $${(opp.price || 0).toFixed(2)}`;
-                if (opp.atr_pct) thesisText += `, ATR ${(opp.atr_pct * 100).toFixed(1)}%`;
+                if (opp.indicators?.atr_pct) thesisText += `, ATR ${(opp.indicators.atr_pct).toFixed(1)}%`;
                 if (relVol && relVol > 1.5) thesisText += `, ${relVol.toFixed(1)}× volume`;
             }
             
@@ -704,10 +714,10 @@
                             <div class="stat-label">RelVol</div>
                             <div class="stat-value">${relVol.toFixed(1)}×</div>
                         </div>` : ''}
-                        ${opp.atr_pct ? `
+                        ${opp.indicators?.atr_pct ? `
                         <div class="stat">
                             <div class="stat-label">ATR%</div>
-                            <div class="stat-value">${(opp.atr_pct * 100).toFixed(1)}%</div>
+                            <div class="stat-value">${(opp.indicators.atr_pct).toFixed(1)}%</div>
                         </div>` : ''}
                         ${targetPrice ? `
                         <div class="stat">
