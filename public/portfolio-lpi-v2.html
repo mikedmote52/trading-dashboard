@@ -652,6 +652,7 @@
             const ticker = p.ticker;
             const currentPrice = p.current_price || 0;
             
+            
             switch(action) {
                 case 'BUY_MORE':
                     const addAmount = a.add_usd || a.suggested_amount || 500;
@@ -672,10 +673,21 @@
                 
                 case 'HOLD':
                 default:
-                    return `<button class="btn" onclick="recordHoldAction('${ticker}', '${action}')" 
-                             style="margin-left: 8px; background: #6b7280; color: white; border-color: #6b7280;">
-                              Hold
-                            </button>`;
+                    // Always show action buttons for debugging
+                    return `<div style="margin-left: 8px; display: flex; gap: 4px;">
+                              <button class="btn btn-buy" onclick="toggleTradeTicket('${ticker}')" 
+                                      style="background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                Buy More
+                              </button>
+                              <button class="btn btn-sell" onclick="executeTrimOrder('${ticker}', 25)" 
+                                      style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                Trim 25%
+                              </button>
+                              <button class="btn btn-sell" onclick="executeSellOrder('${ticker}')" 
+                                      style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                Sell All
+                              </button>
+                            </div>`;
             }
         }
 
