@@ -279,16 +279,19 @@
                 async function fetchDiscoveryData() {
                     // Try contenders first (preferred)
                     try {
-                        const r1 = await fetch('/api/discovery/contenders?limit=10');
+                        const r1 = await fetch('/api/discovery/contenders?limit=10&_=' + Date.now());
                         if (r1.ok) {
                             const data = await r1.json();
+                            console.log('🔍 Contenders API response:', data);
                             if (data.items?.length || data.contenders?.length) {
-                                console.log('✅ Got discovery data from contenders API');
+                                console.log('✅ Got discovery data from contenders API:', data.items?.length || data.contenders?.length, 'items');
                                 return { 
                                     data: data.items || data.contenders, 
                                     source: 'contenders',
                                     success: true 
                                 };
+                            } else {
+                                console.log('⚠️ Contenders API returned empty results');
                             }
                         }
                     } catch (e) {
@@ -361,168 +364,207 @@
         // P/L badge color classification  
         const plClass = (pct) => pct >= 20 ? 'pl-strong-pos' : pct > 0 ? 'pl-pos' : pct <= -10 ? 'pl-strong-neg' : 'pl-neg';
 
-        function renderEnhancedDiscoveryCards(discoveries) {
+        async function renderOpportunities() {
             const el = document.getElementById('discovery-cards');
+            if (!el) return;
             
-            console.log('📊 Discovery data received:', discoveries);
+            el.innerHTML = `<div class="animate-pulse text-sm text-slate-400">Loading…</div>`;
+            const data = await fetchContenders(6);
+            const items = data?.items || [];
             
-            // Show all discoveries that have a ticker and aren't audit records
-            let opportunities = discoveries
-                .filter(d => {
-                    console.log('🔍 Checking discovery:', d.ticker, 'action:', d.action, 'score:', d.score);
-                    return d.ticker && d.ticker !== 'OPTIMIZED_AUDIT';
-                })
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 6);
-            
-            console.log('📊 Filtered opportunities:', opportunities.length);
-            
-            if (opportunities.length === 0) {
-                el.innerHTML = '<div class="loading">No discovery opportunities available</div>';
+            if (!items.length) {
+                el.innerHTML = `
+                    <div class="text-slate-500 text-sm text-center py-8">
+                        <div class="mb-4">No discovery opportunities right now</div>
+                        <button onclick="renderOpportunities()" 
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors">
+                            Retry
+                        </button>
+                    </div>
+                `;
                 return;
             }
             
-            el.innerHTML = opportunities.map(d => {
-                const isOwned = d.portfolio_status === 'OWNED';
-                const ticker = d.ticker || d.symbol;
-                const price = d.price_data?.current || d.price;
-                const suggestedAmount = d.score > 75 ? 2500 : d.score > 65 ? 1500 : 1000;
-                const confidence = Math.min(95, Math.max(60, d.score));
-                
-                // Portfolio context
-                const portfolioIcon = isOwned ? '🏠' : '🎯';
-                const portfolioLabel = isOwned ? 'OWNED' : 'OPPORTUNITY';
-                const actionText = isOwned ? 'ADD MORE' : d.action || 'BUY';
-                const buttonText = isOwned ? `Add $${suggestedAmount}` : `${d.action} $${suggestedAmount}`;
-                const badgeClass = isOwned ? 'pl-pos' : 'pl-strong-pos';
-                
-                // Enhanced tape quality indicators
-                const tapeQuality = d.tape_quality || 'NEUTRAL';
-                const tapeIcon = tapeQuality === 'STRONG' ? '🟢' : tapeQuality === 'WEAK' ? '🔴' : '🟡';
-                const tapeColor = tapeQuality === 'STRONG' ? '#10b981' : tapeQuality === 'WEAK' ? '#ef4444' : '#f59e0b';
-                
-                // Action color coding
-                const actionColor = d.action === 'BUY' ? '#10b981' : d.action === 'EARLY_READY' ? '#3b82f6' : d.action === 'PRE_BREAKOUT' ? '#f59e0b' : '#6b7280';
-                
-                // Live data indicators
-                const liveRsi = d.intraday?.live_rsi;
-                const vwapStatus = d.intraday?.vwap_reclaimed;
-                const ema9Over20 = d.intraday?.ema9_over_20;
-                const drawdown = d.intraday?.drawdown_from_hod;
-                
-                // Portfolio details for owned positions
-                let portfolioDetails = '';
-                if (isOwned && d.portfolio_context) {
-                    const pnl = d.portfolio_context.unrealized_pnl || 0;
-                    const pnlPct = d.portfolio_context.unrealized_pnl_pct || 0;
-                    const pnlColor = pnl >= 0 ? '#10b981' : '#ef4444';
-                    portfolioDetails = `
-                        <div class="lpi-stat"><div class="k">Position</div><div class="v">${d.portfolio_context.quantity} shares</div></div>
-                        <div class="lpi-stat"><div class="k">Avg Cost</div><div class="v">$${fmt(d.portfolio_context.avg_cost)}</div></div>
-                        <div class="lpi-stat"><div class="k">P&L</div><div class="v" style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct.toFixed(1)}%)</div></div>
-                    `;
-                }
-                
-                return `
-                    <div class="lpi-card" style="border-left: 4px solid ${actionColor};">
-                        <div class="lpi-action act-BUY_MORE">
-                            <div>
-                                <div style="font-size:14px;opacity:.9;display:flex;align-items:center;gap:8px">
-                                    <span>${portfolioIcon} ${ticker} • $${fmt(price)} • ${portfolioLabel}</span>
-                                    <span style="color:${tapeColor};font-weight:bold">${tapeIcon} ${tapeQuality}</span>
-                                </div>
-                                <div style="font-size:22px;color:${actionColor}">${actionText} <span style="opacity:.8;font-size:14px">(${confidence}% conf)</span></div>
-                                ${d.action_reason ? `<div style="font-size:12px;opacity:0.8;margin-top:4px;color:#666">${d.action_reason}</div>` : ''}
-                            </div>
-                            <div class="lpi-badge ${badgeClass}">${isOwned ? 'OWNED' : 'NEW'}</div>
-                        </div>
+            el.innerHTML = items.map(renderDiscoveryCard).join('');
+        }
 
-                        <div class="lpi-stats">
-                            <div class="lpi-stat"><div class="k">VIGL Score</div><div class="v">${Math.floor(d.score)}</div></div>
-                            <div class="lpi-stat"><div class="k">RSI</div><div class="v">${liveRsi ? liveRsi.toFixed(1) : 'N/A'}</div></div>
-                            <div class="lpi-stat"><div class="k">VWAP</div><div class="v">${vwapStatus ? '✅ Above' : '❌ Below'}</div></div>
-                            <div class="lpi-stat"><div class="k">EMA</div><div class="v">${ema9Over20 ? '✅ Bull' : '❌ Bear'}</div></div>
-                            ${drawdown ? `<div class="lpi-stat"><div class="k">HOD Draw</div><div class="v" style="color:${drawdown >= 0.15 ? '#ef4444' : '#10b981'}">${(drawdown * 100).toFixed(1)}%</div></div>` : ''}
-                            ${portfolioDetails}
-                            ${!isOwned ? `<div class="lpi-stat"><div class="k">Target Size</div><div class="v">$${suggestedAmount}</div></div>` : ''}
-                            <div class="lpi-stat"><div class="k">Live Data</div><div class="v">${d.price_data?.is_live_data ? '🔴 LIVE' : '📊 Cached'}</div></div>
-                        </div>
+        async function fetchContenders(limit = 6) {
+            try {
+                const response = await fetch(`/api/discovery/contenders?limit=${limit}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.warn('Failed to fetch contenders:', error);
+                return { items: [] };
+            }
+        }
 
-                        <div class="lpi-targets">
-                            <div class="lpi-chip">Entry: $${fmt(price)}</div>
-                            <div class="lpi-chip">TP1: ${d.targets?.tp1 || '+15%'}</div>
-                            <div class="lpi-chip">TP2: ${d.targets?.tp2 || '+30%'}</div>
-                            <div class="lpi-chip">Stop: ${d.targets?.stop || '-8%'}</div>
-                        </div>
-
-                        <div class="lpi-controls">
-                            ${controlGroup(ticker, 15, 30, 8)}
-                            <button class="btn ${isOwned ? 'btn-secondary' : 'btn-buy'}" 
-                                    onclick="toggleTradeTicket('${ticker}')"
-                                    style="margin-left: 8px; ${isOwned ? 'background: #3b82f6; border-color: #3b82f6;' : ''}">
-                                ${isOwned ? 'Add' : 'Buy'}
-                            </button>
-                        </div>
-
-                        <!-- Inline Trade Ticket -->
-                        <div id="trade-ticket-${ticker}" class="trade-ticket" style="display: none; margin-top: 12px; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
-                                <label style="font-size: 14px; font-weight: 600;">Amount:</label>
-                                <input type="number" id="amount-${ticker}" value="100" min="50" max="2000" step="50" 
-                                       style="width: 80px; padding: 4px 8px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">
-                                <div style="display: flex; gap: 6px;">
-                                    <button onclick="setAmount('${ticker}', 100)" style="padding: 2px 8px; font-size: 12px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer;">$100</button>
-                                    <button onclick="setAmount('${ticker}', 250)" style="padding: 2px 8px; font-size: 12px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer;">$250</button>
-                                    <button onclick="setAmount('${ticker}', 500)" style="padding: 2px 8px; font-size: 12px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer;">$500</button>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px; font-size: 13px;">
-                                <span>TP1:</span>
-                                <input type="number" id="tp1-${ticker}" value="15" min="5" max="50" step="1" style="width: 50px; padding: 2px 6px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">%
-                                <span>TP2:</span>
-                                <input type="number" id="tp2-${ticker}" value="30" min="10" max="100" step="5" style="width: 50px; padding: 2px 6px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">%
-                                <span>SL:</span>
-                                <input type="number" id="sl-${ticker}" value="8" min="3" max="25" step="1" style="width: 50px; padding: 2px 6px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">%
-                            </div>
-                            <div style="display: flex; gap: 8px;">
-                                <button onclick="placeOrder('${ticker}', ${price}, '${d.engine || 'alphastack'}', '${d.run_id || 'run_' + Date.now()}', '${d.snapshot_ts || new Date().toISOString()}')" 
-                                        class="btn btn-buy" style="flex: 1;">
-                                    Place Order
-                                </button>
-                                <button onclick="cancelOrder('${ticker}')" 
-                                        class="btn" style="flex: 0; background: #444; color: white; border-color: #444;">
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="lpi-thesis">
-                            <div class="head">
-                                <div class="lpi-trend tr-Strengthening">${isOwned ? 'Position Analysis' : 'Discovery'}</div>
-                                <div style="font-size:12px;color:#9eb4ff">AlphaStack Score: ${Math.floor(d.score)}/100</div>
-                            </div>
-                            ${isOwned && d.portfolio_context ? `
-                                <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
-                                    <b>Status:</b> Owned position with ${d.portfolio_context.last_vigl_action || 'HOLD'} recommendation
-                                </div>
-                                <div style="color:#cdd7f3;font-size:13px">
-                                    <b>Portfolio Risk:</b> ${d.portfolio_context.risk_assessment || 'medium'} • ${d.portfolio_context.recommendation?.reasoning || 'Monitoring position for signals'}
-                                </div>
-                            ` : `
-                                <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
-                                    <b>Pattern:</b> New opportunity identified by VIGL discovery engine with ${d.score}+ confidence score
-                                </div>
-                                <div style="color:#cdd7f3;font-size:13px">
-                                    <b>Entry Strategy:</b> Fresh position with bracket targets (${d.targets?.tp1 || '+15%'}/${d.targets?.tp2 || '+30%'} TP, ${d.targets?.stop || '-8%'} SL)
-                                </div>
-                            `}
-                        </div>
-                    </div>`;
-            }).join('');
+        function renderDiscoveryCard(d) {
+            const ticker = d.ticker;
+            const price = d.price || 0;
+            const score = d.score || 70;
+            const action = d.action || 'BUY';
+            const confidence = d.confidence || Math.min(95, Math.max(60, score));
+            const thesis = d.thesis || `Discovery score: ${score}`;
+            const engine = d.engine || 'discovery';
             
-            // Re-attach event listeners for discovery cards
-            attachBuyHandlers();
-            attachSaveHandlers();
+            // Action styling
+            const actionClass = action === 'BUY' ? 'action-buy' : 
+                               action === 'EARLY_READY' ? 'action-early-ready' : 
+                               'action-pre-breakout';
+            const actionColor = action === 'BUY' ? '#10b981' : 
+                               action === 'EARLY_READY' ? '#3b82f6' : '#f59e0b';
+            
+            // Score-based confidence display
+            const confidenceColor = score >= 80 ? '#10b981' : score >= 70 ? '#3b82f6' : '#f59e0b';
+            const confidenceIcon = score >= 80 ? '🎯' : score >= 70 ? '📈' : '⚡';
+            
+            // Trade amounts based on score
+            const amounts = score >= 80 ? [100, 250, 500] : 
+                           score >= 70 ? [50, 150, 300] : 
+                           [25, 75, 150];
+            
+            return `
+                <div class="lpi-card" style="border-left: 4px solid ${actionColor};">
+                    <div class="lpi-action">
+                        <div>
+                            <div style="font-size:14px;opacity:.9;display:flex;align-items:center;gap:8px">
+                                <span>${confidenceIcon} ${ticker} • $${price.toFixed(2)}</span>
+                                <span style="color:${actionColor};font-weight:bold">${action}</span>
+                            </div>
+                            <div style="font-size:22px;color:${actionColor}">Score: ${score} <span style="opacity:.8;font-size:14px">(${confidence}%)</span></div>
+                        </div>
+                        <div class="lpi-badge ${actionClass}">${action}</div>
+                    </div>
+
+                    <div class="lpi-stats">
+                        <div class="lpi-stat"><div class="k">Score</div><div class="v">${score}</div></div>
+                        <div class="lpi-stat"><div class="k">Price</div><div class="v">$${price.toFixed(2)}</div></div>
+                        <div class="lpi-stat"><div class="k">Confidence</div><div class="v">${confidence}%</div></div>
+                        <div class="lpi-stat">
+                            <div class="k">Source</div>
+                            <div class="v">
+                                <span class="inline-block px-1.5 py-0.5 rounded text-xs" style="background: rgba(100,116,139,0.3); color: #cbd5e1;">
+                                    ${engine}/${d.source || d.meta?.source || '—'}
+                                </span>
+                            </div>
+                        </div>
+                        ${d.snapshot_ts ? `
+                            <div class="lpi-stat">
+                                <div class="k">Snapshot</div>
+                                <div class="v" style="font-size: 11px; color: #94a3b8;">
+                                    ${new Date(d.snapshot_ts).toLocaleString()}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="lpi-targets">
+                        <div class="lpi-chip">Entry: $${price.toFixed(2)}</div>
+                        <div class="lpi-chip">TP1: +15%</div>
+                        <div class="lpi-chip">TP2: +30%</div>
+                        <div class="lpi-chip">SL: -8%</div>
+                    </div>
+
+                    <div class="lpi-controls">
+                        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                            ${amounts.map(amt => `
+                                <button onclick="buyDiscovery('${ticker}', ${amt}, ${price})" 
+                                        class="btn btn-buy" style="font-size: 12px; padding: 4px 8px;">
+                                    $${amt}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="lpi-thesis">
+                        <div class="head">
+                            <div class="lpi-trend tr-Strengthening">Discovery</div>
+                            <div style="font-size:12px;color:#9eb4ff">AlphaStack Score: ${score}/100</div>
+                        </div>
+                        <div style="color:#cdd7f3;font-size:13px;margin-bottom:6px">
+                            <b>Thesis:</b> ${thesis}
+                        </div>
+                        <div style="color:#8ea0c9;font-size:12px;margin-top:8px">
+                            Engine: ${engine} • Generated: ${new Date().toLocaleTimeString()}
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function renderEnhancedDiscoveryCards(discoveries) {
+            // Legacy function - redirect to new implementation
+            renderOpportunities();
+        }
+
+        // Buy discovery function
+        async function buyDiscovery(ticker, usd, price) {
+            const buttons = document.querySelectorAll(`button[onclick*="${ticker}"]`);
+            buttons.forEach(b => {
+                b.disabled = true;
+                b.textContent = 'Ordering...';
+            });
+
+            try {
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker,
+                        side: 'buy',
+                        usd,
+                        price,
+                        tp1_pct: 0.15,
+                        tp2_pct: 0.30,
+                        sl_pct: 0.08,
+                        engine: 'discovery_api',
+                        run_id: `discovery_${Date.now()}`,
+                        idempotencyKey: `${ticker}_${usd}_${Date.now()}`
+                    })
+                });
+
+                const result = await response.json();
+
+                buttons.forEach(b => {
+                    b.disabled = false;
+                    if (result.ok) {
+                        b.textContent = '✅ Ordered';
+                        b.style.background = '#16a34a';
+                    } else {
+                        b.textContent = '❌ Failed';
+                        b.style.background = '#dc2626';
+                    }
+                    
+                    // Reset after 3 seconds
+                    setTimeout(() => {
+                        b.textContent = `$${usd}`;
+                        b.style.background = '';
+                    }, 3000);
+                });
+
+                // Show status
+                if (result.ok) {
+                    showTradeStatus(ticker, `✅ Buy order placed: ${ticker} for $${usd}`, 'success');
+                    // Refresh after successful order
+                    setTimeout(() => loadPortfolio(), 2000);
+                } else {
+                    showTradeStatus(ticker, `❌ Order failed: ${result.error}`, 'error');
+                }
+
+            } catch (error) {
+                console.error('Buy discovery error:', error);
+                buttons.forEach(b => {
+                    b.disabled = false;
+                    b.textContent = '❌ Error';
+                    b.style.background = '#dc2626';
+                    
+                    setTimeout(() => {
+                        b.textContent = `$${usd}`;
+                        b.style.background = '';
+                    }, 3000);
+                });
+                showTradeStatus(ticker, `❌ Network error: ${error.message}`, 'error');
+            }
         }
 
         function formatDiscoveryTime(timestamp) {

@@ -1,27 +1,5 @@
 [
   {
-    "timestamp": "2025-08-21T02:27:58.979Z",
-    "date": "2025-08-21",
-    "portfolio_value": "100255.62",
-    "daily_pnl": 0,
-    "position_count": 5,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 4,
-    "high_priority_alerts": 2
-  },
-  {
-    "timestamp": "2025-08-21T02:28:58.917Z",
-    "date": "2025-08-21",
-    "portfolio_value": "100255.62",
-    "daily_pnl": 0,
-    "position_count": 5,
-    "vigl_discoveries": 0,
-    "high_confidence_vigl": 0,
-    "alerts_count": 4,
-    "high_priority_alerts": 2
-  },
-  {
     "timestamp": "2025-08-21T02:29:58.928Z",
     "date": "2025-08-21",
     "portfolio_value": "100255.62",
@@ -261,6 +239,28 @@
     "vigl_discoveries": 0,
     "high_confidence_vigl": 0,
     "alerts_count": 4,
+    "high_priority_alerts": 2
+  },
+  {
+    "timestamp": "2025-08-21T23:13:04.146Z",
+    "date": "2025-08-21",
+    "portfolio_value": "100268.75",
+    "daily_pnl": 4.341047609722095,
+    "position_count": 6,
+    "vigl_discoveries": 0,
+    "high_confidence_vigl": 0,
+    "alerts_count": 5,
+    "high_priority_alerts": 2
+  },
+  {
+    "timestamp": "2025-08-21T23:19:06.492Z",
+    "date": "2025-08-21",
+    "portfolio_value": "100268.65",
+    "daily_pnl": 4.233400154013811,
+    "position_count": 6,
+    "vigl_discoveries": 0,
+    "high_confidence_vigl": 0,
+    "alerts_count": 5,
     "high_priority_alerts": 2
   }
 ]

@@ -85,6 +85,9 @@ router.post("/", async (req, res) => {
 
     // Build order payload based on side
     let orderPayload;
+    let buyQty = 0; // For position tracking
+    let refPrice = null; // For position tracking
+    let tp1, tp2, sl; // For position tracking
     
     if (side === 'sell') {
       console.log(`🎯 Placing SELL order: ${ticker} for ${qty} shares`);
@@ -109,7 +112,7 @@ router.post("/", async (req, res) => {
       
       // Get a price to compute bracket levels (prefer live)
       const livePrice = await latestPrice(ticker);
-      const refPrice = livePrice || Number(fallbackPrice) || null;
+      refPrice = livePrice || Number(fallbackPrice) || null;
       
       if (!refPrice) {
         return res.status(400).json({ 
@@ -120,12 +123,12 @@ router.post("/", async (req, res) => {
 
       console.log(`💰 Reference price for ${ticker}: $${refPrice} (${livePrice ? 'live' : 'fallback'})`);
 
-      const tp1 = +(refPrice * (1 + tp1_pct)).toFixed(2);
-      const tp2 = +(refPrice * (1 + tp2_pct)).toFixed(2);
-      const sl = +(refPrice * (1 - sl_pct)).toFixed(2);
+      tp1 = +(refPrice * (1 + tp1_pct)).toFixed(2);
+      tp2 = +(refPrice * (1 + tp2_pct)).toFixed(2);
+      sl = +(refPrice * (1 - sl_pct)).toFixed(2);
 
       // Calculate share quantity from dollar amount (for bracket compatibility)
-      const buyQty = Math.floor(usd / refPrice);
+      buyQty = Math.floor(usd / refPrice);
       if (buyQty < 1) {
         return res.status(400).json({ 
           ok: false, 

@@ -24,7 +24,9 @@
     "verify": "node scripts/verify_getcompanyprofile.js",
     "universe:build2": "python3 scripts/build_universe_v2.py --days 30",
     "debug:compare": "ts-node scripts/compare-screeners.ts",
-    "smoke:scan": "curl \"http://localhost:3003/api/scan/today?refresh=1\" && sleep 2 && curl -s http://localhost:3003/api/scan/status | jq '{relaxation_active, gateCounts, current_thresholds, polygon}' && curl -s http://localhost:3003/api/scan/results | jq '.[0]'"
+    "smoke:scan": "curl \"http://localhost:3003/api/scan/today?refresh=1\" && sleep 2 && curl -s http://localhost:3003/api/scan/status | jq '{relaxation_active, gateCounts, current_thresholds, polygon}' && curl -s http://localhost:3003/api/scan/results | jq '.[0]'",
+    "postinstall": "npm rebuild sqlite3 --build-from-source || true",
+    "seed:sqlite": "node scripts/seedSqliteFromScreener.js"
   },
   "dependencies": {
     "axios": "^1.11.0",
@@ -37,6 +39,7 @@
     "js-yaml": "^4.1.0",
     "node-fetch": "^2.7.0",
     "p-limit": "^6.2.0",
+    "sqlite3": "^5.1.7",
     "technicalindicators": "^3.1.0",
     "uuid": "^11.1.0",
     "yahoo-finance2": "^2.13.3"
@@ -45,11 +48,11 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@types/node": "^20.12.12",
     "cross-env": "^10.0.0",
     "jest": "^30.0.5",
     "tailwindcss": "^4.1.12",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4",
-    "@types/node": "^20.12.12"
+    "typescript": "^5.5.4"
   }
 }

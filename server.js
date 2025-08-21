@@ -168,10 +168,14 @@ app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
 app.use('/api/discoveries', require('./server/routes/discoveries'));
 app.use('/api/alphastack-v2', require('./server/routes/api/discoveries'));
+// Specific routes before general ones
+app.use('/api/discovery/contenders', require('./server/routes/api/discovery/contenders'));
 // Alias for client integration
 app.use('/api/discovery', require('./server/routes/api/discoveries'));
 app.use('/api/order', require('./server/routes/api/order'));
 app.use('/api/portfolio', require('./server/routes/api/portfolio'));
+app.use('/api/health', require('./server/routes/api/health'));
+app.use('/api/discovery/config', require('./server/routes/api/config'));
 app.use('/api/scan', require('./server/routes/scan'));
 
 // Unified Engine Routes
@@ -749,6 +753,10 @@ if (process.env.SERVE_STATIC === 'true' || process.env.NEW_DASH_ENABLED === 'tru
       res.sendFile(path.resolve(__dirname, 'public/thesis-first.html'));
     });
   }
+  
+  // Add /portfolio route
+  app.get(['/portfolio','/portfolio-lpi-v2','/portfolio-lpi-v2.html'], (_req,res) =>
+    res.sendFile(path.join(__dirname, 'public/portfolio-lpi-v2.html')));
 }
 
 // Token-based authentication middleware for secure endpoints
@@ -2457,6 +2465,10 @@ app.listen(port, () => {
   console.log(`📊 Dashboard: http://localhost:${port}`);
   console.log(`🔗 API: http://localhost:${port}/api/dashboard`);
   console.log(`🔑 Alpaca Connected: ${!!ALPACA_CONFIG.apiKey}`);
+  
+  // Start background discovery refresher
+  const { startDiscoveryRefresher } = require('./server/worker/discoveryRefresher');
+  startDiscoveryRefresher().catch(console.error);
   
   // Start real discovery scheduler for UI
   try {
