@@ -171,6 +171,7 @@ app.use('/api/alphastack-v2', require('./server/routes/api/discoveries'));
 // Alias for client integration
 app.use('/api/discovery', require('./server/routes/api/discoveries'));
 app.use('/api/order', require('./server/routes/api/order'));
+app.use('/api/portfolio', require('./server/routes/api/portfolio'));
 app.use('/api/scan', require('./server/routes/scan'));
 
 // Unified Engine Routes

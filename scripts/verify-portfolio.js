@@ -160,7 +160,7 @@ async function verifyFillWebhook() {
       filled_at: new Date().toISOString()
     };
 
-    const response = await httpPost(`${BASE_URL}/api/order/fills`, payload);
+    const response = await httpPost(`${BASE_URL}/api/portfolio/fills`, payload);
     
     // Should return either success or "not found" - both are valid
     if (response.status >= 200 && response.status < 500) {

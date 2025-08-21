@@ -47,6 +47,14 @@ services:
       - key: ORDERS_ENABLED
         value: "1"
         
+      # Same-origin URL configuration (empty = relative URLs)
+      - key: NEXT_PUBLIC_DISCOVERY_URL
+        value: ""
+      - key: NEXT_PUBLIC_PORTFOLIO_URL
+        value: ""
+      - key: NEXT_PUBLIC_ALPACA_PROXY_URL
+        value: ""
+        
       # Admin Authentication
       - key: ADMIN_TOKEN
         sync: false
