@@ -329,23 +329,21 @@
         function renderEnhancedDiscoveryCards(discoveries) {
             const el = document.getElementById('discovery-cards');
             
-            // Filter and sort discoveries with enhanced action types and tape validation
-            const opportunities = discoveries
-                .filter(d => ['BUY', 'EARLY_READY', 'PRE_BREAKOUT'].includes(d.action) && d.ticker !== 'OPTIMIZED_AUDIT' && d.score > 50)
-                .sort((a, b) => {
-                    // Prioritize by action type first, then portfolio status, then score
-                    const actionPriority = { 'BUY': 3, 'EARLY_READY': 2, 'PRE_BREAKOUT': 1 };
-                    if (actionPriority[a.action] !== actionPriority[b.action]) {
-                        return actionPriority[b.action] - actionPriority[a.action];
-                    }
-                    if (a.portfolio_status === 'OPPORTUNITY' && b.portfolio_status === 'OWNED') return -1;
-                    if (a.portfolio_status === 'OWNED' && b.portfolio_status === 'OPPORTUNITY') return 1;
-                    return b.score - a.score;
+            console.log('📊 Discovery data received:', discoveries);
+            
+            // Show all discoveries that have a ticker and aren't audit records
+            let opportunities = discoveries
+                .filter(d => {
+                    console.log('🔍 Checking discovery:', d.ticker, 'action:', d.action, 'score:', d.score);
+                    return d.ticker && d.ticker !== 'OPTIMIZED_AUDIT';
                 })
-                .slice(0, 8); // Show top 8 with new categories
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 6);
+            
+            console.log('📊 Filtered opportunities:', opportunities.length);
             
             if (opportunities.length === 0) {
-                el.innerHTML = '<div class="loading">No high-confidence opportunities found</div>';
+                el.innerHTML = '<div class="loading">No discovery opportunities available</div>';
                 return;
             }
             
@@ -424,10 +422,43 @@
 
                         <div class="lpi-controls">
                             ${controlGroup(ticker, 15, 30, 8)}
-                            <button class="btn ${isOwned ? 'btn-secondary' : 'btn-buy'}" data-buy="${ticker}" data-usd="${suggestedAmount}" 
-                                    data-price="${price}" style="margin-left: 8px; ${isOwned ? 'background: #3b82f6; border-color: #3b82f6;' : ''}">
-                                ${buttonText}
+                            <button class="btn ${isOwned ? 'btn-secondary' : 'btn-buy'}" 
+                                    onclick="toggleTradeTicket('${ticker}')"
+                                    style="margin-left: 8px; ${isOwned ? 'background: #3b82f6; border-color: #3b82f6;' : ''}">
+                                ${isOwned ? 'Add' : 'Buy'}
                             </button>
+                        </div>
+
+                        <!-- Inline Trade Ticket -->
+                        <div id="trade-ticket-${ticker}" class="trade-ticket" style="display: none; margin-top: 12px; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
+                                <label style="font-size: 14px; font-weight: 600;">Amount:</label>
+                                <input type="number" id="amount-${ticker}" value="100" min="50" max="2000" step="50" 
+                                       style="width: 80px; padding: 4px 8px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">
+                                <div style="display: flex; gap: 6px;">
+                                    <button onclick="setAmount('${ticker}', 100)" style="padding: 2px 8px; font-size: 12px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer;">$100</button>
+                                    <button onclick="setAmount('${ticker}', 250)" style="padding: 2px 8px; font-size: 12px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer;">$250</button>
+                                    <button onclick="setAmount('${ticker}', 500)" style="padding: 2px 8px; font-size: 12px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer;">$500</button>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px; font-size: 13px;">
+                                <span>TP1:</span>
+                                <input type="number" id="tp1-${ticker}" value="15" min="5" max="50" step="1" style="width: 50px; padding: 2px 6px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">%
+                                <span>TP2:</span>
+                                <input type="number" id="tp2-${ticker}" value="30" min="10" max="100" step="5" style="width: 50px; padding: 2px 6px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">%
+                                <span>SL:</span>
+                                <input type="number" id="sl-${ticker}" value="8" min="3" max="25" step="1" style="width: 50px; padding: 2px 6px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white;">%
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="placeOrder('${ticker}', ${price}, '${d.engine || 'alphastack'}', '${d.run_id || 'run_' + Date.now()}', '${d.snapshot_ts || new Date().toISOString()}')" 
+                                        class="btn btn-buy" style="flex: 1;">
+                                    Place Order
+                                </button>
+                                <button onclick="cancelOrder('${ticker}')" 
+                                        class="btn" style="flex: 0; background: #444; color: white; border-color: #444;">
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
 
                         <div class="lpi-thesis">
@@ -519,7 +550,7 @@
 
                         <div class="lpi-controls">
                             ${controlGroup(p.ticker, tp1, tp2, stop)}
-                            ${buyButtonHTML(a, p)}
+                            ${actionButtonHTML(a, p)}
                         </div>
 
                         <div class="lpi-thesis">
@@ -616,12 +647,36 @@
                 <button class="lpi-chip" data-save data-ticker="${ticker}">Save</button>`;
         }
         
-        function buyButtonHTML(a, p) {
-            if ((a.action || '') !== 'BUY_MORE' || !a.add_usd) return '';
-            return `<button class="btn btn-buy" data-buy="${p.ticker}" data-usd="${a.add_usd}"
-                     data-price="${p.current_price || ''}" style="margin-left: 8px;">
-                      Buy $${a.add_usd}
-                    </button>`;
+        function actionButtonHTML(a, p) {
+            const action = a.action || 'HOLD';
+            const ticker = p.ticker;
+            const currentPrice = p.current_price || 0;
+            
+            switch(action) {
+                case 'BUY_MORE':
+                    const addAmount = a.add_usd || a.suggested_amount || 500;
+                    return `<button class="btn btn-buy" onclick="toggleTradeTicket('${ticker}')" style="margin-left: 8px;">
+                              Add More
+                            </button>`;
+                
+                case 'TRIM':
+                    const trimPct = 25; // Default 25% trim
+                    return `<button class="btn btn-sell" onclick="executeTrimOrder('${ticker}', ${trimPct})" style="margin-left: 8px; background: linear-gradient(90deg, #f59e0b, #fbbf24);">
+                              Trim ${trimPct}%
+                            </button>`;
+                
+                case 'SELL':
+                    return `<button class="btn btn-sell" onclick="executeSellOrder('${ticker}')" style="margin-left: 8px;">
+                              Sell All
+                            </button>`;
+                
+                case 'HOLD':
+                default:
+                    return `<button class="btn" onclick="recordHoldAction('${ticker}', '${action}')" 
+                             style="margin-left: 8px; background: #6b7280; color: white; border-color: #6b7280;">
+                              Hold
+                            </button>`;
+            }
         }
 
         function explainWhy(action, th){
@@ -915,6 +970,236 @@
                 }, 500);
             }, 60000);
         });
+
+        // Trade ticket functions
+        function toggleTradeTicket(ticker) {
+            const ticket = document.getElementById(`trade-ticket-${ticker}`);
+            const isVisible = ticket.style.display !== 'none';
+            
+            // Hide all other tickets first
+            document.querySelectorAll('.trade-ticket').forEach(t => t.style.display = 'none');
+            
+            // Toggle this ticket
+            ticket.style.display = isVisible ? 'none' : 'block';
+            
+            // Load saved amount from localStorage
+            if (!isVisible) {
+                const savedAmount = localStorage.getItem('lastTradeAmount') || '100';
+                const amountInput = document.getElementById(`amount-${ticker}`);
+                if (amountInput) {
+                    amountInput.value = Math.min(2000, Math.max(50, parseInt(savedAmount)));
+                }
+            }
+        }
+        
+        function setAmount(ticker, amount) {
+            const amountInput = document.getElementById(`amount-${ticker}`);
+            if (amountInput) {
+                amountInput.value = amount;
+            }
+        }
+        
+        function cancelOrder(ticker) {
+            const ticket = document.getElementById(`trade-ticket-${ticker}`);
+            if (ticket) {
+                ticket.style.display = 'none';
+            }
+        }
+        
+        async function placeOrder(ticker, price, engine, run_id, snapshot_ts) {
+            try {
+                // Get values from the trade ticket
+                const amountInput = document.getElementById(`amount-${ticker}`);
+                const tp1Input = document.getElementById(`tp1-${ticker}`);
+                const tp2Input = document.getElementById(`tp2-${ticker}`);
+                const slInput = document.getElementById(`sl-${ticker}`);
+                
+                const amount = parseInt(amountInput.value) || 100;
+                const tp1 = parseFloat(tp1Input.value) / 100 || 0.15;
+                const tp2 = parseFloat(tp2Input.value) / 100 || 0.30;
+                const sl = parseFloat(slInput.value) / 100 || 0.08;
+                
+                // Save amount to localStorage
+                localStorage.setItem('lastTradeAmount', amount.toString());
+                
+                console.log(`🎯 Placing order: ${ticker} $${amount} at $${price}`);
+                
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker,
+                        usd: amount,
+                        tp1_pct: tp1,
+                        tp2_pct: tp2,
+                        sl_pct: sl,
+                        price,
+                        engine,
+                        run_id
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.ok) {
+                    showTradeStatus(ticker, `✅ Order placed: ${result.order_id} ($${amount})`, 'success');
+                    // Hide the ticket and refresh portfolio
+                    cancelOrder(ticker);
+                    setTimeout(() => {
+                        console.log('🔄 Refreshing portfolio after order...');
+                        loadPortfolio();
+                    }, 2000);
+                } else {
+                    showTradeStatus(ticker, `❌ Order failed: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Place order error:', error);
+                showTradeStatus(ticker, `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Portfolio action execution functions
+        async function executeTrimOrder(ticker, trimPct) {
+            if (!confirm(`Trim ${trimPct}% of your ${ticker} position?`)) return;
+            
+            try {
+                // Get current position size
+                const portfolioResponse = await fetch('/api/portfolio/positions');
+                const positions = await portfolioResponse.json();
+                const position = positions.find(p => p.ticker === ticker);
+                
+                if (!position) {
+                    showTradeStatus(ticker, '❌ Position not found', 'error');
+                    return;
+                }
+                
+                const trimShares = Math.floor(position.shares * (trimPct / 100));
+                const trimValue = trimShares * position.current_price;
+                
+                showTradeStatus(ticker, `🔄 Trimming ${trimShares} shares (~$${trimValue.toFixed(0)})...`, 'info');
+                
+                // Execute trim via order API (sell order)
+                const response = await fetch('/api/orders/trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: ticker.toUpperCase(),
+                        side: 'sell',
+                        qty: trimShares,
+                        type: 'market'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showTradeStatus(ticker, `✅ Trimmed ${trimShares} shares`, 'success');
+                    // Record learning feedback
+                    await recordLearningFeedback(ticker, 'TRIM', 'TRIM', 'User executed recommended trim');
+                    // Refresh portfolio
+                    setTimeout(() => loadPortfolio(), 2000);
+                } else {
+                    showTradeStatus(ticker, `❌ Trim failed: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Trim order error:', error);
+                showTradeStatus(ticker, `❌ Trim error: ${error.message}`, 'error');
+            }
+        }
+
+        async function executeSellOrder(ticker) {
+            if (!confirm(`Sell your entire ${ticker} position?`)) return;
+            
+            try {
+                showTradeStatus(ticker, `🔄 Selling entire ${ticker} position...`, 'info');
+                
+                // Execute sell via order API (sell all shares)
+                const response = await fetch('/api/orders/trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: ticker.toUpperCase(),
+                        side: 'sell',
+                        qty: 'all', // Sell all shares
+                        type: 'market'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showTradeStatus(ticker, `✅ Sold entire ${ticker} position`, 'success');
+                    // Record learning feedback
+                    await recordLearningFeedback(ticker, 'SELL', 'SELL', 'User executed recommended sell');
+                    // Refresh portfolio
+                    setTimeout(() => loadPortfolio(), 2000);
+                } else {
+                    showTradeStatus(ticker, `❌ Sell failed: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Sell order error:', error);
+                showTradeStatus(ticker, `❌ Sell error: ${error.message}`, 'error');
+            }
+        }
+
+        async function recordHoldAction(ticker, recommendedAction) {
+            try {
+                showTradeStatus(ticker, `📝 Recording HOLD action for ${ticker}`, 'info');
+                
+                // Record that user chose to hold when system recommended action
+                await recordLearningFeedback(ticker, recommendedAction, 'HOLD', 'User chose to hold despite recommendation');
+                
+                showTradeStatus(ticker, `✅ Hold decision recorded`, 'success');
+                
+            } catch (error) {
+                console.error('Record hold error:', error);
+                showTradeStatus(ticker, `❌ Recording error: ${error.message}`, 'error');
+            }
+        }
+
+        // Learning system integration
+        async function recordLearningFeedback(ticker, actionSuggested, actionTaken, notes = '') {
+            try {
+                console.log(`📚 Recording learning feedback: ${ticker} - suggested: ${actionSuggested}, taken: ${actionTaken}`);
+                
+                const response = await fetch('/api/portfolio/learn/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker,
+                        action_suggested: actionSuggested,
+                        action_taken: actionTaken,
+                        notes,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                const result = await response.json();
+                console.log('📚 Learning feedback recorded:', result);
+                
+                return result;
+                
+            } catch (error) {
+                console.error('Learning feedback error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Enhanced placeOrder function with learning integration
+        const originalPlaceOrder = placeOrder;
+        placeOrder = async function(ticker, price, engine, run_id, snapshot_ts) {
+            const result = await originalPlaceOrder(ticker, price, engine, run_id, snapshot_ts);
+            
+            // Record learning feedback for discovery purchases
+            if (result) {
+                await recordLearningFeedback(ticker, 'BUY', 'BUY', `Discovery purchase: $${document.getElementById('amount-' + ticker)?.value || 100}`);
+            }
+            
+            return result;
+        };
     </script>
 </body>
 </html>

@@ -168,6 +168,8 @@ app.use('/api/alphastack', require('./server/routes/alphastack'));
 app.use('/api/enhanced-portfolio', require('./server/routes/enhanced-portfolio'));
 app.use('/api/discoveries', require('./server/routes/discoveries'));
 app.use('/api/alphastack-v2', require('./server/routes/api/discoveries'));
+// Alias for client integration
+app.use('/api/discovery', require('./server/routes/api/discoveries'));
 app.use('/api/order', require('./server/routes/api/order'));
 app.use('/api/scan', require('./server/routes/scan'));
 
@@ -2408,6 +2410,11 @@ function makeAlpacaTradeRequest(endpoint, method, data) {
 // Serve frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Portfolio page route
+app.get('/portfolio', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'portfolio-lpi-v2.html'));
 });
 
 // Startup health check - can be enabled with STRICT_STARTUP=true
