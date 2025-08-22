@@ -1,12 +1,26 @@
 const { runScreener } = require('../../lib/runScreener');
-const { getScreenerConfig } = require('../../lib/config');
+const { getProfile } = require('../../lib/screenerProfile');
 const { saveScoresAtomically } = require('../services/sqliteScores');
 const { getConfig } = require('../services/config');
+const fs = require('fs');
+const path = require('path');
 
 let failCount = 0;
 let lastSuccessTs = 0;
 let lastErrorTs = 0;
+let lastRunDuration = 0;
 let refresherRunning = false;
+
+// Auto-tuning state
+let universeTarget = Number(process.env.UNIVERSE_TARGET || 1000);
+const TUNE_PATH = path.join('/tmp', 'screener_autotune.json');
+
+try {
+  const tuneData = JSON.parse(fs.readFileSync(TUNE_PATH, 'utf8'));
+  if (tuneData.universeTarget) universeTarget = tuneData.universeTarget;
+} catch {
+  // File doesn't exist or invalid JSON, use default
+}
 
 function normalize(raw) {
   const results = [];
@@ -69,9 +83,11 @@ async function startDiscoveryRefresher() {
     const runId = `run_${Date.now()}`;
     
     try {
-      const { engine, universeTarget } = getConfig();
-      const { extraArgs, timeoutMs } = getScreenerConfig();
-      const raw = await runScreener(['--limit', String(universeTarget), ...extraArgs], timeoutMs);
+      const { engine } = getConfig();
+      const { args, session } = getProfile();
+      const timeoutMs = Number(process.env.SCREENER_TIMEOUT_MS || 180000);
+      
+      const raw = await runScreener(['--limit', String(Math.min(120, universeTarget)), ...args], timeoutMs);
       const items = normalize(raw);
       
       if (items.length > 0) {
@@ -80,12 +96,17 @@ async function startDiscoveryRefresher() {
           engine,
           universe: universeTarget,
           snapshot_ts: new Date().toISOString(),
+          session
         });
         
         failCount = 0;
         lastSuccessTs = Date.now();
-        const dur = Date.now() - t0;
-        console.info(`[worker] run_id=${runId} engine=${engine} universe=${universeTarget} status=success duration_ms=${dur} wrote=${wrote}`);
+        lastRunDuration = Date.now() - t0;
+        
+        // Auto-tune universe target based on duration
+        autotune(lastRunDuration);
+        
+        console.info(`[worker] run_id=${runId} engine=${engine} universe=${universeTarget} session=${session} status=success duration_ms=${lastRunDuration} wrote=${wrote}`);
       } else {
         throw new Error('No items normalized from screener output');
       }
@@ -95,8 +116,8 @@ async function startDiscoveryRefresher() {
     } catch (e) {
       failCount++;
       lastErrorTs = Date.now();
-      const dur = Date.now() - t0;
-      console.warn(`[worker] run_id=${runId} status=fail duration_ms=${dur} err="${(e && e.message) || e}" fails=${failCount}`);
+      lastRunDuration = Date.now() - t0;
+      console.warn(`[worker] run_id=${runId} status=fail duration_ms=${lastRunDuration} err="${(e && e.message) || e}" fails=${failCount}`);
       
       // Exponential backoff: 5s -> 15s -> 45s -> 60s (cap)
       const backoffMs = Math.min(5000 * Math.pow(3, Math.max(0, failCount - 1)), 60000);
@@ -110,8 +131,36 @@ function stopDiscoveryRefresher() {
   console.info('[worker] Stopping discovery refresher');
 }
 
+function autotune(durationMs) {
+  const oldTarget = universeTarget;
+  
+  if (durationMs > 110000) {
+    // Too slow, reduce universe size
+    universeTarget = Math.max(300, Math.floor(universeTarget * 0.9));
+  } else if (durationMs < 60000) {
+    // Fast enough, can increase universe size
+    universeTarget = Math.min(1500, Math.floor(universeTarget * 1.1));
+  }
+  
+  if (universeTarget !== oldTarget) {
+    console.log(`[autotune] ${durationMs}ms → universe ${oldTarget} → ${universeTarget}`);
+    try {
+      fs.writeFileSync(TUNE_PATH, JSON.stringify({ universeTarget, lastTune: Date.now() }), 'utf8');
+    } catch (e) {
+      console.warn('[autotune] failed to save state:', e.message);
+    }
+  }
+}
+
 function getRefresherState() {
-  return { failCount, lastSuccessTs, lastErrorTs, running: refresherRunning };
+  return { 
+    failCount, 
+    lastSuccessTs, 
+    lastErrorTs, 
+    lastRunDuration,
+    universeTarget,
+    running: refresherRunning 
+  };
 }
 
 function sleep(ms) {

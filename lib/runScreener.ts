@@ -1,19 +1,16 @@
 import { spawn } from 'node:child_process';
-import { getScreenerConfig } from './config';
 const BIN = process.env.SCREENER_BIN || 'python3';
 
 export type ScreenerOut = { run_id?: string; snapshot_ts?: string; items?: any[] } | any[];
 
-export async function runScreener(extra: string[] = [], toOverride?: number): Promise<ScreenerOut> {
-  const { timeoutMs, extraArgs } = getScreenerConfig();
-  const TIMEOUT = toOverride ?? timeoutMs;
+export async function runScreener(profileArgs: string[] = [], timeoutMs: number = 180000): Promise<ScreenerOut> {
   const screenerPath = 'agents/universe_screener.py';
-  const args = [screenerPath, ...extraArgs, ...extra];
+  const args = [screenerPath, '--json-out', ...profileArgs];
 
   let out = '', timedOut = false;
   return new Promise((resolve, reject) => {
     const p = spawn(BIN, args, { env: process.env, stdio: ['ignore','pipe','pipe'] });
-    const to = setTimeout(() => { timedOut = true; try { p.kill('SIGTERM'); } catch {} }, TIMEOUT);
+    const to = setTimeout(() => { timedOut = true; try { p.kill('SIGTERM'); } catch {} }, timeoutMs);
     p.stdout.setEncoding('utf8'); p.stderr.setEncoding('utf8');
     p.stdout.on('data', d => out += d);
     p.stderr.on('data', d => process.stderr.write(d));

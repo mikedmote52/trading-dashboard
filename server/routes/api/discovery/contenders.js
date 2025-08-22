@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { runScreener } = require('../../../../lib/runScreener');
-const { getScreenerConfig } = require('../../../../lib/config');
+const { getProfile } = require('../../../../lib/screenerProfile');
 const { noteSuccess, noteFailure, isTripped } = require('../../../services/circuitBreaker');
 const { recordSourceUsage } = require('../../../services/sourceMix');
 
@@ -105,8 +105,8 @@ router.get('/', async (req, res) => {
   // 1) Screener (live) — only if breaker OK
   if (breaker === 'ok') {
     try {
-      const { extraArgs } = getScreenerConfig();
-      const raw = await runScreener(['--limit', String(limit), ...extraArgs], 15000);
+      const { args } = getProfile();
+      const raw = await runScreener(['--limit', String(limit), ...args], 15000);
       const items = normalize(raw).slice(0, limit);
       if (items.length) {
         noteSuccess();

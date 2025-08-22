@@ -2468,7 +2468,10 @@ app.listen(port, () => {
   
   // Start background discovery refresher
   const { startDiscoveryRefresher } = require('./server/worker/discoveryRefresher');
+  const { startWatchdog } = require('./server/worker/watchdog');
+  
   startDiscoveryRefresher().catch(console.error);
+  startWatchdog().catch(console.error);
   
   // Start real discovery scheduler for UI
   try {
