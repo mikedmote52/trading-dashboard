@@ -350,7 +350,7 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // identity endpoint so we can verify we're on the API host  
-app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
+app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString(), build: 'force-deploy-v2' }));
 
 // Build version endpoint to track deployments
 app.get('/api/discovery/version', (_req, res) => {
