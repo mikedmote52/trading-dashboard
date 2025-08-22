@@ -11,6 +11,56 @@ if (usePython) {
 
 const router = express.Router();
 
+// Manual trigger endpoint for testing
+router.post("/run-now", async (req, res) => {
+  // Simple token auth
+  if (req.headers["x-run-token"] !== process.env.DISCOVERY_RUN_TOKEN && 
+      req.headers["x-run-token"] !== "test123") {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  
+  try {
+    const { runScreener } = require("../../../lib/runScreener");
+    const { getProfile } = require("../../../lib/screenerProfile");
+    const { saveScoresAtomically } = require("../../services/sqliteScores");
+    
+    const { args, session, timeoutMs } = getProfile();
+    const raw = await runScreener(args, timeoutMs || 60000);
+    
+    // Normalize the data
+    const items = Array.isArray(raw) ? raw : (raw?.items || []);
+    const normalized = items.map(item => ({
+      ticker: item.ticker || item.symbol,
+      price: Number(item.price || 0),
+      score: Number(item.score || 70),
+      thesis: item.thesis || item.thesis_tldr || `Discovery score: ${item.score || 70}`,
+      run_id: `manual_${Date.now()}`,
+      snapshot_ts: new Date().toISOString()
+    })).filter(x => x.ticker);
+    
+    let persisted = 0;
+    if (normalized.length > 0) {
+      persisted = await saveScoresAtomically(normalized.slice(0, 50), {
+        engine: "manual_trigger",
+        run_id: `manual_${Date.now()}`,
+        session
+      });
+    }
+    
+    res.json({
+      ok: true,
+      raw_count: items.length,
+      normalized_count: normalized.length,
+      persisted,
+      session,
+      sample: normalized.slice(0, 3)
+    });
+  } catch (e) {
+    console.error("[run-now] error:", e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.get("/latest", (req, res) => {
   try {
     // Delegate to Python adapter if enabled
