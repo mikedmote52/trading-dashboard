@@ -3,7 +3,38 @@
  * Filters 200+ stocks down to 10-20 qualified VIGL candidates
  */
 
-const { DISCOVERY } = require('../../config/discovery');
+// Environment-based configuration with relaxed defaults for production bootstrap
+const CONFIG = {
+  enforcePriceCap: process.env.PREFILTER_ENFORCE_PRICE_CAP === 'true',
+  priceCap: Number(process.env.PREFILTER_PRICE_CAP ?? 1000),
+  minPrice: Number(process.env.PREFILTER_MIN_PRICE ?? 1),
+  minRVOL: Number(process.env.PREFILTER_MIN_REL_VOL ?? 0.5),
+  minLiquidity: Number(process.env.PREFILTER_MIN_LIQUIDITY ?? 100000),
+  minAvgVol: Number(process.env.PREFILTER_MIN_AVG_VOL ?? 300000),
+  minAtrPct: Number(process.env.PREFILTER_MIN_ATR_PCT ?? 1.0),
+  rsiMin: Number(process.env.PREFILTER_RSI_MIN ?? 30),
+  rsiMax: Number(process.env.PREFILTER_RSI_MAX ?? 80),
+  topK: Number(process.env.PREFILTER_TOP_K ?? 20),
+  topFallback: Number(process.env.PREFILTER_TOP_FALLBACK ?? 10),
+  minShortInterest: Number(process.env.PREFILTER_MIN_SHORT_INTEREST ?? 0.1),
+  altSqueeze: {
+    floatMaxM: Number(process.env.PREFILTER_ALT_SQUEEZE_FLOAT_MAX_M ?? 50),
+    util: Number(process.env.PREFILTER_ALT_SQUEEZE_UTIL ?? 80),
+    fee: Number(process.env.PREFILTER_ALT_SQUEEZE_FEE ?? 10)
+  }
+};
+
+// Rejection telemetry
+type Reason = 'price'|'avgVol'|'relVol'|'atr'|'rsi'|'blacklist'|'other';
+const rejectCounters = {price:0, avgVol:0, relVol:0, atr:0, rsi:0, blacklist:0, other:0};
+
+function reject(reason) {
+  rejectCounters[reason] = (rejectCounters[reason] || 0) + 1;
+}
+
+function resetCounters() {
+  Object.keys(rejectCounters).forEach(k => rejectCounters[k] = 0);
+}
 
 /**
  * Prefilter universe using cheap screening criteria before expensive feature fetching
@@ -37,32 +68,58 @@ function prefilterUniverse(tickers) {
     };
   });
   
-  // Apply VIGL screening criteria
+  // Reset rejection counters for this run
+  resetCounters();
+  
+  // Apply VIGL screening criteria with telemetry
   const candidates = withRVOL.filter(t => {
-    // Price cap filter (explosive growth potential)
-    const passesPrice = t.price > 0 && (!DISCOVERY.enforcePriceCap || t.price <= DISCOVERY.priceCap);
-    
-    // Volume filters
-    const passesVolume = t.relativeVolume >= DISCOVERY.minRVOL;
-    const passesLiquidity = t.volume >= DISCOVERY.minLiquidity;
-    
-    // Basic screening
-    const passesBasic = passesPrice && passesVolume && passesLiquidity;
-    
-    if (passesBasic) {
+    try {
+      // Price filters
+      if (t.price <= 0) { reject('price'); return false; }
+      if (t.price < CONFIG.minPrice) { reject('price'); return false; }
+      if (CONFIG.enforcePriceCap && t.price > CONFIG.priceCap) { reject('price'); return false; }
+      
+      // Volume filters  
+      if (t.relativeVolume < CONFIG.minRVOL) { reject('relVol'); return false; }
+      if (t.volume < CONFIG.minLiquidity) { reject('avgVol'); return false; }
+      
+      // Passed all filters
       console.log(`✅ Prefilter PASS: ${t.ticker} - Price: $${t.price.toFixed(2)}, RVOL: ${t.relativeVolume.toFixed(2)}x, Vol: ${(t.volume/1000).toFixed(0)}K`);
+      return true;
+    } catch (err) {
+      reject('other');
+      return false;
     }
-    
-    return passesBasic;
   });
   
   // Rank by momentum score (RVOL × price change) and take top K
-  const ranked = candidates
+  let ranked = candidates
     .sort((a, b) => b.score - a.score)
-    .slice(0, DISCOVERY.topK)
+    .slice(0, CONFIG.topK)
     .map(t => t.ticker);
   
-  console.log(`🎯 Prefilter results: ${candidates.length} passed screening, top ${ranked.length} selected`);
+  // Apply no-candidate failsafe
+  if (ranked.length === 0) {
+    console.warn('🚨 [prefilter] 0 candidates passed - applying fallback strategy');
+    
+    // Sample first 5 rejected for debugging
+    const sample = withRVOL.slice(0, 5).map(s => ({
+      t: s.ticker, p: s.price, relVol: s.relativeVolume, vol: s.volume
+    }));
+    console.warn('[prefilter] sample rejected stocks:', sample);
+    
+    // Fallback: Top N by dollar volume (liquid stocks)
+    const fallbackCandidates = withRVOL
+      .filter(t => t.price > 1 && t.volume > 100000)
+      .sort((a, b) => (b.price * b.volume) - (a.price * a.volume))
+      .slice(0, CONFIG.topFallback)
+      .map(t => t.ticker);
+    
+    ranked = fallbackCandidates;
+    console.log(`🆘 Fallback applied: selected ${ranked.length} liquid stocks: ${ranked.join(', ')}`);
+  }
+  
+  console.log(`🎯 [prefilter] kept=${ranked.length} / ${tickers.length} rejections=`, rejectCounters);
   console.log(`🎯 Final candidates: ${ranked.join(', ')}`);
   
   return {
@@ -70,7 +127,8 @@ function prefilterUniverse(tickers) {
     metrics: {
       universe: tickers.length,
       candidates: candidates.length,
-      selected: ranked.length
+      selected: ranked.length,
+      rejections: {...rejectCounters}
     }
   };
 }
@@ -117,46 +175,77 @@ function prefilterWithShortData(tickers, shortData = {}) {
     };
   });
   
-  // Apply comprehensive VIGL filters
+  // Reset rejection counters for this run
+  resetCounters();
+  
+  // Apply comprehensive VIGL filters with telemetry
   const candidates = withMetrics.filter(t => {
-    const passesPrice = t.price > 0 && (!DISCOVERY.enforcePriceCap || t.price <= DISCOVERY.priceCap);
-    const passesVolume = t.relativeVolume >= DISCOVERY.minRVOL;
-    const passesLiquidity = t.volume >= DISCOVERY.minLiquidity;
-    
-    // Short squeeze criteria (if data available)
-    const hasShortData = t.shortInterest > 0 || t.utilization > 0;
-    const passesShortInterest = !hasShortData || t.shortInterest >= DISCOVERY.minShortInterest;
-    
-    // Alternative squeeze criteria
-    const altSqueeze = (t.floatM <= DISCOVERY.altSqueeze.floatMaxM) || 
-                      (t.utilization >= DISCOVERY.altSqueeze.util && t.borrowFee >= DISCOVERY.altSqueeze.fee);
-    const passesSqueezeAlt = !hasShortData || altSqueeze;
-    
-    const passes = passesPrice && passesVolume && passesLiquidity && passesShortInterest && passesSqueezeAlt;
-    
-    if (passes) {
+    try {
+      // Price filters
+      if (t.price <= 0) { reject('price'); return false; }
+      if (t.price < CONFIG.minPrice) { reject('price'); return false; }
+      if (CONFIG.enforcePriceCap && t.price > CONFIG.priceCap) { reject('price'); return false; }
+      
+      // Volume filters
+      if (t.relativeVolume < CONFIG.minRVOL) { reject('relVol'); return false; }
+      if (t.volume < CONFIG.minLiquidity) { reject('avgVol'); return false; }
+      
+      // Short squeeze criteria (if data available)
+      const hasShortData = t.shortInterest > 0 || t.utilization > 0;
+      if (hasShortData && t.shortInterest < CONFIG.minShortInterest) { reject('other'); return false; }
+      
+      // Alternative squeeze criteria
+      const altSqueeze = (t.floatM <= CONFIG.altSqueeze.floatMaxM) || 
+                        (t.utilization >= CONFIG.altSqueeze.util && t.borrowFee >= CONFIG.altSqueeze.fee);
+      if (hasShortData && !altSqueeze) { reject('other'); return false; }
+      
+      // Passed all filters
       console.log(`✅ Enhanced PASS: ${t.ticker} - Price: $${t.price.toFixed(2)}, RVOL: ${t.relativeVolume.toFixed(2)}x, SI: ${(t.shortInterest*100).toFixed(1)}%`);
+      return true;
+    } catch (err) {
+      reject('other');
+      return false;
     }
-    
-    return passes;
   });
   
   // Rank and select top candidates
-  const ranked = candidates
+  let ranked = candidates
     .sort((a, b) => b.score - a.score)  
-    .slice(0, DISCOVERY.topK)
+    .slice(0, CONFIG.topK)
     .map(t => t.ticker);
+  
+  // Apply no-candidate failsafe
+  if (ranked.length === 0) {
+    console.warn('🚨 [prefilter enhanced] 0 candidates passed - applying fallback strategy');
     
-  console.log(`🎯 Enhanced prefilter: ${candidates.length} passed all criteria, top ${ranked.length} selected`);
+    // Sample first 5 rejected for debugging
+    const sample = withMetrics.slice(0, 5).map(s => ({
+      t: s.ticker, p: s.price, relVol: s.relativeVolume, vol: s.volume, si: s.shortInterest
+    }));
+    console.warn('[prefilter enhanced] sample rejected stocks:', sample);
+    
+    // Fallback: Top N by enhanced score (liquid stocks with potential)
+    const fallbackCandidates = withMetrics
+      .filter(t => t.price > 1 && t.volume > 100000)
+      .sort((a, b) => (b.price * b.volume * (1 + b.shortInterest)) - (a.price * a.volume * (1 + a.shortInterest)))
+      .slice(0, CONFIG.topFallback)
+      .map(t => t.ticker);
+    
+    ranked = fallbackCandidates;
+    console.log(`🆘 Enhanced fallback applied: selected ${ranked.length} liquid stocks: ${ranked.join(', ')}`);
+  }
+  
+  console.log(`🎯 [prefilter enhanced] kept=${ranked.length} / ${tickers.length} rejections=`, rejectCounters);
   
   return {
     ranked,
-    candidateData: candidates.slice(0, DISCOVERY.topK), // Include full data for downstream use
+    candidateData: candidates.slice(0, CONFIG.topK), // Include full data for downstream use
     metrics: {
       universe: tickers.length,
       candidates: candidates.length,
       selected: ranked.length,
-      withShortData: candidates.filter(c => c.shortInterest > 0).length
+      withShortData: candidates.filter(c => c.shortInterest > 0).length,
+      rejections: {...rejectCounters}
     }
   };
 }
