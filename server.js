@@ -352,6 +352,20 @@ app.get('/api/dashboard', async (req, res) => {
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
 
+// Manual discovery trigger for testing
+app.get('/api/discovery/run-now', async (req, res) => {
+  try {
+    const { runScreener } = require('./lib/runScreener');
+    const limit = Number(req.query.limit ?? 5);
+    const budgetMs = Number(req.query.budgetMs ?? 8000);
+    
+    const { json, duration } = await runScreener(['--limit', String(limit), '--budget-ms', String(budgetMs)]);
+    res.status(200).json({ ok: true, duration, ...json });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 // VIGL endpoints removed - using AlphaStack screener instead
 
 // Trading actions

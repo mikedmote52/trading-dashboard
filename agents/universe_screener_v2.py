@@ -5,11 +5,12 @@ Stage 1: Fast filtering with cached data only (no API calls)
 Stage 2: Async enrichment for top candidates
 """
 
-import os, sys, json, argparse, time
+import os, sys, json, argparse, time, tempfile
 from pathlib import Path
 import pandas as pd
 import numpy as np
 import yaml
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,6 +22,42 @@ FEAT_PATH = ROOT / "data" / "universe_features.parquet"
 
 sys.path.append(str(ROOT))
 from data.providers.alpha_providers import minute_bars, short_metrics
+
+def ensure_dir(path: str):
+    """Ensure parent directory exists for the given file path"""
+    d = os.path.dirname(path)
+    if d and not os.path.exists(d):
+        os.makedirs(d, exist_ok=True)
+
+def write_json_atomic(obj, out_path: str):
+    """Atomically write JSON to prevent partial reads"""
+    ensure_dir(out_path)
+    dir_name = os.path.dirname(out_path) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".json_tmp_", dir=dir_name, text=True)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(obj, f, separators=(",", ":"), ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, out_path)  # atomic on POSIX
+    except Exception as e:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
+
+def minimal_payload(status="ok", items=None, meta=None):
+    """Create minimal valid JSON payload"""
+    return {
+        "status": status,
+        "count": len(items or []),
+        "items": items or [],
+        "meta": {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            **(meta or {})
+        }
+    }
 
 def ramp(x, lo, hi, max_pts):
     """Smooth ramp function for capped scoring"""
@@ -317,16 +354,10 @@ class UniverseScreenerV2:
         
         return final
 
-def main():
-    parser = argparse.ArgumentParser(description='Universe Screener V2 - Fast Two-Stage Pipeline')
-    parser.add_argument('--limit', type=int, default=50, help='Number of candidates to return')
-    parser.add_argument('--exclude-symbols', type=str, default='', help='Comma-separated symbols to exclude')
-    parser.add_argument('--json-out', action='store_true', help='Output JSON for API consumption')
-    parser.add_argument('--budget-ms', type=int, default=30000, help='Time budget in milliseconds')
-    parser.add_argument('--seed', type=int, default=None, help='Random seed for deterministic results')
-    parser.add_argument('--replay-json', type=str, default=None, help='Replay a saved JSON payload (use same items/order)')
-    
-    args = parser.parse_args()
+def main(args):
+    # Set safe default output path if needed
+    if args.json_out is None:
+        args.json_out = os.environ.get("SCREENER_JSON_OUT_DEFAULT", "/tmp/discovery_screener.json")
     
     # Handle replay mode - return saved snapshot
     if args.replay_json:
@@ -343,6 +374,8 @@ def main():
         random.seed(args.seed)
         np.random.seed(args.seed)
     
+    start_time = time.time()
+    
     # Create screener and run fast scan
     screener = UniverseScreenerV2()
     screener.seed = args.seed  # Pass seed to screener instance
@@ -352,22 +385,62 @@ def main():
         budget_ms=args.budget_ms
     )
     
-    # Create payload with metadata
-    snapshot_ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-    payload = {
-        "run_id": f"{snapshot_ts}-{args.seed or 'none'}",
-        "snapshot_ts": snapshot_ts,
-        "params": {
-            "seed": args.seed,
-            "limit": args.limit,
-            "budget_ms": args.budget_ms,
-            "exclude_symbols": args.exclude_symbols
-        },
-        "items": candidates
-    }
+    duration_ms = int((time.time() - start_time) * 1000)
     
-    # Output as JSON
-    print(json.dumps(payload))
+    # Create payload with metadata using minimal_payload format
+    snapshot_ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    payload = minimal_payload(
+        status="ok",
+        items=candidates,
+        meta={
+            "schema_version": 1,
+            "run_id": f"{snapshot_ts}-{args.seed or 'none'}",
+            "snapshot_ts": snapshot_ts,
+            "duration_ms": duration_ms,
+            "partial": len(candidates) < args.limit,
+            "params": {
+                "seed": args.seed,
+                "limit": args.limit,
+                "budget_ms": args.budget_ms,
+                "exclude_symbols": args.exclude_symbols
+            }
+        }
+    )
+    
+    # Atomic write to file path
+    write_json_atomic(payload, args.json_out)
+    print(f"[screener] wrote {len(candidates)} items to {args.json_out} in {duration_ms}ms", file=sys.stderr)
+    return 0
 
 if __name__ == "__main__":
-    main()
+    args = None
+    try:
+        parser = argparse.ArgumentParser(description='Universe Screener V2 - Fast Two-Stage Pipeline')
+        parser.add_argument('--limit', type=int, default=50, help='Number of candidates to return')
+        parser.add_argument('--exclude-symbols', type=str, default='', help='Comma-separated symbols to exclude')
+        parser.add_argument('--json-out', type=str, default=None, help='Output JSON to file path (or stdout if not provided)')
+        parser.add_argument('--budget-ms', type=int, default=30000, help='Time budget in milliseconds')
+        parser.add_argument('--seed', type=int, default=None, help='Random seed for deterministic results')
+        parser.add_argument('--replay-json', type=str, default=None, help='Replay a saved JSON payload (use same items/order)')
+        args = parser.parse_args()
+        exit_code = main(args)
+        sys.exit(exit_code)
+    except Exception as e:
+        # Last-resort JSON so the caller never sees "no output"
+        fallback = minimal_payload(
+            status="error",
+            items=[],
+            meta={
+                "schema_version": 1,
+                "error": type(e).__name__, 
+                "message": str(e),
+                "fallback": True
+            }
+        )
+        try:
+            out_path = args.json_out if args else "/tmp/discovery_screener_fallback.json"
+            write_json_atomic(fallback, out_path)
+            print(f"[screener] FATAL, wrote fallback JSON: {out_path}", file=sys.stderr)
+        except Exception as inner:
+            print(f"[screener] FATAL and failed to write JSON: {inner}", file=sys.stderr)
+        sys.exit(1)
