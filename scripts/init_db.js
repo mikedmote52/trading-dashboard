@@ -267,16 +267,8 @@ CREATE INDEX IF NOT EXISTS idx_data_status_updated_at ON data_status(updated_at)
   console.log('🎯 DB MIGRATIONS APPLIED');
   console.log('📊 Schema guaranteed at:', dbPath);
   
-  // Create discoveries_vigl VIEW for compatibility
-  console.log('🔧 Creating discoveries_vigl VIEW for compatibility...');
-  try {
-    const fs = require('fs');
-    const viewSql = fs.readFileSync(path.join(__dirname, 'create-discoveries-view.sql'), 'utf8');
-    db.exec(viewSql);
-    console.log('✅ discoveries_vigl VIEW created successfully');
-  } catch (viewErr) {
-    console.warn('⚠️ Could not create discoveries_vigl VIEW:', viewErr.message);
-  }
+  // Skip view creation - view already exists in schema
+  // console.log('🔧 Creating discoveries_vigl VIEW for compatibility...');
 
   return true;
 }

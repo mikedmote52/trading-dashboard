@@ -1,4 +1,5 @@
-const { spawn } = require("child_process");
+const { runScreener } = require("../../lib/runScreener");
+const { getScreenerConfig } = require("../../lib/config");
 
 const cache = { 
   items: [], 
@@ -7,13 +8,10 @@ const cache = {
   error: null 
 };
 
-const PY = process.env.PYTHON_BIN || "python3";
-const SCR = process.env.SCREENER_SCRIPT || "agents/universe_screener_v2.py";
-const ARGS = (process.env.SCREENER_ARGS || "--limit 50 --json-out --budget-ms 30000 --exclude-symbols BTAI,KSS,UP,TNXP").split(" ");
 const INTERVAL_MS = Number(process.env.V2_REFRESH_MS || 120000);
 const TTL_MS = Number(process.env.DISCOVERY_TTL_MS || 180000);
 
-function runOnce() {
+async function runOnce() {
   if (cache.running) {
     console.log('⏭️  AlphaStack scan already running, skipping...');
     return;
@@ -24,67 +22,40 @@ function runOnce() {
   
   console.log('🚀 Starting AlphaStack VIGL universe scan...');
   
-  let out = "", err = "";
-  const proc = spawn(PY, [SCR, ...ARGS], { 
-    stdio: ["ignore", "pipe", "pipe"] 
-  });
-
-  proc.stdout.on("data", d => out += d.toString());
-  proc.stderr.on("data", d => err += d.toString());
-
-  // Timeout protection
-  const timeout = setTimeout(() => {
-    console.log('⚠️ AlphaStack scan timeout (45s), terminating...');
-    proc.kill('SIGTERM');
-    cache.running = false;
-    cache.error = 'Scan timeout after 45 seconds';
-  }, 45000); // 45 seconds (should complete in ~30s)
-
-  proc.on("close", (code) => {
-    clearTimeout(timeout);
+  try {
+    const { extraArgs, timeoutMs } = getScreenerConfig();
+    const raw = await runScreener(['--limit', '60', ...extraArgs], timeoutMs);
+    
+    // Normalize the output
+    const items = Array.isArray(raw) ? raw : (Array.isArray(raw?.items) ? raw.items : []);
+    
+    cache.items = items.map(item => ({
+      ticker: item.ticker || item.symbol,
+      symbol: item.ticker || item.symbol,
+      score: item.score || item.vigl_score || 70,
+      price: item.price || 0,
+      thesis: item.thesis || item.thesis_tldr || `Score: ${item.score || 70}`,
+      run_id: item.run_id,
+      snapshot_ts: item.snapshot_ts
+    }));
+    
+    cache.updatedAt = Date.now();
+    cache.error = null;
     cache.running = false;
     
-    if (code === 0) {
-      try {
-        // Parse JSON output from universe screener
-        const lines = out.split('\n');
-        const jsonLine = lines.find(line => line.trim().startsWith('['));
-        
-        if (jsonLine) {
-          const data = JSON.parse(jsonLine);
-          cache.items = Array.isArray(data) ? data : (data.items || []);
-          cache.updatedAt = Date.now();
-          cache.error = null;
-          console.log(`✅ AlphaStack scan complete: ${cache.items.length} real opportunities found`);
-          
-          // Log sample results for verification
-          if (cache.items.length > 0) {
-            const sample = cache.items.slice(0, 3);
-            console.log('📊 Sample discoveries:', sample.map(d => `${d.symbol || d.ticker}:${d.score}`).join(', '));
-          }
-        } else {
-          console.log('❌ No JSON output from AlphaStack screener');
-          console.log('stdout:', out.substring(0, 500));
-          cache.error = 'No JSON output from screener';
-        }
-      } catch (parseError) {
-        console.error('❌ Failed to parse AlphaStack output:', parseError.message);
-        console.log('stdout sample:', out.substring(0, 500));
-        cache.error = 'JSON parse failed: ' + parseError.message;
-      }
-    } else {
-      console.error(`❌ AlphaStack screener failed with code ${code}`);
-      console.error('stderr:', err.substring(0, 500));
-      cache.error = `Screener exit code: ${code}`;
+    console.log(`✅ AlphaStack scan complete: ${cache.items.length} real opportunities found`);
+    
+    // Log sample results for verification
+    if (cache.items.length > 0) {
+      const sample = cache.items.slice(0, 3);
+      console.log('📊 Sample discoveries:', sample.map(d => `${d.symbol || d.ticker}:${d.score}`).join(', '));
     }
-  });
-
-  proc.on('error', (error) => {
-    clearTimeout(timeout);
+    
+  } catch (error) {
     cache.running = false;
     cache.error = error.message;
-    console.error('❌ AlphaStack process error:', error.message);
-  });
+    console.error('❌ AlphaStack screener failed:', error.message);
+  }
 }
 
 function startLoop() {
