@@ -352,6 +352,24 @@ app.get('/api/dashboard', async (req, res) => {
 // identity endpoint so we can verify we're on the API host  
 app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api', time: new Date().toISOString() }));
 
+// Build version endpoint to track deployments
+app.get('/api/discovery/version', (_req, res) => {
+  try {
+    const buildMeta = require('./build_meta.json');
+    res.json({ ok: true, ...buildMeta });
+  } catch (err) {
+    res.json({ 
+      ok: false, 
+      error: 'Build meta not found',
+      fallback: {
+        sha: 'unknown',
+        builtAt: 'unknown',
+        schemaVersion: 1
+      }
+    });
+  }
+});
+
 // Manual discovery trigger for testing
 app.get('/api/discovery/run-now', async (req, res) => {
   try {
