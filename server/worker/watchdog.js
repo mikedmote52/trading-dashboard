@@ -41,6 +41,8 @@ async function startWatchdog() {
   setInterval(async () => {
     try {
       const age = await lastSnapshotAgeMs();
+      console.log(`[watchdog] 💗 heartbeat: snapshot_age=${Math.round(age/60000)}m`);
+      
       if (age > 5 * 60 * 1000) { // stale > 5 minutes
         console.log(`⚠️ Snapshot stale (${Math.round(age/60000)}m), seeding...`);
         const { args } = getProfile();
@@ -56,6 +58,8 @@ async function startWatchdog() {
           });
           console.log(`✅ Watchdog seeded ${items.length} items`);
         }
+      } else {
+        console.log(`[watchdog] ✅ snapshot fresh (${Math.round(age/60000)}m old)`);
       }
     } catch (e) {
       console.warn('[watchdog] seed fail', e?.message || e);

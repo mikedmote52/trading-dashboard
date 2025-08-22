@@ -24,8 +24,7 @@ const CONFIG = {
   }
 };
 
-// Rejection telemetry
-type Reason = 'price'|'avgVol'|'relVol'|'atr'|'rsi'|'blacklist'|'other';
+// Rejection telemetry  
 const rejectCounters = {price:0, avgVol:0, relVol:0, atr:0, rsi:0, blacklist:0, other:0};
 
 function reject(reason) {
