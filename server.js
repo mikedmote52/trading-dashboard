@@ -713,8 +713,7 @@ app.post('/api/trade', async (req, res) => {
   }
 });
 
-// Health check endpoint (required for Render deployment)
-app.get('/api/health', createHealthCheck());
+// Health check endpoint (required for Render deployment) - handled by health router
 
 // Health check aliases for Render compatibility
 app.get('/healthz', (req, res) => {

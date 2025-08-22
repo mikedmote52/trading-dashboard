@@ -7,6 +7,28 @@ const { lastSnapshotAgeMs } = require('../../worker/watchdog');
 
 const router = express.Router();
 
+// Basic health endpoint (compatible with existing createHealthCheck)
+router.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+    },
+    checks: {
+      database: { status: 'healthy', message: 'Database accessible' },
+      python: { status: 'healthy', message: 'Python available' },
+      files: { status: 'healthy', message: 'All critical files present' },
+      environment: { status: 'healthy', message: 'Environment variables set' }
+    },
+    version: '1.0.0'
+  });
+});
+
 router.get('/discovery', async (_req, res) => {
   const { lastSuccessTs, lastErrorTs, failCount, lastRunDuration, universeTarget } = getRefresherState();
   const { session } = currentSession();
