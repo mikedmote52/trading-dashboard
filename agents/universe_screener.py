@@ -4,7 +4,7 @@ Universe Screener - Deterministic full-universe scanning
 Loads cached features, applies adaptive narrowing, scores ALL survivors, slices at end
 """
 
-import os, sys, json, argparse, time, math
+import os, sys, json, argparse, time, math, signal
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -12,6 +12,48 @@ import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Global partial results for SIGTERM handler
+partial_results = []
+json_out_path = None
+heartbeat_path = None
+heartbeat_timer = None
+
+def touch_heartbeat():
+    """Write current timestamp to heartbeat file"""
+    global heartbeat_path
+    if heartbeat_path:
+        try:
+            with open(heartbeat_path, 'w') as f:
+                f.write(str(int(time.time() * 1000)))
+        except:
+            pass
+
+def write_final_json(results):
+    """Write results to file and stdout with markers"""
+    global json_out_path
+    payload = json.dumps(results)
+    
+    if json_out_path:
+        try:
+            with open(json_out_path, 'w') as f:
+                f.write(payload)
+        except Exception as e:
+            print(f"Failed to write JSON file: {e}", file=sys.stderr)
+    
+    # Always write salvage markers
+    print(f"__JSON_START__{payload}__JSON_END__")
+
+def sigterm_handler(signum, frame):
+    """Handle SIGTERM by dumping partial results"""
+    global partial_results
+    print(f"⚠️ Received SIGTERM, writing partial results ({len(partial_results)} items)", file=sys.stderr)
+    write_final_json(partial_results)
+    sys.exit(0)
+
+# Install signal handlers
+signal.signal(signal.SIGTERM, sigterm_handler)
+signal.signal(signal.SIGINT, sigterm_handler)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONF = yaml.safe_load(open(ROOT / "config" / "alpha_scoring.yml"))
@@ -676,6 +718,14 @@ class UniverseScreener:
             candidate["featureFlags"] = [f for f in candidate["featureFlags"] if f is not None]
             
             candidates.append(candidate)
+            
+            # Update global partial results for SIGTERM handler
+            global partial_results
+            partial_results = candidates.copy()
+            
+            # Touch heartbeat every 10 items
+            if len(candidates) % 10 == 0:
+                touch_heartbeat()
 
         # Late short-interest enrichment for squeeze bias (deterministic; top N)
         enrich_max = int(UCFG.get("enrich_short_max", 800))
@@ -744,6 +794,8 @@ class UniverseScreener:
         return final
 
 def main():
+    global partial_results, json_out_path, heartbeat_path
+    
     parser = argparse.ArgumentParser(description='Deterministic Universe Stock Screener')
     parser.add_argument('--limit', type=int, default=5, help='Number of candidates to return')
     parser.add_argument('--exclude-symbols', type=str, default='', help='Comma-separated symbols to exclude')
@@ -752,23 +804,30 @@ def main():
     
     args = parser.parse_args()
     
+    # Set global JSON output path and heartbeat
+    json_out_path = os.environ.get('JSON_OUT_PATH')
+    heartbeat_path = os.environ.get('HEARTBEAT_PATH')
+    
+    # Start heartbeat
+    if heartbeat_path:
+        import threading
+        def heartbeat_loop():
+            while True:
+                touch_heartbeat()
+                time.sleep(5)
+        heartbeat_thread = threading.Thread(target=heartbeat_loop, daemon=True)
+        heartbeat_thread.start()
+        touch_heartbeat()  # Initial heartbeat
+    
     # Create screener and run scan
     screener = UniverseScreener()
     candidates = screener.screen_universe(args.limit, args.exclude_symbols, full_universe_mode=args.full_universe)
     
-    # Output as JSON for API consumption
-    payload = json.dumps(candidates)
+    # Store as partial results (in case of SIGTERM)
+    partial_results = candidates
     
-    # Prefer clean file output if path provided
-    json_out_path = os.environ.get('JSON_OUT_PATH')
-    if json_out_path:
-        with open(json_out_path, 'w') as f:
-            f.write(payload)
-        # Also echo with salvage markers for backward compatibility
-        print(f"__JSON_START__{payload}__JSON_END__")
-    else:
-        # Legacy stdout output
-        print(payload)
+    # Write final results
+    write_final_json(candidates)
 
 if __name__ == "__main__":
     main()
