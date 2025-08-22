@@ -11,6 +11,28 @@ if (usePython) {
 
 const router = express.Router();
 
+// Quick GET endpoint for manual testing (no auth required)
+router.get("/run-now", async (req, res) => {
+  try {
+    const { runScreener } = require("../../../lib/runScreener");
+    const limit = Number(req.query.limit ?? 5);
+    const budgetMs = Number(req.query.budgetMs ?? 8000);
+    
+    const result = await runScreener(['--limit', String(limit), '--budget-ms', String(budgetMs)]);
+    const raw = result.json || result;
+    
+    res.status(200).json({ 
+      ok: true, 
+      duration: result.duration || 0,
+      status: raw.status || "ok",
+      count: raw.count || 0,
+      items: raw.items || []
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 // Manual trigger endpoint for testing
 router.post("/run-now", async (req, res) => {
   // Simple token auth
@@ -25,9 +47,10 @@ router.post("/run-now", async (req, res) => {
     const { saveScoresAtomically } = require("../../services/sqliteScores");
     
     const { args, session, timeoutMs } = getProfile();
-    const raw = await runScreener(args, timeoutMs || 60000);
+    const result = await runScreener(args, timeoutMs || 60000);
     
-    // Normalize the data
+    // Extract items from new format { json, exitCode, duration, stdout, stderr }
+    const raw = result.json || result; // Handle both new and legacy formats
     const items = Array.isArray(raw) ? raw : (raw?.items || []);
     const normalized = items.map(item => ({
       ticker: item.ticker || item.symbol,
