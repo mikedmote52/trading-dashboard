@@ -47,9 +47,15 @@ def write_final_json(results):
 def sigterm_handler(signum, frame):
     """Handle SIGTERM by dumping partial results"""
     global partial_results
-    print(f"⚠️ Received SIGTERM, writing partial results ({len(partial_results)} items)", file=sys.stderr)
-    write_final_json(partial_results)
-    sys.exit(0)
+    try:
+        print(f"⚠️ Received SIGTERM, writing partial results ({len(partial_results)} items)", file=sys.stderr)
+    except:
+        pass
+    try:
+        write_final_json(partial_results)
+    except:
+        pass
+    os._exit(0)  # Use os._exit to ensure immediate termination
 
 # Install signal handlers
 signal.signal(signal.SIGTERM, sigterm_handler)
@@ -723,9 +729,15 @@ class UniverseScreener:
             global partial_results
             partial_results = candidates.copy()
             
-            # Touch heartbeat every 10 items
+            # Touch heartbeat and flush every 10 items
             if len(candidates) % 10 == 0:
                 touch_heartbeat()
+                # Also flush to disk for safety
+                if json_out_path:
+                    try:
+                        write_final_json(candidates)
+                    except:
+                        pass
 
         # Late short-interest enrichment for squeeze bias (deterministic; top N)
         enrich_max = int(UCFG.get("enrich_short_max", 800))
