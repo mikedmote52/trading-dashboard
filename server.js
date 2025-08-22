@@ -2426,7 +2426,7 @@ app.use(errorHandler);
 
 // Start server
 const port = process.env.PORT || 3003;
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`listening`, { port, select_engine: process.env.SELECT_ENGINE });
   console.log(`🚀 Trading Intelligence Dashboard running on port ${port}`);
   console.log(`📊 Dashboard: http://localhost:${port}`);
