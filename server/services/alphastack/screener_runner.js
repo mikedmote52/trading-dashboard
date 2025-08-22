@@ -1,5 +1,5 @@
-const { runScreener } = require("../../lib/runScreener");
-const { getScreenerConfig } = require("../../lib/config");
+const { runScreener } = require("../../../lib/runScreener");
+const { getScreenerConfig } = require("../../../lib/config");
 
 const cache = { 
   items: [], 
