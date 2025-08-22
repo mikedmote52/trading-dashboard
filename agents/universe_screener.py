@@ -757,7 +757,18 @@ def main():
     candidates = screener.screen_universe(args.limit, args.exclude_symbols, full_universe_mode=args.full_universe)
     
     # Output as JSON for API consumption
-    print(json.dumps(candidates))
+    payload = json.dumps(candidates)
+    
+    # Prefer clean file output if path provided
+    json_out_path = os.environ.get('JSON_OUT_PATH')
+    if json_out_path:
+        with open(json_out_path, 'w') as f:
+            f.write(payload)
+        # Also echo with salvage markers for backward compatibility
+        print(f"__JSON_START__{payload}__JSON_END__")
+    else:
+        # Legacy stdout output
+        print(payload)
 
 if __name__ == "__main__":
     main()
