@@ -10,7 +10,6 @@ export function getScreenerConfig(): ScreenerConfig {
   const limit     = clamp(process.env.SCREENER_LIMIT,           60,    5,   200);
 
   const defaults = [
-    '--json-out',
     '--limit', String(limit)
   ];
   const extraRaw = (process.env.SCREENER_EXTRA_ARGS || '').trim();

@@ -11,27 +11,51 @@ const { DISCOVERY } = require('../../config/discovery');
  * @returns {Object} Score result with components and classification
  */
 function viglScore(candidate) {
-  if (!candidate || !candidate.symbol) {
-    throw new Error('Invalid candidate data provided to VIGL scorer');
+  const { normalizePrice } = require('../../lib/price');
+  
+  if (!candidate) {
+    console.warn('⚠️ [vigl_score] Invalid candidate: null/undefined');
+    return { score: 0, action: 'DROP', symbol: 'UNKNOWN', price: 0 };
   }
   
-  const { symbol, price, rvol = 1.0, shortData = {}, options = {}, social = {}, news = {}, technicals = {} } = candidate;
+  // Handle both 'symbol' and 'ticker' fields
+  const symbol = candidate.symbol || candidate.ticker || 'UNKNOWN';
+  
+  // Extract and validate price
+  let price = normalizePrice(candidate);
+  if (!price || price <= 0) {
+    // Try nested data structure
+    price = normalizePrice(candidate.data) || normalizePrice(candidate.quote);
+    
+    if (!price || price <= 0) {
+      console.warn(`⚠️ [vigl_score] ${symbol}: no valid price found, score=0`);
+      return { 
+        score: 0, 
+        action: 'DROP', 
+        symbol, 
+        price: 0,
+        components: { volume: 0, squeeze: 0, catalyst: 0, sentiment: 0, options: 0, technical: 0 }
+      };
+    }
+  }
+  
+  const { rvol = 1.0, shortData = {}, options = {}, social = {}, news = {}, technicals = {} } = candidate;
   const weights = DISCOVERY.weights;
   
   console.log(`🧮 Computing VIGL score for ${symbol} (price: $${price})`);
   
-  // Component scoring (each 0-1)
+  // Component scoring (each 0-1) with NaN protection
   const components = {
-    volume: scoreVolume(rvol),
-    squeeze: scoreSqueeze(shortData),
-    catalyst: scoreCatalyst(news),
-    sentiment: scoreSentiment(social),
-    options: scoreOptions(options),
-    technical: scoreTechnical(technicals, price)
+    volume: Number.isFinite(scoreVolume(rvol)) ? scoreVolume(rvol) : 0,
+    squeeze: Number.isFinite(scoreSqueeze(shortData)) ? scoreSqueeze(shortData) : 0,
+    catalyst: Number.isFinite(scoreCatalyst(news)) ? scoreCatalyst(news) : 0.3,
+    sentiment: Number.isFinite(scoreSentiment(social)) ? scoreSentiment(social) : 0,
+    options: Number.isFinite(scoreOptions(options)) ? scoreOptions(options) : 0,
+    technical: Number.isFinite(scoreTechnical(technicals, price)) ? scoreTechnical(technicals, price) : 0.3
   };
   
-  // Weighted composite score (0-1)
-  const compositeScore = (
+  // Weighted composite score (0-1) with NaN protection
+  let compositeScore = (
     weights.volume * components.volume +
     weights.squeeze * components.squeeze +
     weights.catalyst * components.catalyst +
@@ -40,8 +64,14 @@ function viglScore(candidate) {
     weights.technical * components.technical
   );
   
-  // Scale to VIGL 0-4 range matching your observed scores
-  const viglScore = +(compositeScore * 4).toFixed(3);
+  // Guard against NaN
+  if (!Number.isFinite(compositeScore)) {
+    console.warn(`⚠️ [score_nan] ${symbol}: composite score is NaN, components:`, components);
+    compositeScore = 0;
+  }
+  
+  // Scale to 0-100 range for AlphaStack compatibility (not 0-4)
+  const viglScore = Math.min(100, Math.max(0, +(compositeScore * 100).toFixed(1)));
   
   // Classify based on thresholds
   let action = 'DROP';

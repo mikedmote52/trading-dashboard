@@ -8,6 +8,27 @@ const { enrichFinalists } = require('../services/enrichment');
 const { viglScore } = require('../services/vigl-scoring');
 const { saveDiscoveryAtomic } = require('../db/discoveries-repository');
 
+// Global state for debug endpoint
+let lastFinalRun = null;
+
+function recordFinalRun(stage, accepted) {
+  lastFinalRun = { 
+    ts: new Date().toISOString(), 
+    stage, 
+    accepted: accepted.length,
+    acceptedSample: accepted.slice(0, 3).map(a => ({
+      symbol: a.symbol,
+      score: a.score,
+      action: a.action
+    }))
+  };
+}
+
+// Export for debug routes
+function getLastFinalRun() {
+  return lastFinalRun || { ok: false, msg: 'no run yet' };
+}
+
 /**
  * Capture daily features for symbols using rate-limited queue
  * @param {Array<string>} symbols List of symbols to capture
@@ -220,27 +241,147 @@ async function runVIGLDiscovery() {
     
     // Stage 3: VIGL scoring and classification
     console.log(`🧮 VIGL scoring ${enrichedCandidates.length} enriched candidates...`);
+    
+    // Stage-by-stage counting and rejection tracking
+    const stage = {
+      universe: metrics.universe,
+      prefilter_kept: candidates.length,
+      enrich_requested: candidates.length,
+      enrich_success: enrichedCandidates.filter(e => e && e.symbol).length,
+      // Post-enrichment eligibility reasons:
+      minScore_drop: 0,
+      catalyst_drop: 0,
+      options_drop: 0,
+      dedupe_drop: 0,
+      confidence_low_drop: 0,
+      window_drop: 0,
+      schema_drop: 0,
+      scoring_error_drop: 0,
+      db_constraint_drop: 0
+    };
+    
+    const seenTickers = new Set();
     const viglResults = [];
+    const rejected = [];
     const asof = new Date();
     
     for (const candidate of enrichedCandidates) {
       try {
+        if (!candidate) {
+          stage.schema_drop++;
+          continue;
+        }
+        
+        // Normalize symbol field - could be 'symbol' or 'ticker'  
+        if (!candidate.symbol && candidate.ticker) {
+          candidate.symbol = candidate.ticker;
+        }
+        
+        if (!candidate.symbol) {
+          stage.schema_drop++;
+          console.log(`⚠️ Schema drop: ${JSON.stringify(Object.keys(candidate))}`);
+          continue;
+        }
+        
         const scored = viglScore(candidate);
+        const reasons = [];
         
-        // Stage 4: Atomic persistence with price validation
-        const saveResult = saveDiscoveryAtomic(scored, asof);
+        // Apply post-enrichment eligibility filters
+        if (!scored.score || scored.score < (Number(process.env.MIN_SCORE || 70))) {
+          stage.minScore_drop++;
+          reasons.push(`score_${scored.score}<MIN`);
+        }
+        if (process.env.REQUIRE_CATALYST === 'true' && !candidate.news?.hasCatalyst) {
+          stage.catalyst_drop++;
+          reasons.push('no_catalyst');
+        }
+        if (process.env.REQUIRE_OPTIONS_FLOW === 'true' && !candidate.options?.bullish) {
+          stage.options_drop++;
+          reasons.push('no_options_flow');
+        }
+        if (seenTickers.has(scored.symbol)) {
+          stage.dedupe_drop++;
+          reasons.push('duplicate');
+        }
+        if (scored.action === 'DROP' && process.env.ALLOW_LOW_CONF !== 'true') {
+          stage.confidence_low_drop++;
+          reasons.push('confidence_low');
+        }
         
-        if (saveResult.success) {
-          viglResults.push(scored);
-          console.log(`💾 ${scored.symbol}: score=${scored.score}, action=${scored.action}`);
-        } else {
-          console.log(`⚠️ Skipped saving ${scored.symbol}: ${saveResult.reason || saveResult.error}`);
+        // Track rejection sample (top 5)
+        if (reasons.length && rejected.length < 5) {
+          rejected.push({
+            t: scored.symbol,
+            reasons,
+            relVol: candidate.rvol,
+            price: candidate.price,
+            score: scored.score
+          });
+        }
+        
+        // Skip if any exclusion criteria met
+        if (reasons.length) continue;
+        
+        seenTickers.add(scored.symbol);
+        
+        // Stage 4: Unified schema persistence
+        try {
+          // Convert to AlphaStack format for unified ingestion
+          const alphaStackItem = {
+            ticker: scored.symbol,
+            score: scored.score,
+            price: scored.price,
+            confidence: scored.confidence || 'high',
+            relVol: scored.relVol,
+            shortInterest: scored.shortInterest,
+            utilization: scored.utilization,
+            borrowFee: scored.borrowFee,
+            callPutRatio: scored.callPutRatio,
+            ivPercentile: scored.ivPercentile,
+            sentiment: scored.sentiment,
+            buzz: scored.buzz,
+            enrichErrors: candidate.enrichErrors || [],
+            prefiltered: true,
+            meta: { 
+              vigl_pipeline: true, 
+              asof: asof.toISOString(),
+              action: scored.action 
+            }
+          };
+          
+          const { ingestAlphaStack } = require('../services/unified-discovery');
+          const result = ingestAlphaStack([alphaStackItem]);
+          
+          if (result.success && result.inserted > 0) {
+            viglResults.push(scored);
+            console.log(`💾 Unified: ${scored.symbol}: score=${scored.score}, action=${scored.action}`);
+          } else {
+            stage.db_constraint_drop++;
+            console.log(`⚠️ Unified ingest failed for ${scored.symbol}: ${result.errors.join(', ')}`);
+          }
+        } catch (dbError) {
+          stage.db_constraint_drop++;
+          console.error('[unified_ingest_error]', String(dbError));
         }
         
       } catch (scoringError) {
+        stage.scoring_error_drop++;
         console.error(`❌ VIGL scoring failed for ${candidate.symbol}:`, scoringError.message);
       }
     }
+    
+    // Store final run data for debug endpoint
+    recordFinalRun(stage, viglResults);
+    
+    // Log stage-by-stage counts and rejection sample
+    console.log(`[final] counts=${JSON.stringify(stage)} accepted=${viglResults.length}`);
+    if (rejected.length > 0) {
+      console.warn('[final_reject_sample]', JSON.stringify(rejected));
+    }
+    
+    // DB insert attempt logging
+    const eligible = viglResults.length + stage.db_constraint_drop;
+    console.log(`[db_insert] attempting=${eligible} after_filters accepted=${viglResults.length}`);
     
     console.log(`✅ VIGL Discovery Complete: ${viglResults.length} discoveries persisted`);
     
@@ -309,5 +450,6 @@ module.exports = {
   captureDaily,
   startDailyCapture,
   runDiscoveryCapture,
-  runVIGLDiscovery
+  runVIGLDiscovery,
+  getLastFinalRun
 };

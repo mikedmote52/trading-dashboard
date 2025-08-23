@@ -18,13 +18,14 @@ const DISCOVERY = {
     minShares: parseFloat(process.env.DISCOVERY_MIN_SHARES || 500000)
   },
   
-  // Scoring weights (total 100)
+  // Scoring weights for VIGL (normalized to sum to 1.0)
   weights: {
-    momentum: parseFloat(process.env.DISCOVERY_WEIGHT_MOMENTUM || 25),
-    squeeze: parseFloat(process.env.DISCOVERY_WEIGHT_SQUEEZE || 20),
-    catalyst: parseFloat(process.env.DISCOVERY_WEIGHT_CATALYST || 30),
-    sentiment: parseFloat(process.env.DISCOVERY_WEIGHT_SENTIMENT || 15),
-    technical: parseFloat(process.env.DISCOVERY_WEIGHT_TECHNICAL || 10)
+    volume: parseFloat(process.env.DISCOVERY_WEIGHT_VOLUME || 0.20),      // Volume spike importance
+    squeeze: parseFloat(process.env.DISCOVERY_WEIGHT_SQUEEZE || 0.25),    // Short squeeze potential
+    catalyst: parseFloat(process.env.DISCOVERY_WEIGHT_CATALYST || 0.20),  // News/catalyst events
+    sentiment: parseFloat(process.env.DISCOVERY_WEIGHT_SENTIMENT || 0.15), // Social sentiment
+    options: parseFloat(process.env.DISCOVERY_WEIGHT_OPTIONS || 0.10),     // Options activity
+    technical: parseFloat(process.env.DISCOVERY_WEIGHT_TECHNICAL || 0.10)  // Technical indicators
   },
   
   // Readiness tiers
@@ -99,6 +100,13 @@ const DISCOVERY = {
     maxCandidates: parseInt(process.env.DISCOVERY_MAX_CANDIDATES || 50),
     scanDebounceMs: parseInt(process.env.DISCOVERY_SCAN_DEBOUNCE || 5000),
     cacheMaxAge: parseInt(process.env.DISCOVERY_CACHE_MAX_AGE || 300000) // 5 minutes
+  },
+
+  // Classification thresholds (VIGL 0-4 scale)
+  classify: {
+    buy: parseFloat(process.env.VIGL_CLASSIFY_BUY || 2.5),        // 2.5+ = BUY
+    watch: parseFloat(process.env.VIGL_CLASSIFY_WATCH || 1.5),    // 1.5+ = WATCHLIST  
+    monitor: parseFloat(process.env.VIGL_CLASSIFY_MONITOR || 0.8) // 0.8+ = MONITOR
   }
 };
 

@@ -1,0 +1,13 @@
+[
+  {
+    "timestamp": "2025-08-23T08:40:49.504Z",
+    "date": "2025-08-23",
+    "portfolio_value": "100313.71",
+    "daily_pnl": 0,
+    "position_count": 5,
+    "vigl_discoveries": 0,
+    "high_confidence_vigl": 0,
+    "alerts_count": 3,
+    "high_priority_alerts": 1
+  }
+]

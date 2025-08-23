@@ -33,8 +33,80 @@ router.get("/run-now", async (req, res) => {
   }
 });
 
-// Manual trigger endpoint for testing
+// Direct bypass endpoint - ships working signals immediately
+router.get("/run-now-direct", async (req, res) => {
+  try {
+    console.log('🔧 Direct ingest endpoint called - about to require screener_direct_ingest');
+    const { ingestDirect } = require("../../jobs/screener_direct_ingest");
+    console.log('🔧 Required screener_direct_ingest successfully');
+    
+    const limit = Number(req.query.limit || 10);
+    const budgetMs = Number(req.query.budgetMs || 12000);
+    
+    console.log(`🚀 Direct ingest: limit=${limit}, budget=${budgetMs}ms`);
+    console.log('🔧 About to call ingestDirect');
+    const result = await ingestDirect(limit, budgetMs);
+    console.log('🔧 ingestDirect completed:', result);
+    
+    res.status(200).json({ 
+      ok: true, 
+      ...result,
+      message: `Direct ingest complete: ${result.count} discoveries saved`
+    });
+  } catch (error) {
+    console.error('❌ Direct ingest endpoint error:', error.message);
+    console.error('❌ Full error:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Async job endpoints - prevent timeout/header race
+const { startJob, getJobStatus } = require("../../jobs/async_runner");
+
+// Start async discovery job
 router.post("/run-now", async (req, res) => {
+  // Simple token auth
+  if (req.headers["x-run-token"] !== process.env.DISCOVERY_RUN_TOKEN && 
+      req.headers["x-run-token"] !== "test123") {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  
+  try {
+    const jobType = req.body.engine === 'direct' ? 'discovery_direct' : 'discovery_alphastack';
+    const params = {
+      limit: Number(req.body.limit || 10),
+      budgetMs: Number(req.body.budgetMs || 12000)
+    };
+    
+    const jobId = startJob(jobType, params);
+    
+    res.status(202).json({
+      ok: true,
+      job_id: jobId,
+      status: 'started',
+      message: 'Discovery job started. Poll /api/discovery/job/:jobId for status'
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Poll job status
+router.get("/job/:jobId", (req, res) => {
+  const jobId = req.params.jobId;
+  const status = getJobStatus(jobId);
+  
+  res.json({
+    job_id: jobId,
+    ...status
+  });
+});
+
+// Legacy sync endpoint for backward compatibility
+router.post("/run-now-sync", async (req, res) => {
   // Simple token auth
   if (req.headers["x-run-token"] !== process.env.DISCOVERY_RUN_TOKEN && 
       req.headers["x-run-token"] !== "test123") {
@@ -399,6 +471,98 @@ router.get("/health", (req, res) => {
     error,
     cacheAge: Date.now() - updatedAt
   });
+});
+
+// Enrichment debug endpoint
+router.get("/_debug/enrich", (req, res) => {
+  try {
+    const { getEnrichmentTelemetry } = require("../../services/enrichment");
+    res.json(getEnrichmentTelemetry());
+  } catch (err) {
+    res.status(500).json({ error: err.message, available: false });
+  }
+});
+
+// Final run debug endpoint
+router.get("/_debug/final", (req, res) => {
+  try {
+    const { getLastFinalRun } = require("../../jobs/capture");
+    res.json(getLastFinalRun());
+  } catch (err) {
+    res.status(500).json({ error: err.message, available: false });
+  }
+});
+
+// System version endpoint
+router.get("/version", (req, res) => {
+  res.json({
+    name: "Trading Intelligence Discovery API",
+    version: "1.0.0",
+    engine: process.env.SELECT_ENGINE || "optimized",
+    features: {
+      enrichment: true,
+      telemetry: true,
+      timeout_protection: true,
+      wal_mode: true
+    },
+    limits: {
+      enrich_concurrency: Number(process.env.ENRICH_CONCURRENCY || 4),
+      enrich_timeout_ms: Number(process.env.ENRICH_TIMEOUT_MS || 4000),
+      cycle_budget_ms: Number(process.env.ENRICH_CYCLE_BUDGET_MS || 12000)
+    }
+  });
+});
+
+// Direct worker health endpoint
+// Health monitoring endpoints
+router.get("/_debug/direct", (req, res) => {
+  try {
+    const { getLastDirectRun } = require("../../workers/discovery_direct_worker");
+    const lastRun = getLastDirectRun();
+    res.json({
+      ...lastRun,
+      worker_active: true,
+      period_ms: Number(process.env.DIRECT_WORKER_PERIOD_MS ?? 120000)
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      worker_active: false, 
+      error: err.message,
+      ts: new Date().toISOString()
+    });
+  }
+});
+
+router.get("/_debug/health", (req, res) => {
+  try {
+    const { getSystemHealth } = require("../../services/health_monitor");
+    const health = getSystemHealth();
+    res.json(health);
+  } catch (err) {
+    res.status(500).json({ 
+      error: err.message,
+      timestamp: Date.now() 
+    });
+  }
+});
+
+router.post("/_debug/rollback/:component", (req, res) => {
+  const { component } = req.params;
+  try {
+    const { triggerRollback } = require("../../services/health_monitor");
+    triggerRollback(component);
+    res.json({
+      ok: true,
+      message: `Rollback triggered for ${component}`,
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message,
+      timestamp: Date.now()
+    });
+  }
 });
 
 // Snapshot endpoint - returns exact saved JSON

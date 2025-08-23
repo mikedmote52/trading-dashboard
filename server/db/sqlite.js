@@ -12,10 +12,15 @@ ensureSchema(dbPath);
 // NOW it's safe to create the database connection and prepare statements
 const db = new Database(dbPath);
 
+// Enable WAL mode and safe concurrency settings
+db.exec('PRAGMA journal_mode=WAL;');
+db.exec('PRAGMA synchronous=NORMAL;');
+db.exec(`PRAGMA busy_timeout=${Number(process.env.SQLITE_BUSY_TIMEOUT_MS || 2000)};`);
+
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
-console.log('✅ SQLite schema verified/created');
+console.log('✅ SQLite schema verified/created with WAL mode enabled');
 
 // Prepared statements for features (now safe because table exists)
 const insertFeaturesSnapshot = db.prepare(`

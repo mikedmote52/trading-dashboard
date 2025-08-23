@@ -7,6 +7,17 @@
 // Load environment variables first
 require('dotenv').config();
 
+// Prevent process crashes from unhandled promises
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[unhandledRejection]', reason);
+  console.error('[unhandledRejection] at promise:', promise);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[uncaughtException]', error);
+  // DO NOT process.exit() — let PM2/Render restart only if truly fatal
+});
+
 // Load and validate environment with comprehensive validation
 const { validateAndLoadEnvironment } = require('./server/utils/environmentValidator');
 console.log('🔧 Validating environment variables...');
@@ -59,6 +70,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const https = require('https');
+const http = require('http');
 const { spawn } = require('child_process');
 const PortfolioIntelligence = require('./portfolio_intelligence');
 const { saveSimpleBackup } = require('./utils/simple_data_backup');
@@ -2415,6 +2427,17 @@ function makeAlpacaTradeRequest(endpoint, method, data) {
   });
 }
 
+// Health check endpoint
+app.get('/healthz', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: '1.0.0'
+  });
+});
+
 // Serve frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -2453,12 +2476,32 @@ if (process.env.STRICT_STARTUP === 'true') {
   console.log('ℹ️  Startup health check disabled (set STRICT_STARTUP=true to enable)');
 }
 
+// Express-level timeout guard for long handlers
+app.use((req, res, next) => {
+  res.setHeader('X-Request-Start', Date.now().toString());
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(504).json({ ok: false, error: 'handler timeout' });
+    }
+  }, Number(process.env.ROUTE_TIMEOUT_MS || 15000));
+  res.on('finish', () => clearTimeout(timeout));
+  next();
+});
+
 // Global error handler (must be last middleware)
 app.use(errorHandler);
 
-// Start server
+// Start server with safe timeout configuration
 const port = process.env.PORT || 3003;
-app.listen(port, '0.0.0.0', () => {
+const server = http.createServer(app);
+
+// Set safe server timeouts to prevent crashes
+server.headersTimeout = 65000;     // Default 60s + small cushion
+server.requestTimeout = 30000;     // Avoid extremely long handlers
+server.keepAliveTimeout = 10000;   // Lower to free sockets
+server.maxHeadersCount = 16000;    // Plenty for proxies
+
+server.listen(port, '0.0.0.0', () => {
   console.log(`listening`, { port, select_engine: process.env.SELECT_ENGINE });
   console.log(`🚀 Trading Intelligence Dashboard running on port ${port}`);
   console.log(`📊 Dashboard: http://localhost:${port}`);
@@ -2532,6 +2575,13 @@ app.listen(port, '0.0.0.0', () => {
         }
       }
     }, 3000); // 3 second delay to ensure server is fully ready
+  }
+  
+  // Start direct worker for scheduled discovery ingestion
+  if (process.env.ROLE === "worker" || !process.env.ROLE) {
+    console.log('🔧 Starting direct discovery worker...');
+    const { startDirectWorker } = require("./server/workers/discovery_direct_worker");
+    startDirectWorker();
   }
 });
 
