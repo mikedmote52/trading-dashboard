@@ -29,6 +29,14 @@ console.log('[boot] flags', {
   RAW_DIRECT_WORKER_ENABLED: process.env.DIRECT_WORKER_ENABLED
 });
 
+// AlphaStack boot verification
+console.log('[AlphaStack] boot', {
+  COMMIT: process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || process.env.COMMIT_SHA || 'unknown',
+  NODE_ENV: process.env.NODE_ENV,
+  USE_POSTGRES: process.env.USE_POSTGRES,
+  PG: !!process.env.DATABASE_URL
+});
+
 // Boot stamp logging for deployment verification
 try {
   const { readFileSync, existsSync } = require('fs');
@@ -892,6 +900,10 @@ app.get('/health', (req, res) => res.send('ok'));
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
 });
+
+// Health endpoints before static files (required for deployment)
+app.get('/health/live', (_, res) => res.status(200).json({ ok: true }));
+app.get('/health/ready', (_, res) => res.status(200).json({ ok: true }));
 
 // Serve static files (including alpha dashboard)
 const SERVE_STATIC = flag('SERVE_STATIC', false);

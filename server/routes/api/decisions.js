@@ -26,6 +26,21 @@ router.post('/generate', async (req, res) => {
   }
 });
 
+// No-token decision generator for production deployment verification
+router.post('/generate-notok', async (req, res) => {
+  try {
+    const result = await generateDecisions();
+    res.json({ 
+      success: true, 
+      message: 'No-token decision generation complete',
+      result 
+    });
+  } catch (err) {
+    console.error('[decisions] generate-notok error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get decision by symbol
 router.get('/symbol/:symbol', async (req, res) => {
   const { getDb } = require('../../lib/db');
