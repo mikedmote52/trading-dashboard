@@ -4,8 +4,59 @@
  * Unified VIGL Discovery + Portfolio Management in single deployment
  */
 
-// Load environment variables first
+// Load spawn guard first to prevent direct screener calls
+require('./server/boot/monkeyGuard');
+
+// Load environment variables
 require('dotenv').config();
+
+// Environment flag parsing
+const { flag } = require('./server/lib/envFlags');
+
+// Parse environment flags
+const SAFE_MODE = flag('SAFE_MODE', false);
+const DIRECT_WORKER_ENABLED = flag('DIRECT_WORKER_ENABLED', 
+  flag('ENABLE_DIRECT_WORKER', 
+    flag('ALPHASTACK_DIRECT_WORKER_ENABLED', true))); // default true if unset
+const STRICT_STARTUP = flag('STRICT_STARTUP', true);
+const NEW_DASH_ENABLED = flag('NEW_DASH_ENABLED', true);
+
+console.log('[boot] flags', {
+  SAFE_MODE, 
+  DIRECT_WORKER_ENABLED,
+  STRICT_STARTUP,
+  NEW_DASH_ENABLED,
+  RAW_DIRECT_WORKER_ENABLED: process.env.DIRECT_WORKER_ENABLED
+});
+
+// Boot stamp logging for deployment verification
+try {
+  const { readFileSync, existsSync } = require('fs');
+  const stamp = existsSync('.build-stamp.json')
+    ? JSON.parse(readFileSync('.build-stamp.json', 'utf8'))
+    : null;
+  console.log('[boot-stamp]', stamp);
+} catch (e) {
+  console.warn('[boot-stamp] missing or unreadable:', e?.message || e);
+}
+
+// DB path validation and setup
+try {
+  const { resolveDbPath } = require('./server/lib/dbPath');
+  const { mkdirSync } = require('fs');
+  const path = require('path');
+  
+  const dbFile = resolveDbPath();
+  console.log('[db-path]', { resolved: dbFile, env: process.env.DB_PATH });
+  
+  if (process.env.NODE_ENV === 'production' && !dbFile.startsWith('/var/data/')) {
+    console.warn('[db] WARNING: DB_PATH not in /var/data; got', dbFile);
+  }
+  
+  mkdirSync(path.dirname(dbFile), { recursive: true });
+} catch (e) {
+  console.warn('[db-path] setup error:', e?.message || e);
+}
 
 // Prevent process crashes from unhandled promises
 process.on('unhandledRejection', (reason, promise) => {
@@ -152,6 +203,12 @@ if (metricsService) {
   console.log('📊 Prometheus HTTP metrics middleware enabled');
 }
 
+// HTTP access logger
+app.use((req, _res, next) => { 
+  console.log(`[http] ${req.method} ${req.originalUrl}`); 
+  next(); 
+});
+
 // Request timing and engine tracing
 app.use((req, res, next) => {
   const t0 = Date.now();
@@ -187,6 +244,17 @@ app.use('/api/discovery', require('./server/routes/api/discoveries'));
 app.use('/api/order', require('./server/routes/api/order'));
 app.use('/api/portfolio', require('./server/routes/api/portfolio'));
 app.use('/api/health', require('./server/routes/api/health'));
+
+// Debug routes endpoint
+app.get('/api/_debug/routes', (req, res) => {
+  try {
+    const { routeList } = require('./server/boot/routeList');
+    res.json({ routes: routeList(app) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use('/api/discovery/config', require('./server/routes/api/config'));
 app.use('/api/scan', require('./server/routes/scan'));
 
@@ -224,12 +292,15 @@ app.use('/api/portfolio-intelligence', require('./server/routes/portfolio-intell
 // Debug status endpoints for cache visibility
 app.use('/api/debug', require('./server/routes/debug-status'));
 
+// Debug DB path endpoint
+app.use('/api/_debug', require('./server/routes/_debug_db'));
+
 // Dashboard compatibility route that never 502s
 app.use('/api/dashboard', require('./server/routes/dashboard-compat'));
 
 // V2 API Routes (isolated for new dashboard - read-only)
-console.log('🔍 NEW_DASH_ENABLED environment variable:', process.env.NEW_DASH_ENABLED);
-if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
+console.log('🔍 NEW_DASH_ENABLED flag:', NEW_DASH_ENABLED);
+if (NEW_DASH_ENABLED || process.env.NODE_ENV === 'production') {
   console.log('🚀 V2 API routes enabled for alpha dashboard');
   app.use('/api/v2/scan', require('./server/routes/v2/scan'));
   app.use('/api/v2/metrics', require('./server/routes/v2/metrics'));
@@ -367,16 +438,49 @@ app.get('/api/whoami', (_req, res) => res.json({ service: 'trading-dashboard-api
 // Build version endpoint to track deployments
 app.get('/api/discovery/version', (_req, res) => {
   try {
-    const buildMeta = require('./build_meta.json');
-    res.json({ ok: true, ...buildMeta });
+    const { readFileSync, existsSync } = require('fs');
+    const stamp = existsSync('.build-stamp.json')
+      ? JSON.parse(readFileSync('.build-stamp.json', 'utf8'))
+      : null;
+    
+    const response = {
+      name: "Trading Intelligence Discovery API",
+      version: process.env.npm_package_version || "1.0.0", 
+      engine: "optimized",
+      features: {
+        enrichment: true,
+        telemetry: true,
+        timeout_protection: true,
+        wal_mode: true
+      },
+      limits: {
+        enrich_concurrency: Number(process.env.ENRICH_CONCURRENCY) || 4,
+        enrich_timeout_ms: Number(process.env.ENRICH_TIMEOUT_MS) || 4000,
+        cycle_budget_ms: Number(process.env.ENRICH_CYCLE_BUDGET_MS) || 12000
+      },
+      stamp,
+      env: {
+        service: process.env.SERVICE_ROLE || 'unknown',
+        port: process.env.PORT || '3001',
+        branch: process.env.RENDER_GIT_BRANCH || null,
+        commit: process.env.RENDER_GIT_COMMIT || null,
+        node_env: process.env.NODE_ENV || 'development'
+      },
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(response);
   } catch (err) {
     res.json({ 
       ok: false, 
-      error: 'Build meta not found',
+      error: 'Build stamp error: ' + (err?.message || String(err)),
       fallback: {
-        sha: 'unknown',
-        builtAt: 'unknown',
-        schemaVersion: 1
+        name: "Trading Intelligence Discovery API",
+        version: "1.0.0",
+        engine: "optimized",
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
       }
     });
   }
@@ -786,11 +890,12 @@ app.use('/api', (req, res) => {
 });
 
 // Serve static files (including alpha dashboard)
-if (process.env.SERVE_STATIC === 'true' || process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
+const SERVE_STATIC = flag('SERVE_STATIC', false);
+if (SERVE_STATIC || NEW_DASH_ENABLED || process.env.NODE_ENV === 'production') {
   app.use(require('express').static('public'));
   
   // Add alpha route when feature flag is enabled - serve enhanced dashboard
-  if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
+  if (NEW_DASH_ENABLED || process.env.NODE_ENV === 'production') {
     console.log('🚀 Alpha route enabled at /alpha');
     app.get('/alpha', (req, res) => {
       res.sendFile(path.resolve(__dirname, 'public/thesis-first.html'));
@@ -2439,36 +2544,67 @@ app.get('/healthz', (req, res) => {
 });
 
 // Serve frontend
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+if (NEW_DASH_ENABLED) {
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+  console.log('[ui] Minimal dashboard mounted at /');
+} else {
+  app.get('/', (req, res) => {
+    res.json({ message: 'Trading Dashboard API - NEW_DASH_ENABLED=false' });
+  });
+}
 
 // Portfolio page route
 app.get('/portfolio', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'portfolio-lpi-v2.html'));
 });
 
-// Startup health check - can be enabled with STRICT_STARTUP=true
-if (process.env.STRICT_STARTUP === 'true') {
-  (async () => {
-    const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
-    console.log('🔍 Performing startup health check...');
+// Guarded feed initialization with SAFE_MODE support
+async function guardedInitFeeds() {
+  try {
+    if (SAFE_MODE) { 
+      console.log('[boot] SAFE_MODE: skip external feeds'); 
+      return { skipped: true }; 
+    }
     
+    const { runHeartbeat, allHealthy } = require('./server/health/heartbeat');
+    console.log('[boot] checking feed health...');
+    const snap = await runHeartbeat();
+    
+    if (!allHealthy(snap)) {
+      console.warn('[boot] feeds degraded:', snap.filter(s => s.status !== 'OK').map(s => `${s.source}: ${s.status}`).join(', '));
+      return { ok: false, degraded: true };
+    }
+    
+    return { ok: true };
+  } catch (e) {
+    if (STRICT_STARTUP && !SAFE_MODE) {
+      console.error('[boot] strict startup failed:', e.message);
+      throw e;
+    }
+    console.warn('[boot] feeds degraded:', String(e?.message || e));
+    return { ok: false, degraded: true };
+  }
+}
+
+// Startup health check
+if (STRICT_STARTUP || !SAFE_MODE) {
+  (async () => {
     try {
-      const snap = await runHeartbeat();
-      if (!allHealthy(snap)) {
-        console.error('❌ Startup blocked: data feeds not healthy');
-        snap.forEach(s => {
-          if (s.status !== 'OK') {
-            console.error(`  - ${s.source}: ${s.status} (${s.detail})`);
-          }
-        });
-        console.error('🚫 Server will not start with degraded data feeds in strict mode');
+      const feedResult = await guardedInitFeeds();
+      if (feedResult.skipped) {
+        console.log('[boot] ✅ SAFE_MODE: feeds skipped, server starting');
+      } else if (feedResult.ok) {
+        console.log('[boot] ✅ All data feeds healthy - starting server');
+      } else if (feedResult.degraded && STRICT_STARTUP && !SAFE_MODE) {
+        console.error('[boot] 🚫 Server will not start with degraded data feeds in strict mode');
         process.exit(1);
+      } else {
+        console.log('[boot] ⚠️ Feeds degraded but continuing in non-strict mode');
       }
-      console.log('✅ All data feeds healthy - starting server');
     } catch (error) {
-      console.error('❌ Startup health check failed:', error.message);
+      console.error('[boot] ❌ Startup health check failed:', error.message);
       process.exit(1);
     }
   })();
@@ -2490,6 +2626,13 @@ app.use((req, res, next) => {
 
 // Global error handler (must be last middleware)
 app.use(errorHandler);
+
+// Run soft startup health check before starting server
+const { runStartupHealth } = require('./server/boot/startupHealth');
+runStartupHealth().catch(err => {
+  console.error('Startup health check error:', err);
+  // Continue anyway in degraded mode
+});
 
 // Start server with safe timeout configuration
 const port = process.env.PORT || 3003;
@@ -2548,7 +2691,7 @@ server.listen(port, '0.0.0.0', () => {
   console.log('📡 Background jobs: VIGL capture disabled, AlphaStack on-demand scanning enabled');
   
   // Cache prewarming for fast discovery endpoints
-  if (process.env.NEW_DASH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
+  if (NEW_DASH_ENABLED || process.env.NODE_ENV === 'production') {
     console.log('🔥 Prewarming discovery cache on startup...');
     setTimeout(async () => {
       try {
@@ -2579,9 +2722,43 @@ server.listen(port, '0.0.0.0', () => {
   
   // Start direct worker for scheduled discovery ingestion
   if (process.env.ROLE === "worker" || !process.env.ROLE) {
-    console.log('🔧 Starting direct discovery worker...');
-    const { startDirectWorker } = require("./server/workers/discovery_direct_worker");
-    startDirectWorker();
+    if (!SAFE_MODE && DIRECT_WORKER_ENABLED) {
+      console.log('[boot] starting direct worker...');
+      const { startDirectWorker } = require("./server/workers/discovery_direct_worker");
+      startDirectWorker();
+    } else {
+      console.log('[boot] Workers skipped (SAFE_MODE || !DIRECT_WORKER_ENABLED)', {SAFE_MODE, DIRECT_WORKER_ENABLED});
+    }
+    
+    // Start outcome labeler worker for learning loop
+    console.log('🎯 Starting outcome labeler worker...');
+    const { startOutcomeLabelerWorker } = require("./server/workers/outcome_labeler_worker");
+    startOutcomeLabelerWorker();
+    
+    // Start enrichment worker for composite scoring
+    console.log('🧮 Starting enrichment worker...');
+    const EnrichmentWorker = require('./server/workers/enrichment_worker');
+    const enrichmentWorker = new EnrichmentWorker();
+    enrichmentWorker.start();
+    
+    // Start health monitor to prevent UI going dark
+    console.log('🩺 Starting health monitor...');
+    const HealthMonitor = require('./server/workers/health_monitor');
+    const healthMonitor = new HealthMonitor();
+    healthMonitor.start();
+    
+    // Log Python canary after system boot
+    setTimeout(() => {
+      try {
+        const { getLastScreenerResult } = require('./server/lib/screenerSingleton');
+        const last = getLastScreenerResult?.();
+        const canary = last?.stdout?.match(/\[canary\].*/)?.[0] || 
+                      last?.stderr?.match(/\[canary\].*/)?.[0] || 'n/a';
+        console.log('[python-canary:last]', canary);
+      } catch (e) {
+        console.log('[python-canary:last] n/a (not available yet)');
+      }
+    }, 5000);
   }
 });
 
