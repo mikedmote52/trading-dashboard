@@ -23,15 +23,8 @@ services:
 
   - type: worker
     name: portfolio-manager-worker
-    env: node
-    region: oregon
-    plan: starter
-    buildCommand: |
-      apt-get update && apt-get install -y python3 python3-pip && \
-      python3 -m pip install --upgrade pip && \
-      pip3 install -r requirements.txt && \
-      npm ci --omit=dev
-    startCommand: NODE_ENV=production DIRECT_WORKER_ENABLED=true USE_POSTGRES=true node worker.js
+    runtime: docker
+    dockerfilePath: Dockerfile.worker
     envVars:
       - key: DIRECT_WORKER_ENABLED
         value: "true"

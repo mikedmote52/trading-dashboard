@@ -1,0 +1,22 @@
+FROM node:20-slim
+
+# OS + Python
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 python3-pip build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Node deps (cache-friendly)
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Python deps
+COPY requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# App code
+COPY . .
+
+ENV NODE_ENV=production DIRECT_WORKER_ENABLED=true USE_POSTGRES=true
+CMD ["node", "worker.js"]
