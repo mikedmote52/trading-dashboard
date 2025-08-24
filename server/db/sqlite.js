@@ -12,9 +12,11 @@ function getDbPath() {
 const dbPath = getDbPath();
 console.log(`📊 SQLite database path: ${dbPath}`);
 
-// Run schema creation synchronously BEFORE creating any prepared statements
-const { ensureSchema } = require('../../scripts/init_db');
-ensureSchema(dbPath);
+// Run schema creation synchronously BEFORE creating any prepared statements (dev only)
+if (process.env.NODE_ENV !== 'production' && process.env.USE_POSTGRES !== 'true') {
+  const { ensureSchema } = require('../../scripts/init_db');
+  ensureSchema(dbPath);
+}
 
 // NOW it's safe to create the database connection and prepare statements
 const db = new Database(dbPath);

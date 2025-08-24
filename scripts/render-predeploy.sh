@@ -1,5 +1,4 @@
 #!/bin/bash
-# Render pre-deploy script - Initialize database schema
-echo "🗃️ Initializing database schema..."
-node scripts/init_db.js
-echo "✅ Database schema ready"
+# Render pre-deploy script - NO-OP for Postgres production
+echo "⏭️ Skipping SQLite schema init (Postgres production)"
+echo "✅ Pre-deploy complete (NO-OP)"
