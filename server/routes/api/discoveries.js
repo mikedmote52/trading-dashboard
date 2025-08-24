@@ -854,4 +854,25 @@ router.get("/_debug/metrics", (req, res) => {
   }
 });
 
+// ---- PG contenders endpoint (PG-only, keeps { items: [...] } shape) ----
+const { Pool } = require('pg');
+const _pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
+});
+
+router.get('/contenders-pg', async (req, res) => {
+  try {
+    const q = await _pgPool.query(`
+      select * from contenders
+      order by created_at desc
+      limit 200
+    `);
+    return res.json({ items: q.rows, meta: { source: 'postgres' } });
+  } catch (err) {
+    console.error('contenders pg error', err);
+    res.status(500).json({ ok: false, error: 'contenders pg query failed' });
+  }
+});
+
 module.exports = router;

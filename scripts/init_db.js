@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+/**
+ * In production with Postgres, this script should NOT run.
+ * Early exit when NODE_ENV=production or USE_POSTGRES=true.
+ */
+if (process.env.NODE_ENV === 'production' || process.env.USE_POSTGRES === 'true') {
+  console.log('⏭️  Skipping SQLite init (production/PG mode).');
+  process.exit(0);
+}
 
 const fs = require('fs');
 const path = require('path');

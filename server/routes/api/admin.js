@@ -131,4 +131,40 @@ router.post('/clear', requireAdmin, async (req, res) => {
   }
 });
 
+// No-token generator (single-user deployment)
+router.post('/decisions/generate', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    
+    // Get high-scoring contenders
+    const contenders = await pool.query(`
+      SELECT ticker, price, score, confidence, thesis 
+      FROM contenders 
+      WHERE score >= 75 
+      ORDER BY score DESC 
+      LIMIT 10
+    `);
+    
+    let inserted = 0;
+    for (const c of contenders.rows) {
+      const entry = c.price;
+      const stop = entry * 0.90;
+      const tp1 = entry * 1.20;
+      const tp2 = entry * 1.50;
+      
+      await pool.query(`
+        INSERT INTO decisions (ticker, action, score, confidence, thesis, entry_price, stop_price, tp1_price, tp2_price, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      `, [c.ticker, 'BUY CANDIDATE', c.score, c.confidence, c.thesis, entry, stop, tp1, tp2]);
+      
+      inserted++;
+    }
+    
+    res.json({ ok: true, inserted });
+  } catch (e) {
+    res.status(500).json({ ok:false, error: String(e) });
+  }
+});
+
 module.exports = router;
