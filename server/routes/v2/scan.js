@@ -1,3 +1,4 @@
+const { DISABLE_V2 } = require('../../../src/config/flags');
 const express = require('express');
 const cache = require('../../../src/screener/v2/cache');
 const runDirectOnce = require('../../../src/screener/v2/run-direct');
@@ -109,6 +110,7 @@ router.use((req, _res, next) => {
  * Returns squeeze candidates with fallback when cache is empty/stale
  */
 router.get('/squeeze', async (req, res) => {
+    if (DISABLE_V2) return res.status(503).json({ skipped:true, reason:'V2 disabled on this service' });
     try {
         const debug = "debug" in req.query;
         const bypass = req.query.nocache === '1';
@@ -339,6 +341,7 @@ router.get('/filters', (req, res) => {
 });
 
 router.post('/stepwise', async (req, res) => {
+    if (DISABLE_V2) return res.status(503).json({ skipped:true, reason:'V2 disabled on this service' });
     try {
         // Simulate stepwise filtering for V2 (with cache layer)
         const universe = req.body.universe || [];

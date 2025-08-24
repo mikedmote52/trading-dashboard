@@ -1,8 +1,10 @@
+const { WORKERS_ENABLED } = require('../../config/flags');
 const { spawn } = require("child_process");
 const path = require("path");
 
 // Runs the python screener once and returns tickers[]
-module.exports = function runDirectOnce() {
+function runDirectOnce() {
+  if (!WORKERS_ENABLED) throw new Error('workers disabled on web dyno');
   const PY = process.env.PYTHON_BIN || "python3";
   const SCRIPT = process.env.SCREENER_V2_SCRIPT || path.resolve("agents/universe_screener.py");
 
@@ -44,4 +46,6 @@ module.exports = function runDirectOnce() {
       reject(new Error(`spawn error: ${error.message}`));
     });
   });
-};
+}
+
+module.exports = runDirectOnce;

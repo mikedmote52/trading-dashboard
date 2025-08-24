@@ -12,6 +12,7 @@ require('dotenv').config();
 
 // Environment flag parsing
 const { flag } = require('./server/lib/envFlags');
+const FLAGS = require('./src/config/flags');
 
 // Parse environment flags
 const SAFE_MODE = flag('SAFE_MODE', false);
@@ -2678,10 +2679,8 @@ server.keepAliveTimeout = 10000;   // Lower to free sockets
 server.maxHeadersCount = 16000;    // Plenty for proxies
 
 // ================== WEB WORKER GATE ==================
-const WORKERS_ALLOWED = process.env.DIRECT_WORKER_ENABLED === 'true';
-if (!WORKERS_ALLOWED) {
-  console.log('[workers] disabled on web dyno (DIRECT_WORKER_ENABLED!=true)');
-}
+const workerEnabled = process.env.DIRECT_WORKER_ENABLED === 'true';
+console.log(`[AlphaStack] boot { PG: ${!!process.env.DATABASE_URL}, DIRECT_WORKER_ENABLED: ${workerEnabled} }`);
 
 // Listen on Render port/host
 const host = '0.0.0.0';
@@ -2693,7 +2692,7 @@ server.listen(port, host, () => {
   console.log(`🔑 Alpaca Connected: ${!!ALPACA_CONFIG.apiKey}`);
   
   // Start background discovery refresher (gated)
-  if (WORKERS_ALLOWED) {
+  if (FLAGS.WORKERS_ENABLED) {
     try {
       const { startDiscoveryRefresher } = require('./server/worker/discoveryRefresher');
       const { startWatchdog } = require('./server/worker/watchdog');
@@ -2702,24 +2701,47 @@ server.listen(port, host, () => {
     } catch (e) {
       console.warn('[workers] discovery refresher/watchdog failed:', e.message);
     }
+  } else {
+    console.log('[workers] disabled on web dyno (DIRECT_WORKER_ENABLED!=true)');
   }
   
   // Start real discovery scheduler for UI
-  try {
-    const { startRealDiscoveryScheduler } = require('./server/jobs/populate-ui-discoveries');
-    startRealDiscoveryScheduler();
-    console.log('🔄 Real discovery scheduler started');
-  } catch (schedulerError) {
-    console.warn('⚠️ Real discovery scheduler failed to start:', schedulerError.message);
+  if (FLAGS.WORKERS_ENABLED) {
+    try {
+      const { startRealDiscoveryScheduler } = require('./server/jobs/populate-ui-discoveries');
+      startRealDiscoveryScheduler();
+      console.log('🔄 Real discovery scheduler started');
+    } catch (schedulerError) {
+      console.warn('⚠️ Real discovery scheduler failed to start:', schedulerError.message);
+    }
+  } else {
+    console.log('[sched] discovery scheduler disabled on web');
   }
 
   // Start AlphaStack background screener loop
-  try {
-    const { startLoop } = require('./server/services/alphastack/screener_runner');
-    startLoop();
-    console.log('🚀 AlphaStack background screener loop started');
-  } catch (screenerError) {
-    console.warn('⚠️ AlphaStack background screener failed to start:', screenerError.message);
+  if (FLAGS.WORKERS_ENABLED && !FLAGS.DISABLE_ALPHASTACK_BG) {
+    try {
+      const { startLoop } = require('./server/services/alphastack/screener_runner');
+      startLoop();
+      console.log('🚀 AlphaStack background screener loop started');
+    } catch (screenerError) {
+      console.warn('⚠️ AlphaStack background screener failed to start:', screenerError.message);
+    }
+  } else {
+    console.log('[bg] AlphaStack background loop disabled');
+  }
+
+  // Start V2 worker loop
+  if (FLAGS.WORKERS_ENABLED && !FLAGS.DISABLE_V2) {
+    try {
+      const { scheduleLoop } = require('./src/screener/v2/worker');
+      scheduleLoop();
+      console.log('🚀 V2 worker loop started');
+    } catch (v2Error) {
+      console.warn('⚠️ V2 worker loop failed to start:', v2Error.message);
+    }
+  } else {
+    console.log('[bg] V2 worker loop disabled');
   }
   
   // Show active discovery engine (PROOF of which engine is running)
@@ -2767,7 +2789,7 @@ server.listen(port, host, () => {
   }
   
   // Start direct worker for scheduled discovery ingestion
-  if (WORKERS_ALLOWED && (process.env.ROLE === "worker" || !process.env.ROLE)) {
+  if (FLAGS.WORKERS_ENABLED && (process.env.ROLE === "worker" || !process.env.ROLE)) {
     if (!SAFE_MODE && DIRECT_WORKER_ENABLED) {
       console.log('[boot] starting direct worker...');
       const { startDirectWorker } = require("./server/workers/discovery_direct_worker");

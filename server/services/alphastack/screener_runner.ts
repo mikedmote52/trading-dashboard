@@ -1,5 +1,6 @@
 import { runScreenerSingleton } from "../../lib/screenerSingleton";
 import * as fs from "fs";
+const { WORKERS_ENABLED } = require('../../../src/config/flags');
 
 type Cache = { 
   items: any[]; 
@@ -85,6 +86,8 @@ async function runOnce() {
 }
 
 export function startLoop() {
+  if (!WORKERS_ENABLED) return console.log('[bg] AlphaStack loop disabled (WORKERS_ENABLED=false)');
+  
   console.log('🔄 Starting AlphaStack background screener loop...');
   runOnce(); // warm immediately
   const intervalId = setInterval(runOnce, INTERVAL_MS);

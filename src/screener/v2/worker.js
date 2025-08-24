@@ -1,3 +1,4 @@
+const { WORKERS_ENABLED } = require('../../config/flags');
 const path = require("path");
 const cache = require("./cache");
 const { runScreenerSingleton } = require("../../../server/lib/screenerSingleton");
@@ -58,6 +59,8 @@ async function runOnce() {
 }
 
 function scheduleLoop() {
+  if (!WORKERS_ENABLED) return console.log('[bg] V2 worker disabled (WORKERS_ENABLED=false)');
+  
   let backoff = 5_000; // start small
   const maxBackoff = 120_000;
 
