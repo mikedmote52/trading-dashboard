@@ -26,9 +26,9 @@ r.get("/db", async (_req, res) => {
     
     res.json({
       type: db.getType(),
-      urlMask: db.getConnectionString(),
+      // Never expose connection details in production
       env: { 
-        DB_PATH: process.env.DB_PATH || null,
+        DB_PATH: process.env.NODE_ENV === 'production' ? '***' : (process.env.DB_PATH || null),
         DATABASE_URL: process.env.DATABASE_URL ? '***masked***' : null,
         USE_POSTGRES: process.env.USE_POSTGRES || null
       },

@@ -17,6 +17,12 @@ class DatabaseAdapter {
     if (this.initialized) return;
 
     const USE_POSTGRES = flag('USE_POSTGRES', false) || !!process.env.DATABASE_URL;
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+    
+    // In production, REQUIRE Postgres
+    if (isProduction && !process.env.DATABASE_URL) {
+      throw new Error('[db] FATAL: Production requires DATABASE_URL for Postgres connection');
+    }
     
     if (USE_POSTGRES && process.env.DATABASE_URL) {
       // Use Postgres
@@ -38,8 +44,8 @@ class DatabaseAdapter {
         console.error('[db] Failed to connect to Postgres:', err.message);
         throw err;
       }
-    } else {
-      // Use SQLite
+    } else if (!isProduction) {
+      // Use SQLite ONLY in development
       const Database = require('better-sqlite3');
       const { resolveDbPath } = require('./dbPath');
       this.type = 'sqlite';
@@ -51,6 +57,8 @@ class DatabaseAdapter {
       this.client.pragma('journal_mode = WAL');
       this.client.pragma('busy_timeout = 5000');
       console.log('[db] Connected to SQLite at', this.dbPath);
+    } else {
+      throw new Error('[db] FATAL: No valid database configuration');
     }
     
     this.initialized = true;

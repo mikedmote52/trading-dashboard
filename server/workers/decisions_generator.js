@@ -17,8 +17,7 @@ async function generateDecisions() {
     // Get high-scoring contenders
     const contenders = await db.all(`
       SELECT * FROM contenders 
-      WHERE score >= $1 
-      AND status = 'active'
+      WHERE score >= $1
       ORDER BY score DESC
     `, [DECISION_THRESHOLD]);
     
@@ -28,30 +27,28 @@ async function generateDecisions() {
       // Check if decision already exists
       const existing = await db.get(`
         SELECT id FROM decisions 
-        WHERE symbol = $1 
-        AND status IN ('planned', 'executed')
-      `, [contender.symbol]);
+        WHERE ticker = $1
+      `, [contender.ticker]);
       
       if (existing) {
-        console.log(`[decisions] Decision already exists for ${contender.symbol}`);
+        console.log(`[decisions] Decision already exists for ${contender.ticker}`);
         continue;
       }
       
       // Generate decision based on contender data
-      const entry = contender.entry_point || contender.price;
+      const entry = Number(contender.price || 0);
       const stop = entry * 0.90; // 10% stop loss
       const tp1 = entry * 1.20;  // 20% first target
       const tp2 = entry * 1.50;  // 50% second target
       
       const rationale = {
         score: contender.score,
-        catalyst: contender.catalyst,
-        short_interest: contender.short_interest,
-        borrow_fee: contender.borrow_fee,
-        volume_ratio: contender.volume_ratio,
+        confidence: contender.confidence,
         thesis: contender.thesis,
+        reasons: contender.reasons || [],
+        subscores: contender.subscores || {},
         technical: {
-          entry_type: contender.volume_ratio > 5 ? 'VWAP_RECLAIM' : 'BASE_BREAKOUT',
+          entry_type: 'MOMENTUM',
           support: stop,
           resistance: [tp1, tp2]
         }
@@ -62,7 +59,7 @@ async function generateDecisions() {
         scale_add: contender.score >= 85 ? 150 : 50,
         max_position: 500,
         conditions: {
-          add_on_volume: contender.volume_ratio > 3,
+          add_on_volume: true,
           add_on_score_maintain: contender.score >= 75
         }
       };
@@ -70,31 +67,37 @@ async function generateDecisions() {
       // Insert decision
       await db.run(`
         INSERT INTO decisions (
-          symbol, action, entry, stop, tp1, tp2, 
-          size_plan, rationale, status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+          ticker, action, score, confidence, thesis,
+          entry_price, stop_price, tp1_price, tp2_price, 
+          size_plan, rationale, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
       `, [
-        contender.symbol,
+        contender.ticker,
         'BUY CANDIDATE',
+        contender.score,
+        contender.confidence || contender.score,
+        contender.thesis,
         entry,
         stop,
         tp1,
         tp2,
-        JSON.stringify(sizePlan),
-        JSON.stringify(rationale),
-        'planned'
+        sizePlan,
+        rationale
       ]);
       
-      console.log(`[decisions] Generated decision for ${contender.symbol}: Entry=${entry}, Stop=${stop}, TP1=${tp1}, TP2=${tp2}`);
+      console.log(`[decisions] Generated decision for ${contender.ticker}: Entry=${entry}, Stop=${stop}, TP1=${tp1}, TP2=${tp2}`);
     }
     
-    // Clean up old decisions
-    await db.run(`
-      UPDATE decisions 
-      SET status = 'expired' 
-      WHERE status = 'planned' 
-      AND created_at < datetime('now', '-7 days')
+    // Clean up old decisions (Postgres syntax)
+    const cleanupCount = await db.run(`
+      DELETE FROM decisions 
+      WHERE created_at < NOW() - INTERVAL '7 days'
+      AND ticker NOT IN (SELECT ticker FROM positions WHERE status = 'active')
     `);
+    
+    if (cleanupCount?.changes > 0) {
+      console.log(`[decisions] Cleaned up ${cleanupCount.changes} old decisions`);
+    }
     
   } catch (err) {
     console.error('[decisions] Error generating decisions:', err.message);
@@ -122,10 +125,9 @@ async function getLatestDecisions(req, res) {
     const limit = parseInt(req.query.limit) || 10;
     
     const decisions = await db.all(`
-      SELECT d.*, c.score as current_score, c.volume_ratio, c.catalyst
+      SELECT d.*, c.score as current_score
       FROM decisions d
-      LEFT JOIN contenders c ON d.symbol = c.symbol
-      WHERE d.status IN ('planned', 'executed')
+      LEFT JOIN contenders c ON d.ticker = c.ticker
       ORDER BY d.created_at DESC
       LIMIT $1
     `, [limit]);

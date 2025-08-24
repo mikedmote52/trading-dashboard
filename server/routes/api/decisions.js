@@ -1,10 +1,30 @@
 const express = require('express');
-const { getLatestDecisions } = require('../../workers/decisions_generator');
+const { getLatestDecisions, generateDecisions } = require('../../workers/decisions_generator');
 
 const router = express.Router();
 
 // Get latest trading decisions
 router.get('/latest', getLatestDecisions);
+
+// Admin endpoint to trigger decision generation
+router.post('/generate', async (req, res) => {
+  // Simple token auth
+  const adminToken = process.env.ADMIN_TOKEN || 'admin123';
+  if (req.headers['x-admin-token'] !== adminToken) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  try {
+    const result = await generateDecisions();
+    res.json({ 
+      success: true, 
+      message: 'Decision generation triggered',
+      result 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Get decision by symbol
 router.get('/symbol/:symbol', async (req, res) => {

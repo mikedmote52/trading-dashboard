@@ -266,20 +266,89 @@ router.get("/latest", (req, res) => {
 });
 
 // Dedicated contenders endpoint for client integration
-router.get("/contenders", (req, res) => {
+router.get("/contenders", async (req, res) => {
   try {
     const limit = Number(req.query.limit || 6);
     
-    // Delegate to Python adapter if enabled
-    if (usePython && py) {
-      const { items, updatedAt, running, error, fresh, engine } = py.getState();
+    // ALWAYS read from Postgres in production
+    const db = getDb();
+    
+    try {
+      // Query Postgres for contenders
+      const contenders = await db.all(`
+        SELECT 
+          ticker, price, score, action, confidence, thesis,
+          engine, run_id, snapshot_ts, subscores, reasons
+        FROM contenders
+        WHERE score >= 70
+        ORDER BY score DESC, created_at DESC
+        LIMIT $1
+      `, [limit]);
       
-      if (items.length === 0) {
-        // Try fallback to latest-scores from DB
-        console.log('🔄 No Python contenders, trying DB fallback...');
-        try {
-          const dbModule = require('../../services/discoveries-repository');
-          const latestScores = dbModule.getLatestScores ? dbModule.getLatestScores(limit) : [];
+      if (contenders && contenders.length > 0) {
+        console.log(`✅ Found ${contenders.length} contenders from Postgres`);
+        
+        const mappedItems = contenders.map(row => ({
+          ticker: row.ticker,
+          price: Number(row.price || 0),
+          score: Number(row.score || 70),
+          action: row.action || 'BUY',
+          confidence: Number(row.confidence || row.score || 70),
+          thesis: row.thesis || `Score: ${row.score}`,
+          engine: row.engine || 'postgres',
+          run_id: row.run_id || 'db',
+          snapshot_ts: row.snapshot_ts || new Date().toISOString(),
+          subscores: row.subscores || {},
+          reasons: row.reasons || []
+        }));
+        
+        return res.json({
+          items: mappedItems,
+          meta: {
+            source: 'postgres',
+            duration_ms: 0,
+            breaker: 'ok'
+          }
+        });
+      }
+      
+      // No contenders in DB
+      console.log('⚠️ No contenders found in Postgres');
+      return res.json({
+        items: [],
+        meta: {
+          source: 'postgres',
+          duration_ms: 0,
+          breaker: 'ok',
+          message: 'No contenders available. Run discovery pipeline.'
+        }
+      });
+      
+    } catch (dbErr) {
+      console.error('❌ Postgres query failed:', dbErr.message);
+      
+      // In production, fail hard - no fallback
+      if (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') {
+        return res.status(500).json({
+          error: 'Database unavailable',
+          items: [],
+          meta: {
+            source: 'error',
+            breaker: 'fail'
+          }
+        });
+      }
+      
+      // Development only - try Python adapter
+      if (usePython && py) {
+        const { items, updatedAt, running, error, fresh, engine } = py.getState();
+        
+        if (items.length === 0) {
+          // Try fallback to latest-scores from DB
+          console.log('🔄 No Python contenders, trying DB fallback...');
+          try {
+            const dbModule = require('../../services/discoveries-repository');
+            const latestScores = dbModule.getLatestScores ? dbModule.getLatestScores(limit) : [];
           
           if (latestScores && latestScores.length > 0) {
             console.log(`✅ Found ${latestScores.length} items from DB fallback`);
