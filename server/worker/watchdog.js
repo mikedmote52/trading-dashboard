@@ -1,3 +1,15 @@
+// Never run on web dyno
+if (process.env.DIRECT_WORKER_ENABLED !== 'true') {
+  module.exports = {
+    startWatchdog() { 
+      console.warn('[watchdog] disabled on web'); 
+    },
+    getWatchdogState: () => ({ running: false, interval_ms: 0, disabled: true }),
+    lastSnapshotAgeMs: async () => 0
+  };
+  return;
+}
+
 const { runScreener } = require('../../lib/runScreener');
 const { getProfile } = require('../../lib/screenerProfile');
 const { saveScoresAtomically } = require('../services/sqliteScores');

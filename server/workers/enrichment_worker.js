@@ -3,6 +3,16 @@
  * Runs every 3 minutes to keep composite scores fresh
  */
 
+// Never run on web dyno
+if (process.env.DIRECT_WORKER_ENABLED !== 'true') {
+  module.exports = class EnrichmentWorker { 
+    start() { 
+      console.warn('[enrichment_worker] disabled on web'); 
+    } 
+  };
+  return;
+}
+
 const enrichLatest = require('../jobs/enrich_components');
 
 class EnrichmentWorker {

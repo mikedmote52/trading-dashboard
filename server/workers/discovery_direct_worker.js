@@ -3,6 +3,17 @@
  * Runs the Python screener periodically and ingests discoveries directly
  */
 
+// Never run on web dyno
+if (process.env.DIRECT_WORKER_ENABLED !== 'true') {
+  module.exports = {
+    startDirectWorker() { 
+      console.warn('[discovery_direct_worker] disabled on web'); 
+    },
+    getLastDirectRun: () => ({ ts: null, count: 0, err: 'disabled_on_web' })
+  };
+  return;
+}
+
 const { ingestDirect } = require("../jobs/screener_direct_ingest");
 
 const PERIOD_MS = Number(process.env.DIRECT_WORKER_PERIOD_MS ?? 120000); // 2 minutes default

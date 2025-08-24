@@ -4,6 +4,17 @@
  * Bypasses broken AlphaStack/VIGL layers temporarily
  */
 
+// Block Python spawns on web dyno
+if (process.env.DIRECT_WORKER_ENABLED !== 'true') {
+  module.exports = {
+    async ingestDirect() { 
+      console.warn('[screener_direct_ingest] blocked on web dyno');
+      return { skipped: true, count: 0 };
+    }
+  };
+  return;
+}
+
 const fs = require('fs').promises;
 const path = require('path');
 

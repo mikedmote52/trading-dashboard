@@ -131,39 +131,76 @@ router.post('/clear', requireAdmin, async (req, res) => {
   }
 });
 
-// No-token generator (single-user deployment)
+// no-token generator (single user)
 router.post('/decisions/generate', async (req, res) => {
   try {
     const { Pool } = require('pg');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-    
-    // Get high-scoring contenders
-    const contenders = await pool.query(`
-      SELECT ticker, price, score, confidence, thesis 
-      FROM contenders 
-      WHERE score >= 75 
-      ORDER BY score DESC 
-      LIMIT 10
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false } });
+    // handle symbol vs ticker
+    const { rows: cands } = await pool.query(`
+      select
+        coalesce(ticker, symbol, '') as tkr,
+        price, vwap, score_composite,
+        ema9, ema20, rsi, atr_pct,
+        iv_percentile, call_put_ratio,
+        float_shares, short_interest_pct, borrow_fee_pct, utilization_pct,
+        catalyst, sentiment_score
+      from contenders
+      where score_composite >= 0   -- lower for initial testing; raise to 75 later
+      and   created_at > now() - interval '7 days'
+      order by score_composite desc
+      limit 100
     `);
-    
     let inserted = 0;
-    for (const c of contenders.rows) {
-      const entry = c.price;
-      const stop = entry * 0.90;
-      const tp1 = entry * 1.20;
-      const tp2 = entry * 1.50;
-      
+    for (const c of cands) {
+      const entry = c.vwap ?? c.price;
+      const stop  = entry ? Number(entry)*0.90 : null;
+      const tp1   = entry ? Number(entry)*1.20 : null;
+      const tp2   = entry ? Number(entry)*1.50 : null;
       await pool.query(`
-        INSERT INTO decisions (ticker, action, score, confidence, thesis, entry_price, stop_price, tp1_price, tp2_price, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-      `, [c.ticker, 'BUY CANDIDATE', c.score, c.confidence, c.thesis, entry, stop, tp1, tp2]);
-      
+        insert into decisions (ticker, action, entry, stop, tp1, tp2, size_plan, rationale, score_composite, created_at)
+        values ($1,'BUY CANDIDATE',$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8, now())
+        on conflict do nothing
+      `, [
+        c.tkr, entry, stop, tp1, tp2,
+        JSON.stringify({ initial:100, scale:[50,150], cap:500 }),
+        JSON.stringify({
+          catalyst:c.catalyst,
+          options:{ iv_percentile:c.iv_percentile, call_put_ratio:c.call_put_ratio },
+          short:{ float:c.float_shares, si_pct:c.short_interest_pct, borrow_fee:c.borrow_fee_pct, util:c.utilization_pct },
+          tech:{ ema9:c.ema9, ema20:c.ema20, rsi:c.rsi, atr_pct:c.atr_pct, vwap:c.vwap }
+        }),
+        c.score_composite
+      ]);
       inserted++;
     }
-    
     res.json({ ok: true, inserted });
   } catch (e) {
     res.status(500).json({ ok:false, error: String(e) });
+  }
+});
+
+// seed some PG contenders for immediate UI testing
+router.post('/seed/contenders', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false } });
+    const sample = [
+      { tkr:'SEED1', price:11.1, vwap:11.0, rvol:3.2, score:80, rsi:62, ema9:11.0, ema20:10.8, atr:4.5 },
+      { tkr:'SEED2', price:22.5, vwap:22.3, rvol:4.0, score:85, rsi:65, ema9:22.2, ema20:21.9, atr:5.2 }
+    ];
+    let inserted=0;
+    for (const c of sample) {
+      await pool.query(`
+        insert into contenders (ticker, price, vwap, rvol, score_composite, rsi, ema9, ema20, atr_pct, created_at)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
+        on conflict do nothing
+      `,[c.tkr,c.price,c.vwap,c.rvol,c.score,c.rsi,c.ema9,c.ema20,c.atr]);
+      inserted++;
+    }
+    res.json({ ok:true, inserted });
+  } catch(e) {
+    res.status(500).json({ ok:false, error:String(e) });
   }
 });
 

@@ -2677,6 +2677,12 @@ server.requestTimeout = 30000;     // Avoid extremely long handlers
 server.keepAliveTimeout = 10000;   // Lower to free sockets
 server.maxHeadersCount = 16000;    // Plenty for proxies
 
+// ================== WEB WORKER GATE ==================
+const WORKERS_ALLOWED = process.env.DIRECT_WORKER_ENABLED === 'true';
+if (!WORKERS_ALLOWED) {
+  console.log('[workers] disabled on web dyno (DIRECT_WORKER_ENABLED!=true)');
+}
+
 // Listen on Render port/host
 const host = '0.0.0.0';
 server.listen(port, host, () => {
@@ -2686,12 +2692,17 @@ server.listen(port, host, () => {
   console.log(`🔗 API: http://localhost:${port}/api/dashboard`);
   console.log(`🔑 Alpaca Connected: ${!!ALPACA_CONFIG.apiKey}`);
   
-  // Start background discovery refresher
-  const { startDiscoveryRefresher } = require('./server/worker/discoveryRefresher');
-  const { startWatchdog } = require('./server/worker/watchdog');
-  
-  startDiscoveryRefresher().catch(console.error);
-  startWatchdog().catch(console.error);
+  // Start background discovery refresher (gated)
+  if (WORKERS_ALLOWED) {
+    try {
+      const { startDiscoveryRefresher } = require('./server/worker/discoveryRefresher');
+      const { startWatchdog } = require('./server/worker/watchdog');
+      startDiscoveryRefresher().catch(console.error);
+      startWatchdog().catch(console.error);
+    } catch (e) {
+      console.warn('[workers] discovery refresher/watchdog failed:', e.message);
+    }
+  }
   
   // Start real discovery scheduler for UI
   try {
@@ -2756,7 +2767,7 @@ server.listen(port, host, () => {
   }
   
   // Start direct worker for scheduled discovery ingestion
-  if (process.env.ROLE === "worker" || !process.env.ROLE) {
+  if (WORKERS_ALLOWED && (process.env.ROLE === "worker" || !process.env.ROLE)) {
     if (!SAFE_MODE && DIRECT_WORKER_ENABLED) {
       console.log('[boot] starting direct worker...');
       const { startDirectWorker } = require("./server/workers/discovery_direct_worker");
