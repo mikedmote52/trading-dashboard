@@ -44,25 +44,35 @@ function viglScore(candidate) {
   
   console.log(`🧮 Computing VIGL score for ${symbol} (price: $${price})`);
   
-  // Component scoring (each 0-1) with NaN protection
-  const components = {
-    volume: Number.isFinite(scoreVolume(rvol)) ? scoreVolume(rvol) : 0,
-    squeeze: Number.isFinite(scoreSqueeze(shortData)) ? scoreSqueeze(shortData) : 0,
-    catalyst: Number.isFinite(scoreCatalyst(news)) ? scoreCatalyst(news) : 0.3,
-    sentiment: Number.isFinite(scoreSentiment(social)) ? scoreSentiment(social) : 0,
-    options: Number.isFinite(scoreOptions(options)) ? scoreOptions(options) : 0,
-    technical: Number.isFinite(scoreTechnical(technicals, price)) ? scoreTechnical(technicals, price) : 0.3
-  };
+  // Use real VIGL scoring
+  const { scoreStock } = require('../scoring/vigl');
+  const result = await scoreStock(symbol);
   
-  // Weighted composite score (0-1) with NaN protection
-  let compositeScore = (
-    weights.volume * components.volume +
-    weights.squeeze * components.squeeze +
-    weights.catalyst * components.catalyst +
-    weights.sentiment * components.sentiment +
-    weights.options * components.options +
-    weights.technical * components.technical
-  );
+  function logComponents(result) {
+    const { components, composite, reasons } = result;
+    console.log(`   Components: Vol(${components.volume}), Squeeze(${components.squeeze}), Catalyst(${components.catalyst}), Sentiment(${components.sentiment}), Options(${components.options}), Technical(${components.technical}) => ${composite}`);
+    if (reasons.length > 0) console.log(`   Reasons: ${reasons.join(', ')}`);
+  }
+  
+  function saveScore(symbol, composite, components, reasons) {
+    // Store the scoring result - convert to legacy format for compatibility
+    const legacyComponents = {
+      volume: components.volume / 100,        // convert 0-100 to 0-1
+      squeeze: components.squeeze / 100,
+      catalyst: components.catalyst / 100,
+      sentiment: components.sentiment / 100,
+      options: components.options / 100,
+      technical: components.technical / 100
+    };
+    return { components: legacyComponents, composite: composite / 100 };
+  }
+  
+  logComponents(result);
+  const legacyResult = saveScore(result.symbol, result.composite, result.components, result.reasons);
+  const components = legacyResult.components;
+  
+  // Use the composite score from the real VIGL scoring (already weighted)
+  let compositeScore = legacyResult.composite;
   
   // Guard against NaN
   if (!Number.isFinite(compositeScore)) {

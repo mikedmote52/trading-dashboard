@@ -16,7 +16,7 @@ async function generateDecisions() {
   try {
     // Get high-scoring contenders
     const contenders = await db.all(`
-      SELECT * FROM contenders 
+      SELECT *, COALESCE(ticker, symbol, '') AS ticker FROM contenders 
       WHERE score >= $1
       ORDER BY score DESC
     `, [DECISION_THRESHOLD]);
@@ -91,7 +91,7 @@ async function generateDecisions() {
     // Clean up old decisions (Postgres syntax)
     const cleanupCount = await db.run(`
       DELETE FROM decisions 
-      WHERE created_at < NOW() - INTERVAL '7 days'
+      WHERE created_at < (now() - interval '7 days')
       AND ticker NOT IN (SELECT ticker FROM positions WHERE status = 'active')
     `);
     
