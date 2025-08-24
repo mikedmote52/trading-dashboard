@@ -1,19 +1,22 @@
 FROM node:20-slim
 
-# OS + Python
+# OS + Python toolchain (adds build tools + git for any deps)
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-pip build-essential \
+ && apt-get install -y --no-install-recommends \
+      python3 python3-pip python3-venv python3-dev \
+      build-essential git \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Node deps (cache-friendly)
+# Node deps first (better cache)
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Python deps
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --upgrade pip setuptools wheel && \
+    pip3 install --no-cache-dir -r requirements.txt
 
 # App code
 COPY . .
