@@ -105,11 +105,11 @@ router.post('/run', async (req, res) => {
     
     if (!existing_outcome) {
       // Use Postgres-specific date syntax
-      await db.query(`
+      await db.run(`
         INSERT INTO outcomes (
           symbol, entry_price, exit_price, entry_date, exit_date,
           return_pct, outcome, created_at
-        ) VALUES ($1, $2, $3, CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE - INTERVAL '5 days', $4, $5, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE - INTERVAL '5 days', ?, ?, CURRENT_TIMESTAMP)
       `, ['VIGL', 3.45, 18.12, 425.2, 'win']);
       addedOutcomes++;
     }
