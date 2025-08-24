@@ -901,6 +901,23 @@ app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API route not found', path: req.originalUrl });
 });
 
+// DB debug (safe)
+try {
+  const { Pool } = require('pg');
+  const _dbgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
+  });
+  app.get('/api/_debug/db', async (_req, res) => {
+    try {
+      const r = await _dbgPool.query('select current_database() as db, now() as ts');
+      res.json({ ok: true, type: 'postgres', info: r.rows[0] });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
+} catch {}
+
 // Health endpoints before static files (required for deployment)
 app.get('/health/live', (_, res) => res.status(200).json({ ok: true }));
 app.get('/health/ready', (_, res) => res.status(200).json({ ok: true }));
@@ -2660,8 +2677,10 @@ server.requestTimeout = 30000;     // Avoid extremely long handlers
 server.keepAliveTimeout = 10000;   // Lower to free sockets
 server.maxHeadersCount = 16000;    // Plenty for proxies
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`listening`, { port, select_engine: process.env.SELECT_ENGINE });
+// Listen on Render port/host
+const host = '0.0.0.0';
+server.listen(port, host, () => {
+  console.log('[AlphaStack] listening', { host, port });
   console.log(`🚀 Trading Intelligence Dashboard running on port ${port}`);
   console.log(`📊 Dashboard: http://localhost:${port}`);
   console.log(`🔗 API: http://localhost:${port}/api/dashboard`);

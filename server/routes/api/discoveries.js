@@ -265,234 +265,24 @@ router.get("/latest", (req, res) => {
   }
 });
 
-// Dedicated contenders endpoint for client integration
-router.get("/contenders", async (req, res) => {
+// Canonical contenders route (PG only). Keeps { items: [...] } shape for UI.
+const { Pool } = require('pg');
+const _pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
+});
+
+router.get('/contenders', async (req, res) => {
   try {
-    const limit = Number(req.query.limit || 6);
-    
-    // ALWAYS read from Postgres in production
-    const db = getDb();
-    
-    try {
-      // Query Postgres for contenders
-      const contenders = await db.all(`
-        SELECT 
-          ticker, price, score, action, confidence, thesis,
-          engine, run_id, snapshot_ts, subscores, reasons
-        FROM contenders
-        WHERE score >= 70
-        ORDER BY score DESC, created_at DESC
-        LIMIT $1
-      `, [limit]);
-      
-      if (contenders && contenders.length > 0) {
-        console.log(`✅ Found ${contenders.length} contenders from Postgres`);
-        
-        const mappedItems = contenders.map(row => ({
-          ticker: row.ticker,
-          price: Number(row.price || 0),
-          score: Number(row.score || 70),
-          action: row.action || 'BUY',
-          confidence: Number(row.confidence || row.score || 70),
-          thesis: row.thesis || `Score: ${row.score}`,
-          engine: row.engine || 'postgres',
-          run_id: row.run_id || 'db',
-          snapshot_ts: row.snapshot_ts || new Date().toISOString(),
-          subscores: row.subscores || {},
-          reasons: row.reasons || []
-        }));
-        
-        return res.json({
-          items: mappedItems,
-          meta: {
-            source: 'postgres',
-            duration_ms: 0,
-            breaker: 'ok'
-          }
-        });
-      }
-      
-      // No contenders in DB
-      console.log('⚠️ No contenders found in Postgres');
-      return res.json({
-        items: [],
-        meta: {
-          source: 'postgres',
-          duration_ms: 0,
-          breaker: 'ok',
-          message: 'No contenders available. Run discovery pipeline.'
-        }
-      });
-      
-    } catch (dbErr) {
-      console.error('❌ Postgres query failed:', dbErr.message);
-      
-      // In production, fail hard - no fallback
-      if (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') {
-        return res.status(500).json({
-          error: 'Database unavailable',
-          items: [],
-          meta: {
-            source: 'error',
-            breaker: 'fail'
-          }
-        });
-      }
-      
-      // Development only - try Python adapter
-      if (usePython && py) {
-        const { items, updatedAt, running, error, fresh, engine } = py.getState();
-        
-        if (items.length === 0) {
-          // Try fallback to latest-scores from DB
-          console.log('🔄 No Python contenders, trying DB fallback...');
-          try {
-            const dbModule = require('../../services/discoveries-repository');
-            const latestScores = dbModule.getLatestScores ? dbModule.getLatestScores(limit) : [];
-          
-          if (latestScores && latestScores.length > 0) {
-            console.log(`✅ Found ${latestScores.length} items from DB fallback`);
-            const mappedItems = latestScores.map(x => ({
-              ticker: x.ticker,
-              price: x.price || x.current_price || 0,
-              score: x.score || x.vigl_score || 70,
-              action: 'BUY',
-              confidence: 0.7,
-              thesis: x.thesis || `Score: ${x.score || 70}`,
-              engine: 'db_fallback',
-              run_id: 'latest-scores',
-              snapshot_ts: new Date().toISOString()
-            }));
-            
-            return res.json({
-              items: mappedItems,
-              contenders: mappedItems,
-              success: true,
-              count: mappedItems.length,
-              engine: 'db_fallback',
-              message: 'Using cached discoveries'
-            });
-          }
-        } catch (dbErr) {
-          console.warn('DB fallback failed:', dbErr.message);
-        }
-        
-        return res.json({
-          items: [],
-          contenders: [],
-          success: true,
-          count: 0,
-          message: 'No contenders available',
-          engine: 'python_v2'
-        });
-      }
-      
-      // Generate contenders (reuse logic from latest endpoint)
-      const K = Math.max(3, Math.min(6, limit));
-      const seed = Number(req.query.seed || 1337);
-      
-      function relvol(x) {
-        return x.rel_vol_30m || x.rel_vol_day || x.indicators?.relvol || 0;
-      }
-      
-      function tiebreak(seed, ticker) {
-        const crypto = require('crypto');
-        const hash = crypto.createHash('md5').update(`${seed}:${ticker}`).digest('hex');
-        return parseInt(hash.substring(0, 8), 16);
-      }
-      
-      // Calculate contender scores
-      const scoredItems = items.map(x => {
-        const rv = relvol(x);
-        const atr = x.indicators?.atr_pct || 0;
-        const ret5d = x.indicators?.ret_5d || 0;
-        
-        // Contender boost factors
-        let boost = 0;
-        boost += (rv >= 2.5 ? 6 : rv >= 1.8 ? 3 : 0);  // High relative volume
-        boost += (atr >= 0.08 ? 4 : atr >= 0.05 ? 2 : 0);  // High volatility
-        boost += (ret5d >= 0.05 ? 3 : ret5d >= 0.02 ? 1 : -1);  // Recent momentum
-        
-        const contenderScore = x.score + boost + (tiebreak(seed, x.ticker) % 10);
-        
-        return {
-          ticker: x.ticker,
-          score: contenderScore,
-          originalScore: x.score,
-          boost,
-          price: x.price || x.indicators?.price || 0,
-          action: contenderScore >= 75 ? 'BUY' : contenderScore >= 65 ? 'EARLY_READY' : 'PRE_BREAKOUT',
-          confidence: Math.min(95, Math.max(60, contenderScore)),
-          engine: 'alphastack',
-          run_id: `discovery_${updatedAt}`,
-          snapshot_ts: new Date(updatedAt).toISOString()
-        };
-      });
-      
-      // Sort by contender score and take top K
-      const topContenders = scoredItems
-        .sort((a, b) => b.score - a.score)
-        .slice(0, K);
-      
-      return res.json({
-        items: topContenders,
-        contenders: topContenders,
-        success: true,
-        count: topContenders.length,
-        engine: 'python_v2',
-        updatedAt,
-        seed
-      });
-    }
-    
-    // Fallback to original screener_runner
-    const { items, updatedAt, running, error, fresh } = getCache();
-    
-    if (items.length === 0) {
-      return res.json({
-        items: [],
-        contenders: [],
-        success: true,
-        count: 0,
-        message: 'No contenders available',
-        engine: 'screener_runner'
-      });
-    }
-    
-    // Simple contender selection for fallback
-    const contenders = items
-      .filter(x => x.score >= 65)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(x => ({
-        ticker: x.ticker,
-        score: x.score,
-        price: x.price || 0,
-        action: x.score >= 75 ? 'BUY' : 'EARLY_READY',
-        confidence: Math.min(95, Math.max(60, x.score)),
-        engine: 'alphastack',
-        run_id: `discovery_${updatedAt}`,
-        snapshot_ts: new Date(updatedAt).toISOString()
-      }));
-    
-    res.json({
-      items: contenders,
-      contenders,
-      success: true,
-      count: contenders.length,
-      engine: 'screener_runner',
-      updatedAt
-    });
-    
+    const q = await _pgPool.query(`
+      select * from contenders
+      order by created_at desc
+      limit 200
+    `);
+    res.json({ items: q.rows, meta: { source: 'postgres' } });
   } catch (err) {
-    console.error('❌ Contenders API error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message,
-      items: [],
-      contenders: [],
-      count: 0
-    });
+    console.error('contenders pg error', err);
+    res.status(500).json({ ok: false, error: 'contenders pg query failed' });
   }
 });
 
@@ -854,25 +644,5 @@ router.get("/_debug/metrics", (req, res) => {
   }
 });
 
-// ---- PG contenders endpoint (PG-only, keeps { items: [...] } shape) ----
-const { Pool } = require('pg');
-const _pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
-});
-
-router.get('/contenders-pg', async (req, res) => {
-  try {
-    const q = await _pgPool.query(`
-      select * from contenders
-      order by created_at desc
-      limit 200
-    `);
-    return res.json({ items: q.rows, meta: { source: 'postgres' } });
-  } catch (err) {
-    console.error('contenders pg error', err);
-    res.status(500).json({ ok: false, error: 'contenders pg query failed' });
-  }
-});
 
 module.exports = router;
