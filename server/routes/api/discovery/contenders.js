@@ -62,34 +62,84 @@ async function loadSqliteScores(limit) {
   const dbPath = path.join(process.cwd(), 'trading_dashboard.db');
   if (!fs.existsSync(dbPath)) return [];
   
-  const sqlite3 = require('sqlite3');
-  const db = new sqlite3.Database(dbPath);
+  const Database = require('better-sqlite3');
+  const db = new Database(dbPath);
   
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT ticker, score, price, current_price, thesis, updated_at 
-       FROM latest_scores 
-       WHERE score >= 50 
-       ORDER BY score DESC, updated_at DESC 
-       LIMIT ?`,
-      [limit],
-      (err, rows) => {
-        db.close();
-        if (err) reject(err);
-        else resolve((rows || []).map(row => ({
-          ticker: row.ticker,
-          price: row.price || row.current_price || 0,
-          score: row.score || 70,
-          action: (row.score || 70) >= 75 ? 'BUY' : (row.score || 70) >= 65 ? 'EARLY_READY' : 'PRE_BREAKOUT',
-          confidence: Math.min(95, Math.max(60, row.score || 70)),
-          thesis: row.thesis || `Cached score: ${row.score || 70}`,
-          engine: 'sqlite_fallback',
-          run_id: 'latest-scores',
-          snapshot_ts: new Date().toISOString()
-        })));
-      }
-    );
-  });
+  try {
+    // Try enriched discoveries first (with composite scores and reasons)
+    const enrichedRows = db.prepare(`
+      SELECT symbol as ticker, score_composite as score, price, reasons_json, 
+             score_momentum, score_squeeze, score_sentiment, score_options, score_technical,
+             updated_at, thesis
+      FROM discoveries
+      WHERE score_composite IS NOT NULL 
+        AND score_composite >= 75
+        AND json_array_length(COALESCE(reasons_json,'[]')) >= 2
+      ORDER BY score_composite DESC, id DESC
+      LIMIT ?
+    `).all(limit);
+
+    if (enrichedRows.length > 0) {
+      console.log(`[contenders] Using enriched discoveries: ${enrichedRows.length} items`);
+      return enrichedRows.map(row => ({
+        ticker: row.ticker,
+        price: row.price || 0,
+        score: row.score || 70,
+        action: (row.score || 70) >= 85 ? 'BUY' : (row.score || 70) >= 75 ? 'EARLY_READY' : 'PRE_BREAKOUT',
+        confidence: Math.min(95, Math.max(60, row.score || 70)),
+        thesis: buildEnrichedThesis(row),
+        engine: 'enriched_composite',
+        run_id: 'composite-scores',
+        snapshot_ts: new Date().toISOString(),
+        subscores: {
+          momentum: row.score_momentum,
+          squeeze: row.score_squeeze, 
+          sentiment: row.score_sentiment,
+          options: row.score_options,
+          technical: row.score_technical
+        },
+        reasons: JSON.parse(row.reasons_json || '[]')
+      }));
+    }
+
+    // Fallback to legacy latest_scores table
+    const legacyRows = db.prepare(`
+      SELECT ticker, score, price, current_price, thesis, updated_at 
+      FROM latest_scores 
+      WHERE score >= 50 
+      ORDER BY score DESC, updated_at DESC 
+      LIMIT ?
+    `).all(limit);
+
+    return legacyRows.map(row => ({
+      ticker: row.ticker,
+      price: row.price || row.current_price || 0,
+      score: row.score || 70,
+      action: (row.score || 70) >= 75 ? 'BUY' : (row.score || 70) >= 65 ? 'EARLY_READY' : 'PRE_BREAKOUT',
+      confidence: Math.min(95, Math.max(60, row.score || 70)),
+      thesis: row.thesis || `Cached score: ${row.score || 70}`,
+      engine: 'sqlite_fallback',
+      run_id: 'latest-scores',
+      snapshot_ts: new Date().toISOString()
+    }));
+
+  } finally {
+    db.close();
+  }
+}
+
+function buildEnrichedThesis(row) {
+  const reasons = JSON.parse(row.reasons_json || '[]');
+  const price = row.price || 0;
+  const priceCat = price < 2 ? 'Ultra micro-cap' : price < 10 ? 'Micro-cap' : price < 50 ? 'Small-cap' : 'Mid-cap';
+  
+  let thesis = `${priceCat} $${price}. `;
+  if (reasons.length > 0) {
+    thesis += `Key signals: ${reasons.join(', ')}. `;
+  }
+  thesis += `Composite score: ${row.score}`;
+  
+  return thesis;
 }
 
 router.get('/', async (req, res) => {
@@ -101,14 +151,16 @@ router.get('/', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
 
   const breaker = isTripped() ? 'tripped' : 'ok';
+  let responseSent = false;
 
   // 1) Screener (live) — only if breaker OK
-  if (breaker === 'ok') {
+  if (breaker === 'ok' && !responseSent) {
     try {
       const { args } = getProfile();
       const raw = await runScreener(['--limit', String(limit), ...args], 15000);
       const items = normalize(raw).slice(0, limit);
-      if (items.length) {
+      if (items.length && !responseSent) {
+        responseSent = true;
         noteSuccess();
         recordSourceUsage('screener');
         const duration_ms = Date.now() - t0;
@@ -122,24 +174,29 @@ router.get('/', async (req, res) => {
     }
   }
 
-  try {
-    // 2) SQLite cache (last known real scores)
-    const rows = await loadSqliteScores(limit);
-    if (rows && rows.length) {
-      recordSourceUsage('sqlite');
-      const duration_ms = Date.now() - t0;
-      console.info(`[contenders] source=sqlite items=${rows.length} duration_ms=${duration_ms} breaker=${breaker}`);
-      return res.status(200).json({ items: rows, meta: { source: 'sqlite', duration_ms, breaker } });
+  if (!responseSent) {
+    try {
+      // 2) SQLite cache (last known real scores)
+      const rows = await loadSqliteScores(limit);
+      if (rows && rows.length && !responseSent) {
+        responseSent = true;
+        recordSourceUsage('sqlite');
+        const duration_ms = Date.now() - t0;
+        console.info(`[contenders] source=sqlite items=${rows.length} duration_ms=${duration_ms} breaker=${breaker}`);
+        return res.status(200).json({ items: rows, meta: { source: 'sqlite', duration_ms, breaker } });
+      }
+    } catch (e) {
+      console.warn('sqlite fallback failed:', e?.message || e);
     }
-  } catch (e) {
-    console.warn('sqlite fallback failed:', e?.message || e);
   }
 
   // 3) Empty — safest fail-closed behavior
-  recordSourceUsage('empty');
-  const duration_ms = Date.now() - t0;
-  console.info(`[contenders] source=empty items=0 duration_ms=${duration_ms} breaker=${breaker}`);
-  return res.status(200).json({ items: [], meta: { source: 'empty', duration_ms, breaker } });
+  if (!responseSent) {
+    recordSourceUsage('empty');
+    const duration_ms = Date.now() - t0;
+    console.info(`[contenders] source=empty items=0 duration_ms=${duration_ms} breaker=${breaker}`);
+    return res.status(200).json({ items: [], meta: { source: 'empty', duration_ms, breaker } });
+  }
 });
 
 module.exports = router;

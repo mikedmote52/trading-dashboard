@@ -54,8 +54,29 @@ async function tick() {
   }
 }
 
-function startDirectWorker() {
+async function startDirectWorker() {
   console.log(`[direct_worker] 🚀 Starting discovery worker loop every ${PERIOD_MS}ms (${Math.round(PERIOD_MS/60000)}min)`);
+  
+  const strictFeeds = process.env.SCREENER_STRICT_FEEDS === "true";
+  const budgetMs = Number(process.env.SCREENER_BUDGET_MS || 12000);
+  
+  // Try boot screener but don't fail hard
+  try {
+    const { runScreenerSingleton } = require("../lib/screenerSingleton");
+    await runScreenerSingleton({
+      caller: "worker_boot",
+      limit: 10,
+      budgetMs,
+      jsonOut: "/tmp/discovery_screener.json",
+    });
+    console.log(`[direct_worker] Boot screener succeeded`);
+  } catch (e) {
+    if (strictFeeds) {
+      console.error(`[direct_worker] Boot screener failed in strict mode:`, e.message);
+      throw e;
+    }
+    console.warn(`[direct_worker] Boot screener failed in degraded mode — continuing:`, e.message || e);
+  }
   
   // Run first tick immediately
   tick();

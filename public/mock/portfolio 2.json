@@ -1,0 +1,104 @@
+{
+  "positions": [
+    {
+      "ticker": "KSS",
+      "shares": 8,
+      "avg_price": 13.60,
+      "current_price": 15.10,
+      "unrealized_pnl_pct": 11.0,
+      "exposure_usd": 120.80,
+      "days_held": 28
+    },
+    {
+      "ticker": "TEM",
+      "shares": 2,
+      "avg_price": 73.04,
+      "current_price": 76.77,
+      "unrealized_pnl_pct": 5.1,
+      "exposure_usd": 153.54,
+      "days_held": 7
+    },
+    {
+      "ticker": "TNXP",
+      "shares": 200,
+      "avg_price": 36.53,
+      "current_price": 29.12,
+      "unrealized_pnl_pct": -20.3,
+      "exposure_usd": 5824.00,
+      "days_held": 21
+    }
+  ],
+  "actions": [
+    {
+      "ticker": "KSS",
+      "action": "HOLD",
+      "confidence": 0.50,
+      "reason_codes": ["RSI_60_70", "VWAP_RECLAIM"],
+      "tp": [{"pct": 0.15, "size_pct": 0.50}, {"pct": 0.50, "size_pct": 0.50}],
+      "stop_loss": {"type": "pct", "value": 0.10},
+      "vigl_score": 55,
+      "intraday": {"rvol": 2.4, "vwap_reclaimed": true, "ema9_over_20": true}
+    },
+    {
+      "ticker": "TEM",
+      "action": "HOLD",
+      "confidence": 0.60,
+      "reason_codes": ["SCORE>=75", "EMA9>20"],
+      "tp": [{"pct": 0.15, "size_pct": 0.50}, {"pct": 0.50, "size_pct": 0.50}],
+      "stop_loss": {"type": "pct", "value": 0.10},
+      "vigl_score": 84,
+      "intraday": {"rvol": 3.1, "vwap_reclaimed": true, "ema9_over_20": true}
+    },
+    {
+      "ticker": "TNXP",
+      "action": "SELL",
+      "confidence": 0.80,
+      "reason_codes": ["FADE", "STOP_RISK"],
+      "tp": [{"pct": 0.15, "size_pct": 0.50}, {"pct": 0.50, "size_pct": 0.50}],
+      "stop_loss": {"type": "pct", "value": 0.10},
+      "vigl_score": 72,
+      "intraday": {"rvol": 1.2, "vwap_reclaimed": false, "ema9_over_20": false}
+    }
+  ],
+  "thesis": {
+    "KSS": {
+      "ticker": "KSS",
+      "entry_thesis": "Technical setup aligned with sector rotation into value.",
+      "current_thesis": "Position maintaining strength with stable trend characteristics.",
+      "trend": "Stable",
+      "deltas": {
+        "rvol": {"entry": 2.8, "now": 2.4},
+        "vwap": {"entry": "above", "now": "above"},
+        "ema_cross": {"entry": "bull", "now": "bull"},
+        "score": {"entry": 62, "now": 55}
+      },
+      "anticipated_range": {"low": 14.35, "high": 15.85}
+    },
+    "TEM": {
+      "ticker": "TEM",
+      "entry_thesis": "VIGL pattern detected with high probability breakout setup.",
+      "current_thesis": "Position maintaining strength with strengthening trend characteristics.",
+      "trend": "Strengthening",
+      "deltas": {
+        "rvol": {"entry": 3.5, "now": 3.1},
+        "vwap": {"entry": "above", "now": "above"},
+        "ema_cross": {"entry": "bull", "now": "bull"},
+        "score": {"entry": 77, "now": 84}
+      },
+      "anticipated_range": {"low": 73.00, "high": 80.50}
+    },
+    "TNXP": {
+      "ticker": "TNXP",
+      "entry_thesis": "Squeeze breakout with 3x rVol; above VWAP; 9/20 EMA bull.",
+      "current_thesis": "Position showing signs of weakness: below VWAP, low relative volume, bearish EMA cross. Trend: Broken.",
+      "trend": "Broken",
+      "deltas": {
+        "rvol": {"entry": 3.1, "now": 1.2},
+        "vwap": {"entry": "above", "now": "below"},
+        "ema_cross": {"entry": "bull", "now": "bear"},
+        "score": {"entry": 77, "now": 57}
+      },
+      "anticipated_range": {"low": 27.60, "high": 30.70}
+    }
+  }
+}

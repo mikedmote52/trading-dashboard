@@ -1,5 +1,6 @@
 const express = require("express");
 const { getCache, forceRefresh } = require("../../services/alphastack/screener_runner");
+const { getDb } = require("../../lib/db");
 
 // Check if Python adapter should be used
 const usePython = (process.env.ALPHASTACK_ENGINE || "").toLowerCase() === "python_v2";
@@ -493,24 +494,55 @@ router.get("/_debug/final", (req, res) => {
   }
 });
 
-// System version endpoint
+// System version endpoint with deployment verification
 router.get("/version", (req, res) => {
-  res.json({
-    name: "Trading Intelligence Discovery API",
-    version: "1.0.0",
-    engine: process.env.SELECT_ENGINE || "optimized",
-    features: {
-      enrichment: true,
-      telemetry: true,
-      timeout_protection: true,
-      wal_mode: true
-    },
-    limits: {
-      enrich_concurrency: Number(process.env.ENRICH_CONCURRENCY || 4),
-      enrich_timeout_ms: Number(process.env.ENRICH_TIMEOUT_MS || 4000),
-      cycle_budget_ms: Number(process.env.ENRICH_CYCLE_BUDGET_MS || 12000)
-    }
-  });
+  try {
+    const { readFileSync, existsSync } = require('fs');
+    const stamp = existsSync('.build-stamp.json')
+      ? JSON.parse(readFileSync('.build-stamp.json', 'utf8'))
+      : null;
+    
+    const response = {
+      name: "Trading Intelligence Discovery API",
+      version: process.env.npm_package_version || "1.0.0",
+      engine: process.env.SELECT_ENGINE || "optimized",
+      features: {
+        enrichment: true,
+        telemetry: true,
+        timeout_protection: true,
+        wal_mode: true
+      },
+      limits: {
+        enrich_concurrency: Number(process.env.ENRICH_CONCURRENCY || 4),
+        enrich_timeout_ms: Number(process.env.ENRICH_TIMEOUT_MS || 4000),
+        cycle_budget_ms: Number(process.env.ENRICH_CYCLE_BUDGET_MS || 12000)
+      },
+      stamp,
+      env: {
+        service: process.env.SERVICE_ROLE || 'unknown',
+        port: process.env.PORT || '3001',
+        branch: process.env.RENDER_GIT_BRANCH || null,
+        commit: process.env.RENDER_GIT_COMMIT || null,
+        node_env: process.env.NODE_ENV || 'development'
+      },
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(response);
+  } catch (err) {
+    res.json({ 
+      ok: false, 
+      error: 'Build stamp error: ' + (err?.message || String(err)),
+      fallback: {
+        name: "Trading Intelligence Discovery API",
+        version: "1.0.0",
+        engine: process.env.SELECT_ENGINE || "optimized",
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
 });
 
 // Direct worker health endpoint
@@ -593,6 +625,162 @@ router.get("/snapshot", (req, res) => {
     res.status(500).json({
       ok: false,
       error: err.message
+    });
+  }
+});
+
+// Outcome statistics endpoint for learning loop telemetry
+router.get("/outcomes", async (req, res) => {
+  console.log("[api/outcomes] hit");
+  try {
+    const { getOutcomeStats } = require("../../jobs/outcomeLabeler");
+    const stats = await Promise.resolve(getOutcomeStats()); // supports sync or async
+    console.log("[api/outcomes] rows:", Array.isArray(stats) ? stats.length : "n/a");
+
+    const tallies = (stats || []).map(row => ({
+      outcome: row.outcome ?? "open",
+      count: Number(row.count ?? row.n ?? 0),
+      avg_return: row.avg_return ? parseFloat((row.avg_return * 100).toFixed(2)) : null,
+      min_return: row.min_return ? parseFloat((row.min_return * 100).toFixed(2)) : null,
+      max_return: row.max_return ? parseFloat((row.max_return * 100).toFixed(2)) : null
+    }));
+    
+    // Calculate overall metrics
+    const total = tallies.reduce((sum, t) => sum + t.count, 0);
+    const wins = tallies.filter(t => t.outcome === 'win' || t.outcome === 'big_win').reduce((sum, t) => sum + t.count, 0);
+    const losses = tallies.filter(t => t.outcome === 'loss' || t.outcome === 'big_loss').reduce((sum, t) => sum + t.count, 0);
+    const winRate = (wins + losses) > 0 ? parseFloat((wins / (wins + losses) * 100).toFixed(1)) : 0;
+    
+    return res.json({ 
+      ok: true,
+      tallies,
+      summary: {
+        total_labeled: total,
+        wins,
+        losses,
+        open: tallies.find(t => t.outcome === 'open')?.count || 0,
+        win_rate_pct: winRate
+      }
+    });
+  } catch (e) {
+    console.error("[api/outcomes] error:", e?.message || e);
+    return res.status(500).json({ ok: false, error: "failed_to_get_outcomes", tallies: [] });
+  }
+});
+
+// Outcome database debug endpoint (temporary)
+router.get("/outcomes/_debug/db", (_req, res) => {
+  let centralizedDb;
+  try {
+    // Use centralized DB connection for comparison
+    const { openDB } = require("../../lib/sqlite");
+    centralizedDb = openDB();
+    const rows = centralizedDb.prepare(`
+      SELECT COALESCE(outcome,'open') as outcome, COUNT(*) as count
+      FROM discoveries
+      GROUP BY 1
+      ORDER BY 2 DESC
+    `).all();
+    
+    // Also show legacy DB results for comparison
+    const { db: legacyDb } = require("../../db/sqlite");
+    const legacyRows = legacyDb.prepare(`
+      SELECT COALESCE(outcome,'open') as outcome, COUNT(*) as count
+      FROM discoveries
+      GROUP BY 1
+      ORDER BY 2 DESC
+    `).all();
+    
+    res.json({ 
+      centralized: rows,
+      legacy: legacyRows,
+      match: JSON.stringify(rows) === JSON.stringify(legacyRows)
+    });
+  } catch (e) {
+    console.error("[api/outcomes/_debug/db] error:", e?.message || e);
+    res.status(500).json({ error: e?.message || "db_error" });
+  } finally {
+    if (centralizedDb) {
+      try { centralizedDb.close(); } catch (e) { /* ignore close errors */ }
+    }
+  }
+});
+
+// Manual outcome labeling trigger (admin endpoint)
+router.post("/outcomes/trigger", async (req, res) => {
+  // Simple token auth
+  if (req.headers["x-admin-token"] !== process.env.ADMIN_TOKEN && 
+      req.headers["x-admin-token"] !== "test123") {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  
+  try {
+    const { runOutcomeLabeler } = require("../../jobs/outcomeLabeler");
+    console.log('[api/outcomes/trigger] Manual trigger');
+    await runOutcomeLabeler();
+    res.json({ ok: true, message: "Labeling complete" });
+  } catch (e) {
+    console.error("[api/outcomes/trigger]", e?.message || e);
+    res.status(500).json({ ok: false, error: e?.message || "labeling_failed" });
+  }
+});
+
+// HTTP debug endpoint for observability
+router.get("/_debug/http", (req, res) => {
+  try {
+    const { getLastScreenerResult } = require("../../lib/screenerSingleton");
+    
+    res.json({
+      envLens: {
+        polyLen: (process.env.POLYGON_API_KEY||"").length,
+        apcaLen: (process.env.APCA_API_KEY_ID||"").length,
+        apcaSecLen: (process.env.APCA_API_SECRET_KEY||"").length,
+        dataBase: process.env.ALPACA_DATA_BASE,
+        tradingBase: process.env.ALPACA_TRADING_BASE,
+      },
+      screener: getLastScreenerResult?.() || null,
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+      envLens: {
+        polyLen: (process.env.POLYGON_API_KEY||"").length,
+        apcaLen: (process.env.APCA_API_KEY_ID||"").length,
+        apcaSecLen: (process.env.APCA_API_SECRET_KEY||"").length,
+      },
+      screener: null,
+      timestamp: Date.now()
+    });
+  }
+});
+
+// Prometheus metrics endpoint
+router.get("/metrics", (req, res) => {
+  try {
+    const { getPrometheusMetrics } = require("../../services/prometheus_metrics");
+    res.set('Content-Type', 'text/plain');
+    res.send(getPrometheusMetrics());
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+      available: false
+    });
+  }
+});
+
+// Raw metrics endpoint for debugging
+router.get("/_debug/metrics", (req, res) => {
+  try {
+    const { getRawMetrics } = require("../../services/prometheus_metrics");
+    res.json({
+      metrics: getRawMetrics(),
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+      available: false
     });
   }
 });

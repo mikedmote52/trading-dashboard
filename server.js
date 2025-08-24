@@ -241,6 +241,7 @@ app.use('/api/alphastack-v2', require('./server/routes/api/discoveries'));
 app.use('/api/discovery/contenders', require('./server/routes/api/discovery/contenders'));
 // Alias for client integration
 app.use('/api/discovery', require('./server/routes/api/discoveries'));
+app.use('/api/decisions', require('./server/routes/api/decisions'));
 app.use('/api/order', require('./server/routes/api/order'));
 app.use('/api/portfolio', require('./server/routes/api/portfolio'));
 app.use('/api/health', require('./server/routes/api/health'));
@@ -2734,6 +2735,16 @@ server.listen(port, '0.0.0.0', () => {
     console.log('🎯 Starting outcome labeler worker...');
     const { startOutcomeLabelerWorker } = require("./server/workers/outcome_labeler_worker");
     startOutcomeLabelerWorker();
+    
+    // Start decisions generator worker
+    console.log('💡 Starting decisions generator worker...');
+    const { startDecisionsGenerator } = require("./server/workers/decisions_generator");
+    startDecisionsGenerator();
+    
+    // Start portfolio background worker
+    console.log('📊 Starting portfolio background worker...');
+    const { startPortfolioWorker } = require("./server/workers/portfolio_background_worker");
+    startPortfolioWorker();
     
     // Start enrichment worker for composite scoring
     console.log('🧮 Starting enrichment worker...');

@@ -1,8 +1,15 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-// CRITICAL: Resolve database path and ensure schema BEFORE any queries
-const dbPath = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', '..', 'trading_dashboard.db');
+// Use centralized DB path resolution
+function getDbPath() {
+  // Support both new DB_PATH and legacy SQLITE_DB_PATH for compatibility
+  const envPath = process.env.DB_PATH || process.env.SQLITE_DB_PATH;
+  const defaultPath = envPath || path.join(__dirname, '..', '..', 'trading_dashboard.db');
+  return path.isAbsolute(defaultPath) ? defaultPath : path.resolve(defaultPath);
+}
+
+const dbPath = getDbPath();
 console.log(`📊 SQLite database path: ${dbPath}`);
 
 // Run schema creation synchronously BEFORE creating any prepared statements

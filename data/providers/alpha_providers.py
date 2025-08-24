@@ -7,17 +7,33 @@ import os
 import requests
 import time
 from typing import List, Dict, Optional
+from collections import defaultdict
 
 POLYGON = os.getenv("POLYGON_API_KEY")
 
+# metrics counters (module-level)
+METRICS = defaultdict(int)
+
+def polygon_get(url, params=None):
+    """Polygon API GET with HTTP traces and metrics"""
+    import os, requests
+    key = (os.getenv("POLYGON_API_KEY") or "").strip()
+    headers = {"X-Polygon-API-Key": key} if key else {}
+    if "Authorization" in headers: headers.pop("Authorization", None)  # belt
+    print(f"[http-trace:polygon] GET {url} params={params or {}} keyLen={len(key)} tail={key[-4:] if key else ''}")
+    r = requests.get(url, headers=headers, params=params, timeout=10)
+    print(f"[http-resp:polygon] status={r.status_code} body[:120]={r.text[:120].replace(chr(10),' ')}")
+    METRICS[f"polygon_http_{r.status_code}"] += 1
+    r.raise_for_status()
+    return r.json()
+
 def _get(url, params=None):
-    """Safe GET request with error handling"""
+    """Safe GET request with error handling (backward compatibility)"""
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        return response.json()
+        return polygon_get(url, params)
     except Exception as e:
-        print(f"API request failed: {e}")
+        METRICS["polygon_live_fail"] += 1
+        print(f"[universe] live fetch failed: {e}; falling back immediately")
         return {}
 
 def list_tickers(limit=1000, exchanges=("XNYS","XNAS","XASE")):
@@ -121,3 +137,11 @@ def short_metrics(symbol):
     # This would connect to your existing short interest data sources
     # For now, return None to indicate no data available
     return None
+
+def get_metrics():
+    """Export metrics for monitoring"""
+    return dict(METRICS)
+
+def print_metrics():
+    """Print metrics in standard format for log parsing"""
+    print("[metrics]", dict(METRICS))

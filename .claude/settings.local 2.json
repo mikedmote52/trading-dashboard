@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(timeout 30 python3 VIGL_Discovery_Complete.py)",
+      "Bash(pkill:*)",
+      "Bash(timeout 60 python3 VIGL_Discovery_Complete.py --json)",
+      "Bash(touch:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(timeout 300 python3 VIGL_Discovery_Complete.py)",
+      "Bash(git checkout:*)",
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(node:*)",
+      "Bash(cp:*)",
+      "Bash(gh pr create:*)",
+      "Bash(true)",
+      "Bash(cat:*)",
+      "Bash(npm test)",
+      "Bash(sqlite3:*)",
+      "Bash(export SCAN_SYMBOLS=\"VIGL,CRWV,AEVA,CRDO,SEZL,SMCI,TSLA,REKR,AMD,NVDA,QUBT,AVGO,RGTI,SPOT,WOLF\")",
+      "Bash(echo:*)",
+      "Bash(export POLYGON_API_KEY=\"p50INptuiQ05FW6FwGREFqo8dSzcuq36\")"
+    ],
+    "deny": []
+  }
+}

@@ -1,16 +1,17 @@
-const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { runScreenerSingleton } = require("../../lib/screenerSingleton");
 
-const PY = process.env.PYTHON_BIN || "python3";
-const SCRIPT = process.env.SCREENER_SCRIPT || "agents/universe_screener_v2.py";
-const ARGS = (process.env.SCREENER_ARGS || "").split(" ").filter(Boolean);
 const REFRESH_MS = parseInt(process.env.REFRESH_MS || "120000", 10);
 const CACHE_TTL_MS = parseInt(process.env.CACHE_TTL_MS || "180000", 10);
 
-// Defensively add seed if missing
-if (!ARGS.includes('--seed')) {
-  ARGS.push('--seed', '1337');
+// Parse default args
+const DEFAULT_ARGS = (process.env.SCREENER_ARGS || "--limit 50 --json-out --exclude-symbols BTAI,KSS,UP,TNXP").split(" ").filter(Boolean);
+let DEFAULT_LIMIT = 50;
+const limitArg = DEFAULT_ARGS.find(arg => arg.startsWith('--limit'));
+if (limitArg) {
+  const match = limitArg.match(/--limit[=\s]?(\d+)/);
+  if (match) DEFAULT_LIMIT = parseInt(match[1]);
 }
 
 let cache = { items: [], updatedAt: 0, running: false, lastErr: null, meta: null };
@@ -48,20 +49,29 @@ function sortSafe(items) {
   );
 }
 
-function runOnce() {
+async function runOnce() {
   if (cache.running) return false;
   cache.running = true; cache.lastErr = null;
 
-  const child = spawn(PY, [SCRIPT, ...ARGS], { stdio: ["ignore","pipe","pipe"] });
-  let out = "", err = "";
-  child.stdout.on("data", d => out += d.toString());
-  child.stderr.on("data", d => err += d.toString());
-  child.on("close", code => {
-    cache.running = false;
-    if (code !== 0) { cache.lastErr = `screener exit ${code}: ${err.slice(0,2000)}`; return; }
-    try {
-      const parsed = JSON.parse(out);
-      const items = sortSafe(parseSafe(out));
+  try {
+    const result = await runScreenerSingleton({
+      limit: DEFAULT_LIMIT,
+      budgetMs: 60000,
+      jsonOut: '/tmp/alphastack_screener.json',
+      caller: 'py_adapter'
+    });
+    
+    if (result.code !== 0) {
+      cache.lastErr = `screener exit ${result.code}: ${result.stderr.slice(0,2000)}`;
+      cache.running = false;
+      return false;
+    }
+
+    // Read JSON output
+    if (fs.existsSync(result.jsonOut)) {
+      const jsonContent = fs.readFileSync(result.jsonOut, 'utf8');
+      const parsed = JSON.parse(jsonContent);
+      const items = sortSafe(parseSafe(jsonContent));
       
       // Defensive guard against alphabetical bleed‑through
       const first = items.slice(0,12).map(i => i.ticker||"");
@@ -78,8 +88,12 @@ function runOnce() {
         cache.snapPath = snapPath;
         console.log(`📸 Snapshot saved: ${snapPath}`);
       }
-    } catch (e) { cache.lastErr = e.message; }
-  });
+    }
+  } catch (error) {
+    cache.lastErr = error.message;
+  } finally {
+    cache.running = false;
+  }
   return true;
 }
 

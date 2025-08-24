@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portfolio Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #0f172a; color: white; }
+        .position { border: 1px solid #444; padding: 10px; margin: 5px; background: rgba(255,255,255,0.1); border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Portfolio Test</h1>
+    <div id="portfolioPositions">Loading...</div>
+    
+    <script>
+        console.log('🚀 Portfolio test script started');
+        
+        async function loadPortfolio() {
+            try {
+                console.log('📊 Fetching portfolio data...');
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                console.log('✅ Data loaded:', {
+                    hasPortfolio: !!data.portfolio,
+                    positionsCount: data.portfolio?.positions?.length
+                });
+                
+                const container = document.getElementById('portfolioPositions');
+                const positions = data.portfolio?.positions || [];
+                
+                if (positions.length === 0) {
+                    container.innerHTML = '<div>No positions found</div>';
+                    return;
+                }
+                
+                container.innerHTML = positions.map(pos => `
+                    <div class="position">
+                        <strong>${pos.symbol}</strong> - ${pos.qty} shares @ $${pos.currentPrice?.toFixed(2)}
+                        <br>P&L: $${pos.unrealizedPnL?.toFixed(2)} (${pos.unrealizedPnLPercent?.toFixed(1)}%)
+                        <br>Risk: ${pos.riskAnalysis?.recommendation || 'HOLD'}
+                    </div>
+                `).join('');
+                
+                console.log('🎉 Portfolio rendered successfully!');
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                document.getElementById('portfolioPositions').innerHTML = `<div>Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Load when page is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadPortfolio);
+        } else {
+            loadPortfolio();
+        }
+    </script>
+</body>
+</html>

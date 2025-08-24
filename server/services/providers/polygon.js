@@ -139,6 +139,33 @@ class PolygonProvider {
       return null;
     }
   }
+
+  async getHistoricalBars(symbol, fromDate, toDate) {
+    if (!this.apiKey) return null;
+    
+    try {
+      const url = `${this.baseUrl}/v2/aggs/ticker/${symbol}/range/1/day/${fromDate}/${toDate}?apikey=${this.apiKey}`;
+      
+      const response = await axios.get(url, { timeout: 8000 });
+      
+      if (response.data?.results && response.data.results.length > 0) {
+        return response.data.results.map(bar => ({
+          t: bar.t, // timestamp
+          o: bar.o, // open
+          h: bar.h, // high
+          l: bar.l, // low
+          c: bar.c, // close
+          v: bar.v, // volume
+          vw: bar.vw // vwap
+        }));
+      }
+      
+      return [];
+    } catch (error) {
+      console.warn(`⚠️ Failed to fetch historical bars for ${symbol} ${fromDate}-${toDate}:`, error.message);
+      return [];
+    }
+  }
 }
 
 // Technical analysis helpers

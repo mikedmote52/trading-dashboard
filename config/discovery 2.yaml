@@ -1,0 +1,57 @@
+# AlphaStack Discovery Configuration
+# Version: v2-exp (experimental iteration branch)
+# Baseline: discovery-v1.0 (frozen stable)
+
+version: v2-exp
+seed: 1337
+limit: 50
+default_contenders: 5
+
+# Conviction Gate - Stage 3.5 filtering
+funnel:
+  relvol_gate: 1.8        # Minimum relative volume threshold
+  atr_gate: 0.04          # Minimum ATR percentage (4%)
+  ret5_gate: 0.08         # Minimum 5-day return (8%)
+  require_hits: 2         # 2-of-3 rule for conviction
+
+# VIGL scoring weights (preserve v1 compatibility)
+vigl_weights:
+  momentum: 0.40          # 5-day and 21-day returns
+  volatility: 0.30        # ATR percentage
+  liquidity: 0.15         # Average dollar volume
+  price_tier_bonus: 0.15  # Ultra micro-cap bonus
+
+# Contender boost factors for competition ranking
+contender_boosts:
+  relvol_2_5: 6          # High relative volume (≥2.5x)
+  relvol_1_8: 3          # Moderate relative volume (≥1.8x)
+  atr_08: 4              # High volatility (≥8%)
+  atr_05: 2              # Moderate volatility (≥5%)
+  ret5d_50: 4            # Explosive momentum (≥50%)
+  ret5d_25: 2            # Strong momentum (≥25%)
+  score_95: 3            # Top VIGL scores (≥95)
+  score_90: 1            # High VIGL scores (≥90)
+
+# Feature flags for safe experimentation
+features:
+  use_conviction_gate: false      # Stage 3.5 filtering
+  use_enhanced_boosts: false      # Additional signal boosts
+  options_flow_signals: false     # Options flow analysis
+  technical_indicators: false     # RSI, EMA crossovers
+  repeat_contender_bonus: false   # Persistence tracking
+
+# Promotion criteria thresholds
+promotion:
+  min_hit_rate_improvement: 0.03  # +3 percentage points
+  min_median_runup_ratio: 1.0     # ≥ v1 median
+  max_drawdown_ratio: 1.0         # ≤ v1 max drawdown
+  min_liquidity_percentile: 0.8   # 80th percentile ADV
+  min_diversity_letters: 8        # Alphabet diversity
+  min_eval_days: 20              # Rolling window for promotion
+
+# Telemetry and logging
+telemetry:
+  log_decisions: true
+  log_outcomes: true
+  retention_days: 90
+  metrics_interval_minutes: 60

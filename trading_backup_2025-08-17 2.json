@@ -1,0 +1,160 @@
+{
+  "portfolio": {
+    "positions": [
+      {
+        "symbol": "BTAI",
+        "qty": 66,
+        "currentPrice": 5.48,
+        "avgEntryPrice": 3.205152,
+        "marketValue": 361.68,
+        "unrealizedPnL": 150.14,
+        "unrealizedPnLPercent": 70.97475654722511,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 211.54,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "3.205152",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "KSS",
+        "qty": 8,
+        "currentPrice": 13.77,
+        "avgEntryPrice": 12.685,
+        "marketValue": 110.16,
+        "unrealizedPnL": 8.68,
+        "unrealizedPnLPercent": 8.55340953882538,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 101.48,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "12.685",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "LIXT",
+        "qty": 223,
+        "currentPrice": 3.59,
+        "avgEntryPrice": 4.2,
+        "marketValue": 800.57,
+        "unrealizedPnL": -136.03,
+        "unrealizedPnLPercent": -14.52380952380952,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 936.6,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "4.2",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "PSTV",
+        "qty": 274,
+        "currentPrice": 0.6279,
+        "avgEntryPrice": 0.730926,
+        "marketValue": 172.0446,
+        "unrealizedPnL": -28.2291,
+        "unrealizedPnLPercent": -14.095260635819882,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 200.2737,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "0.730926",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "TNXP",
+        "qty": 2,
+        "currentPrice": 51.35,
+        "avgEntryPrice": 45.84,
+        "marketValue": 102.7,
+        "unrealizedPnL": 11.02,
+        "unrealizedPnLPercent": 12.02006980802792,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 91.68,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "45.84",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "UP",
+        "qty": 67,
+        "currentPrice": 1.8,
+        "avgEntryPrice": 1.529552,
+        "marketValue": 120.6,
+        "unrealizedPnL": 18.12,
+        "unrealizedPnLPercent": 17.68149882903981,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 102.48,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "1.529552",
+          "pnlCalculated": true
+        }
+      },
+      {
+        "symbol": "WULF",
+        "qty": 11,
+        "currentPrice": 8.97,
+        "avgEntryPrice": 8.54,
+        "marketValue": 98.67,
+        "unrealizedPnL": 4.73,
+        "unrealizedPnLPercent": 5.0351288056206105,
+        "side": "long",
+        "dailyPnL": 0,
+        "dailyPnLPercent": 0,
+        "changeToday": 0,
+        "hasDailyData": true,
+        "costBasis": 93.94,
+        "validation": {
+          "hasDailyData": true,
+          "pricesValid": "8.54",
+          "pnlCalculated": true
+        }
+      }
+    ],
+    "account": {
+      "equity": 100265.1,
+      "cash": 98498.68,
+      "buying_power": 198471.14
+    },
+    "totalValue": 1766.4246,
+    "totalPnL": 28.430899999999994,
+    "totalPnLPercent": 1.6358459757362755,
+    "dailyPnL": 0,
+    "dailyPnLPercent": 0,
+    "positionCount": 7,
+    "timestamp": "2025-08-17T04:43:49.007Z"
+  },
+  "timestamp": "2025-08-17T04:43:49.007Z",
+  "source": "alpaca-api"
+}

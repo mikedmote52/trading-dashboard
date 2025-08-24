@@ -4,35 +4,47 @@
  * Bypasses broken AlphaStack/VIGL layers temporarily
  */
 
-const { execFile } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 
-const SCRIPT = process.env.SCREENER_SCRIPT || 'agents/universe_screener_v2.py';
 const JSON_OUT = process.env.SCREENER_JSON_OUT_DEFAULT || '/tmp/discovery_screener.json';
 
+// Store last stderr for error reporting
+let lastScreenerStderr = "";
+
 /**
- * Run Python screener directly
+ * Run Python screener using singleton pattern to prevent overlapping runs
  */
-function runPy(limit = 10, budgetMs = 12000) {
-  return new Promise((resolve, reject) => {
-    const args = [SCRIPT, '--limit', String(limit), '--budget-ms', String(budgetMs), '--json-out', JSON_OUT];
-    console.log(`🐍 Running direct screener: python3 ${args.join(' ')}`);
+async function runPy(limit = 10, budgetMs = 12000) {
+  try {
+    // Import the singleton wrapper (using dynamic import for .ts file)
+    const { runScreenerSingleton } = require('../lib/screenerSingleton');
     
-    const child = execFile('python3', args, { timeout: budgetMs + 2000 }, (err, stdout, stderr) => {
-      if (err) {
-        console.error('❌ Screener failed:', err.message);
-        console.error('stderr:', stderr);
-        reject(err);
-      } else {
-        console.log(`✅ Screener complete: ${JSON_OUT}`);
-        resolve();
-      }
+    const jsonOut = JSON_OUT;
+    console.log(`🐍 Running direct screener (singleton): limit=${limit}, budget=${budgetMs}ms, out=${jsonOut}`);
+    
+    const result = await runScreenerSingleton({
+      limit,
+      budgetMs,
+      jsonOut,
+      caller: "direct_ingest"
     });
     
-    child.stdout?.on('data', (d) => process.stdout.write(`[screener] ${d}`));
-    child.stderr?.on('data', (d) => process.stderr.write(`[screener-err] ${d}`));
-  });
+    // Store stderr for error reporting compatibility
+    lastScreenerStderr = result.stderr;
+    
+    if (result.code !== 0) {
+      throw new Error(`Python screener failed with exit code ${result.code}; stderr=${result.stderr.slice(0, 500)}`);
+    }
+    
+    console.log(`✅ Screener complete: ${jsonOut} (${result.durationMs}ms)`);
+    return result;
+    
+  } catch (error) {
+    console.error(`❌ Screener singleton error:`, error.message);
+    lastScreenerStderr = error.message;
+    throw error;
+  }
 }
 
 /**
@@ -77,8 +89,8 @@ async function ingestDirect(limit = 10, budgetMs = 12000) {
     
     console.log(`📊 Processing ${items.length} discoveries for unified ingest`);
     
-    if (items.length === 0) {
-      return { count: 0, message: 'No discoveries found' };
+    if (!items?.length) {
+      throw new Error(`No items normalized; stderr=${lastScreenerStderr || "n/a"}`);
     }
     
     // Use unified discovery ingestion

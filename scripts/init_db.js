@@ -182,7 +182,12 @@ CREATE INDEX IF NOT EXISTS idx_data_status_updated_at ON data_status(updated_at)
       { name: 'price', type: 'REAL' },
       { name: 'preset', type: 'TEXT' },
       { name: 'action', type: 'TEXT' },
-      { name: 'audit_json', type: 'TEXT' }
+      { name: 'audit_json', type: 'TEXT' },
+      // Outcome tracking columns for learning loop
+      { name: 'entry_at', type: 'TEXT' },
+      { name: 'horizon_days', type: 'INTEGER DEFAULT 7' },
+      { name: 'realized_return', type: 'REAL' },
+      { name: 'outcome', type: 'TEXT' }
     ];
     
     for (const col of requiredColumns) {

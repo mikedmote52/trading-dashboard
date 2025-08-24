@@ -18,10 +18,10 @@ function insertDiscoveries(discoveries, source) {
   const inserted = [];
   const errors = [];
   
-  // Prepare insert statement for main discoveries table
+  // Prepare insert statement for main discoveries table with outcome tracking
   const stmt = db.prepare(`
-    INSERT INTO discoveries (id, symbol, score, price, preset, action, features_json, audit_json, created_at)
-    VALUES (@id, @symbol, @score, @price, @preset, @action, @features_json, @audit_json, CURRENT_TIMESTAMP)
+    INSERT INTO discoveries (id, symbol, score, price, preset, action, features_json, audit_json, created_at, entry_at, horizon_days)
+    VALUES (@id, @symbol, @score, @price, @preset, @action, @features_json, @audit_json, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 7)
   `);
   
   // Prepare VIGL compatibility insert

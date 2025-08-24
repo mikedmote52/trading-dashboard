@@ -1,114 +1,54 @@
+# Render deployment configuration
+# Copy this configuration to Render dashboard or use for reference
+
 services:
-  # Unified Trading Dashboard Web Service
   - type: web
-    name: trading-dashboard
+    name: trading-dashboard-web
     env: node
-    buildCommand: npm install && pip3 install -r requirements.txt
-    startCommand: node scripts/init_db.js && npm run render:start
-    plan: starter
+    region: oregon  # or your preferred region
+    plan: starter  # or higher
+    buildCommand: node scripts/write_build_stamp.js && npm ci
+    startCommand: npm run render:start
     envVars:
-      # Market Data API
-      - key: POLYGON_API_KEY
-        sync: false
-      
-      # Alpaca Trading API (Paper Trading)  
-      - key: APCA_API_KEY_ID
-        sync: false
-      - key: APCA_API_SECRET_KEY
-        sync: false
-      - key: APCA_API_BASE_URL
-        value: https://paper-api.alpaca.markets
-        
-      # Legacy variable names (for compatibility)
-      - key: ALPACA_API_KEY
-        sync: false
-      - key: ALPACA_SECRET_KEY  
-        sync: false
-      - key: ALPACA_BASE_URL
-        value: https://paper-api.alpaca.markets
-      
-      # Server Configuration
+      - key: SERVICE_ROLE
+        value: web
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
-      - key: SERVE_STATIC
-        value: true
-        
-      # Unified Engine Configuration
-      - key: USE_UNIFIED_ENGINE
-        value: "1"
-      - key: NEW_DASH_ENABLED
-        value: "true"
-      - key: PORTFOLIO_INTELLIGENCE
-        value: "true"
-      - key: SELECT_ENGINE
-        value: v1  # Temporarily use v1 for reliability
-      - key: ORDERS_ENABLED
-        value: "1"
-      
-      # Fix parquet hang issues
-      - key: FEATURE_CACHE_BACKEND
-        value: sqlite
-      - key: FEATURE_CACHE_PATH
-        value: /var/data/trading_dashboard.db
-      - key: SKIP_CACHE_WRITES
-        value: "false"
-      
-      # Screener timeouts and budgets
-      - key: SCREENER_TIMEOUT_MS
-        value: "90000"
-      - key: SCREENER_BUDGET_MS
-        value: "30000"
-      
-      # Reduce universe for faster startup
-      - key: UNIVERSE_TARGET
-        value: "200"
-      - key: UNIVERSE_MIN
-        value: "100"
-      - key: UNIVERSE_PRICE_MIN
-        value: "0.5"
-      - key: UNIVERSE_PRICE_MAX
-        value: "200"
-      
-      # Startup behavior
       - key: STRICT_STARTUP
-        value: "true"
-        
-      # Same-origin URL configuration (empty = relative URLs)
-      - key: NEXT_PUBLIC_DISCOVERY_URL
-        value: ""
-      - key: NEXT_PUBLIC_PORTFOLIO_URL
-        value: ""
-      - key: NEXT_PUBLIC_ALPACA_PROXY_URL
-        value: ""
-        
-      # Admin Authentication
-      - key: ADMIN_TOKEN
-        sync: false
-        
-      # Trading Configuration
-      - key: VIGL_BUY_THRESH
-        value: 70
-      - key: VIGL_WATCH_THRESH
-        value: 55
-      - key: VIGL_MONITOR_THRESH
-        value: 35
-      - key: SCAN_MAX_TICKERS
-        value: 1200
-        
-      # Risk Management (Conservative Go-Live)
-      - key: MAX_DAILY_NOTIONAL
-        value: "500"
-      - key: MAX_TICKER_EXPOSURE
-        value: "150"
-        
-      # Scoring Configuration (keep as single line JSON)
-      - key: SCORING_WEIGHTS_JSON
-        value: '{"short_interest_weight":2.0,"borrow_fee_weight":1.5,"volume_weight":1.2,"momentum_weight":1.0,"catalyst_weight":0.8,"float_penalty_weight":-0.6}'
+        value: false
+      - key: SCREENER_STRICT_FEEDS
+        value: false
     
-    # Health check configuration
-    healthCheckPath: /api/health
-    
-    # Auto-deploy from main branch
-    autoDeploy: true
+  - type: worker
+    name: trading-dashboard-worker  
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: node scripts/write_build_stamp.js && npm ci
+    startCommand: ROLE=worker npm run render:start
+    envVars:
+      - key: SERVICE_ROLE
+        value: worker
+      - key: ROLE
+        value: worker
+      - key: NODE_ENV
+        value: production
+      - key: STRICT_STARTUP
+        value: false
+      - key: SCREENER_STRICT_FEEDS
+        value: false
+      - key: OUTCOME_LABELER_ENABLED
+        value: true
+
+# Environment variables to set in Render dashboard:
+# 
+# Required for both services:
+# - POLYGON_API_KEY: Your Polygon.io API key
+# - APCA_API_KEY_ID: Alpaca paper trading API key ID  
+# - APCA_API_SECRET_KEY: Alpaca paper trading secret key
+# - ALPACA_TRADING_BASE: https://paper-api.alpaca.markets
+# - ALPACA_DATA_BASE: https://data.alpaca.markets
+#
+# Optional:
+# - ADMIN_TOKEN: For protected admin endpoints (defaults to "test123")
+# - SQLITE_DB_PATH: Custom database path (defaults to ./trading_dashboard.db)

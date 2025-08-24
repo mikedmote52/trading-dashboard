@@ -1,4 +1,5 @@
-import { spawn } from "child_process";
+import { runScreenerSingleton } from "../../lib/screenerSingleton";
+import * as fs from "fs";
 
 type Cache = { 
   items: any[]; 
@@ -14,13 +15,19 @@ const cache: Cache = {
   error: null 
 };
 
-const PY = process.env.PYTHON_BIN || "python3";
-const SCR = process.env.SCREENER_SCRIPT || "agents/universe_screener.py";
-const ARGS = (process.env.SCREENER_ARGS || "--limit 50 --full-universe --json-out --exclude-symbols BTAI,KSS,UP,TNXP").split(" ");
+const DEFAULT_ARGS = (process.env.SCREENER_ARGS || "--limit 50 --full-universe --json-out --exclude-symbols BTAI,KSS,UP,TNXP").split(" ");
 const INTERVAL_MS = Number(process.env.V2_REFRESH_MS || 120000);
 const TTL_MS = Number(process.env.DISCOVERY_TTL_MS || 180000);
 
-function runOnce() {
+// Parse limit from args
+let DEFAULT_LIMIT = 50;
+const limitArg = DEFAULT_ARGS.find(arg => arg.includes('limit'));
+if (limitArg) {
+  const match = limitArg.match(/--limit[=\s]?(\d+)/);
+  if (match) DEFAULT_LIMIT = parseInt(match[1]);
+}
+
+async function runOnce() {
   if (cache.running) {
     console.log('⏭️  AlphaStack scan already running, skipping...');
     return;
@@ -31,34 +38,21 @@ function runOnce() {
   
   console.log('🚀 Starting AlphaStack VIGL universe scan...');
   
-  let out = "", err = "";
-  const proc = spawn(PY, [SCR, ...ARGS], { 
-    stdio: ["ignore", "pipe", "pipe"] 
-  });
+  try {
+    const result = await runScreenerSingleton({
+      limit: DEFAULT_LIMIT,
+      budgetMs: 300000, // 5 minutes
+      jsonOut: '/tmp/alphastack_runner.json',
+      caller: 'screener_runner'
+    });
 
-  proc.stdout.on("data", d => out += d.toString());
-  proc.stderr.on("data", d => err += d.toString());
-
-  // Timeout protection
-  const timeout = setTimeout(() => {
-    console.log('⚠️ AlphaStack scan timeout (5min), terminating...');
-    proc.kill('SIGTERM');
-    cache.running = false;
-    cache.error = 'Scan timeout after 5 minutes';
-  }, 300000); // 5 minutes
-
-  proc.on("close", (code) => {
-    clearTimeout(timeout);
-    cache.running = false;
     
-    if (code === 0) {
+    if (result.code === 0) {
       try {
-        // Parse JSON output from universe screener
-        const lines = out.split('\n');
-        const jsonLine = lines.find(line => line.trim().startsWith('['));
-        
-        if (jsonLine) {
-          const data = JSON.parse(jsonLine);
+        // Read JSON output file
+        if (fs.existsSync(result.jsonOut)) {
+          const jsonContent = fs.readFileSync(result.jsonOut, 'utf8');
+          const data = JSON.parse(jsonContent);
           cache.items = Array.isArray(data) ? data : (data.items || []);
           cache.updatedAt = Date.now();
           cache.error = null;
@@ -70,28 +64,24 @@ function runOnce() {
             console.log('📊 Sample discoveries:', sample.map(d => `${d.symbol || d.ticker}:${d.score}`).join(', '));
           }
         } else {
-          console.log('❌ No JSON output from AlphaStack screener');
-          console.log('stdout:', out.substring(0, 500));
-          cache.error = 'No JSON output from screener';
+          console.log('❌ No JSON output file from AlphaStack screener');
+          cache.error = 'No JSON output file from screener';
         }
       } catch (parseError) {
         console.error('❌ Failed to parse AlphaStack output:', parseError.message);
-        console.log('stdout sample:', out.substring(0, 500));
         cache.error = 'JSON parse failed: ' + parseError.message;
       }
     } else {
-      console.error(`❌ AlphaStack screener failed with code ${code}`);
-      console.error('stderr:', err.substring(0, 500));
-      cache.error = `Screener exit code: ${code}`;
+      console.error(`❌ AlphaStack screener failed with code ${result.code}`);
+      console.error('stderr:', result.stderr.substring(0, 500));
+      cache.error = `Screener exit code: ${result.code}`;
     }
-  });
-
-  proc.on('error', (error) => {
-    clearTimeout(timeout);
+    
+  } catch (error) {
     cache.running = false;
     cache.error = error.message;
     console.error('❌ AlphaStack process error:', error.message);
-  });
+  }
 }
 
 export function startLoop() {

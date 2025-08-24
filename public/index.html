@@ -106,6 +106,38 @@
         <!-- Main Dashboard Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
+            <!-- Trading Decisions Section -->
+            <div class="dashboard-card p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-white flex items-center">
+                        🎯 Trading Decisions
+                        <span class="ml-2 text-xs px-2 py-1 rounded bg-yellow-700 text-yellow-200">ACTIVE</span>
+                    </h2>
+                    <button id="refresh-decisions" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-xl text-sm font-bold shadow-lg border border-yellow-500">
+                        🔄 Refresh
+                    </button>
+                </div>
+                
+                <div id="decisions-table" class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="text-left py-2">Ticker</th>
+                                <th class="text-right py-2">Score</th>
+                                <th class="text-right py-2">Entry</th>
+                                <th class="text-right py-2">Stop</th>
+                                <th class="text-right py-2">TP1</th>
+                                <th class="text-right py-2">TP2</th>
+                                <th class="text-center py-2">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="decisions-body">
+                            <tr><td colspan="7" class="text-center py-4 text-gray-400">Loading decisions...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
             <!-- Portfolio Management Section -->
             <div class="dashboard-card p-6">
                 <div class="flex justify-between items-center mb-6">
@@ -237,6 +269,53 @@
             alert(`Would execute $100 buy order for ${symbol} at $${price}`);
         };
         
+        // Load Trading Decisions
+        async function loadDecisions() {
+            try {
+                console.log('🎯 Loading trading decisions...');
+                const response = await fetch('/api/decisions/latest?limit=10');
+                const decisions = await response.json();
+                
+                const tbody = document.getElementById('decisions-body');
+                
+                if (!decisions || decisions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-400">No active decisions</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = decisions.map(dec => {
+                    const statusColor = dec.status === 'executed' ? 'text-green-400' : 
+                                      dec.status === 'planned' ? 'text-yellow-400' : 'text-gray-400';
+                    const score = dec.current_score || dec.rationale?.score || 0;
+                    
+                    return `
+                        <tr class="border-b border-gray-800 hover:bg-gray-800/50">
+                            <td class="py-2 font-bold">${dec.symbol}</td>
+                            <td class="py-2 text-right ${score >= 85 ? 'text-green-400' : score >= 75 ? 'text-yellow-400' : 'text-gray-400'}">
+                                ${score.toFixed(0)}
+                            </td>
+                            <td class="py-2 text-right">$${dec.entry?.toFixed(2) || '-'}</td>
+                            <td class="py-2 text-right text-red-400">$${dec.stop?.toFixed(2) || '-'}</td>
+                            <td class="py-2 text-right text-green-400">$${dec.tp1?.toFixed(2) || '-'}</td>
+                            <td class="py-2 text-right text-green-400">$${dec.tp2?.toFixed(2) || '-'}</td>
+                            <td class="py-2 text-center">
+                                <span class="px-2 py-1 rounded text-xs ${statusColor}">
+                                    ${dec.status?.toUpperCase() || 'PENDING'}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                console.log('✅ Decisions loaded:', decisions.length);
+                
+            } catch (error) {
+                console.error('❌ Decisions load error:', error);
+                document.getElementById('decisions-body').innerHTML = 
+                    `<tr><td colspan="7" class="text-center py-4 text-red-400">Error: ${error.message}</td></tr>`;
+            }
+        }
+        
         // Squeeze Recommendations Preview
         async function loadSqueezeRecommendationsPreview() {
             try {
@@ -367,6 +446,9 @@
             // Load squeeze recommendations preview
             loadSqueezeRecommendationsPreview();
             
+            // Load trading decisions
+            loadDecisions();
+            
             // Load portfolio immediately (basic view by default)
             loadPortfolio();
             
@@ -389,6 +471,11 @@
                 } else {
                     loadPortfolio();
                 }
+            });
+            
+            // Refresh decisions button
+            document.getElementById('refresh-decisions')?.addEventListener('click', function() {
+                loadDecisions();
             });
             
             console.log('🎉 Dashboard initialization complete');

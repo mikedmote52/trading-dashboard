@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portfolio Debug Test</title>
+</head>
+<body>
+    <h1>Portfolio Debug Test</h1>
+    <div id="portfolioPositions">Loading...</div>
+    <script>
+        async function testPortfolio() {
+            try {
+                console.log('🔍 Testing portfolio loading...');
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                console.log('📊 Data loaded:', {
+                    hasPortfolio: !!data.portfolio,
+                    positionsCount: data.portfolio?.positions?.length,
+                    hasSummary: !!data.summary
+                });
+                
+                // Test rendering
+                const container = document.getElementById('portfolioPositions');
+                const positions = data.portfolio?.positions || [];
+                
+                if (positions.length === 0) {
+                    container.innerHTML = '<div>No positions found</div>';
+                    return;
+                }
+                
+                console.log('✅ Rendering', positions.length, 'positions');
+                container.innerHTML = positions.map(pos => `
+                    <div style="border: 1px solid #ccc; padding: 10px; margin: 5px;">
+                        <strong>${pos.symbol}</strong> - ${pos.qty} shares @ $${pos.currentPrice}
+                        <br>P&L: $${pos.unrealizedPnL} (${pos.unrealizedPnLPercent.toFixed(1)}%)
+                    </div>
+                `).join('');
+                
+                console.log('🎉 Portfolio rendering test complete!');
+                
+            } catch (error) {
+                console.error('❌ Portfolio test error:', error);
+                document.getElementById('portfolioPositions').innerHTML = `<div>Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Run test when page loads
+        testPortfolio();
+    </script>
+</body>
+</html>

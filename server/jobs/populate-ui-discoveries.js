@@ -43,7 +43,7 @@ async function populateUIWithRealDiscoveries() {
     }
     
     // Clear old UI data (keep last 24h only)
-    await db.db.prepare('DELETE FROM discoveries_vigl WHERE created_at < datetime("now", "-24 hours")').run();
+    await db.db.prepare('DELETE FROM discoveries_vigl WHERE created_at < datetime(\'now\', \'-24 hours\')').run();
     
     // Transform real discoveries to UI format
     const uiDiscoveries = [];
