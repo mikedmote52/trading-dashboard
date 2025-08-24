@@ -242,6 +242,7 @@ app.use('/api/discovery/contenders', require('./server/routes/api/discovery/cont
 // Alias for client integration
 app.use('/api/discovery', require('./server/routes/api/discoveries'));
 app.use('/api/decisions', require('./server/routes/api/decisions'));
+app.use('/api/migrate', require('./server/routes/api/migrate'));
 app.use('/api/order', require('./server/routes/api/order'));
 app.use('/api/portfolio', require('./server/routes/api/portfolio'));
 app.use('/api/health', require('./server/routes/api/health'));
